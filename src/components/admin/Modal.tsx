@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -14,8 +15,18 @@ interface ModalProps {
 /**
  * 通用弹窗：移动端底部抽屉、桌面端居中卡片。
  * 支持点击遮罩 / Esc 关闭；打开时锁定页面滚动。
+ *
+ * 通过 Portal 挂到 document.body 下，避免任何祖先元素（动画 transform、
+ * filter、backdrop-filter 等）劫持 fixed 定位或层叠层级。
  */
 export default function Modal({ open, title, onClose, children, footer }: ModalProps) {
+  // 仅客户端挂载后渲染 Portal，避免 SSR/水合不一致
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -30,9 +41,9 @@ export default function Modal({ open, title, onClose, children, footer }: ModalP
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6"
       role="dialog"
@@ -63,6 +74,7 @@ export default function Modal({ open, title, onClose, children, footer }: ModalP
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
