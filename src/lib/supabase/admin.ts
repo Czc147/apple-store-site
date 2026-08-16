@@ -26,6 +26,11 @@ export function supabaseAdmin(): SupabaseClient {
     }
     client = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
+      // App Router 默认把 Server Component 的 fetch 存入 data cache，
+      // 会导致后台改动后前台读到旧数据；强制每次实时请求
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+      },
     });
   }
   return client;
