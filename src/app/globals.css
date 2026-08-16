@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* 移动端点击无灰色高亮 */
+    -webkit-tap-highlight-color: transparent;
+    /* 刘海屏安全区 */
+    scroll-padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  body {
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
+
+  /* Apple 式平滑滚动（尊重系统减弱动效设置） */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+}
+
+@layer utilities {
+  /* iOS 安全区 */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  /* 毛玻璃（TabBar / 悬浮栏通用） */
+  .glass {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(20px) saturate(1.8);
+    -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  }
+
+  /* 页面切换淡入（200ms） */
+  .animate-page-enter {
+    animation: page-enter 200ms ease both;
+  }
+  /* 遮罩淡入 */
+  .animate-fade-in {
+    animation: fade-in 200ms ease both;
+  }
+  /* 弹窗：移动端底部滑入（300ms iOS 曲线） */
+  .animate-sheet-in {
+    animation: sheet-in 300ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  /* 弹窗：桌面端居中弹出 */
+  .animate-pop-in {
+    animation: pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 尊重系统「减弱动态效果」 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-enter,
+  .animate-fade-in,
+  .animate-sheet-in,
+  .animate-pop-in,
+  .animate-badge-pop {
+    animation: none;
+  }
+}
+
+/* ==========================================================
+   骨架屏 shimmer（1.4s 循环，克制不刺眼）
+   ========================================================== */
+.skeleton {
+  background: linear-gradient(90deg, #ededf0 25%, #f7f7f9 37%, #ededf0 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+/* ==========================================================
+   TabBar 愿望单角标 · 数量变化时的弹跳（唯一允许过冲的动效）
+   ========================================================== */
+.animate-badge-pop {
+  animation: badge-pop 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.5);
+  }
+  45% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

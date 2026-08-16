@@ -1,0 +1,28 @@
+# ============================================================
+# Netlify 部署配置 — Next.js 14 (App Router)
+#
+# 说明：
+# - @netlify/plugin-nextjs 会自动把 SSR 页面 / API Routes
+#   转成 Netlify Functions，无需手写 /api/* 转发规则
+# - 本项目为 SSR 架构（非 SPA），不需要也不应配置
+#   「/* → /index.html」式 SPA 回退（详见 DEPLOY.md）
+# - 环境变量在 Netlify Dashboard → Site settings →
+#   Environment variables 配置（清单见 DEPLOY.md）
+# ============================================================
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Next.js 官方运行时插件（SSR / API Routes → Netlify Functions）
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# 带 hash 的静态资源可安全永久缓存（Next.js 构建产物自带指纹文件名）
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
