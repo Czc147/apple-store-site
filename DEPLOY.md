@@ -86,7 +86,7 @@ npm run dev       # 本地联调
 
 ## 5. SEO 与 Meta
 
-- 每个页面均有独立 `title` + `description`（模板 `%s · 臻选商城`）。
+- 每个页面均有独立 `title` + `description`（模板 `%s · Zorvin`）。
 - `viewport`：`width=device-width, initialScale=1, viewportFit=cover`，
   配合 `env(safe-area-inset-*)` 适配刘海屏。
 - 图标：`src/app/icon.svg`（favicon）+ `src/app/apple-icon.png`

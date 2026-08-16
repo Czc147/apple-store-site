@@ -3,8 +3,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: '臻选商城',
-    template: '%s · 臻选商城',
+    default: 'Zorvin',
+    template: '%s · Zorvin',
   },
   description: '移动端优先的商品展示与选购网站 · 视觉对标 Apple Store',
 };
