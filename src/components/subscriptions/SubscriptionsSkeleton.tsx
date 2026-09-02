@@ -1,18 +1,17 @@
-/** 订阅页骨架屏：模拟套餐卡片布局（徽章 + 名称 + 价格 + 按钮） */
+/** 订阅页骨架屏：模拟两列套餐卡片布局（徽章 + 名称 + 价格） */
 export default function SubscriptionsSkeleton() {
   return (
-    <div className="px-5" aria-busy="true" aria-live="polite" aria-label="订阅加载中">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[0, 1, 2].map((i) => (
+    <div className="px-4 sm:px-5" aria-busy="true" aria-live="polite" aria-label="订阅加载中">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="flex flex-col rounded-card border border-apple-border bg-apple-card p-5 shadow-card"
+            className="flex flex-col rounded-card border border-apple-border bg-apple-card p-4 shadow-card"
           >
             <div className="skeleton h-6 w-14 rounded-full" />
-            <div className="skeleton mt-4 h-5 w-2/3 rounded-md" />
-            <div className="skeleton mt-3 h-8 w-28 rounded-md" />
-            <div className="min-h-6 flex-1" />
-            <div className="skeleton mt-6 h-11 w-full rounded-btn" />
+            <div className="skeleton mt-3 h-4 w-3/4 rounded-md" />
+            <div className="skeleton mt-3 h-7 w-20 rounded-md" />
+            <div className="skeleton mt-4 h-3.5 w-16 rounded-md" />
           </div>
         ))}
       </div>

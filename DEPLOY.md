@@ -9,14 +9,15 @@
 
 ```
 浏览器
- ├─ 前台页面  /  /wishlist  /activities  /subscription   → Next.js SSR（每次请求实时渲染）
- ├─ 后台      /admin/**                                  → Next.js SSR + Cookie 鉴权
- ├─ API       /api/*                                     → Netlify Functions（插件自动转换）
- └─ 静态资源  /_next/static/*、icon.svg、apple-icon.png  → Netlify CDN 长缓存
+ ├─ 前台页面  /  /wishlist  /activities  /subscription  /redeem   → Next.js SSR（每次请求实时渲染）
+ ├─ 后台      /admin/**                                           → Next.js SSR + Cookie 鉴权
+ ├─ API       /api/*                                              → Netlify Functions（插件自动转换）
+ └─ 静态资源  /_next/static/*、icon.svg、apple-icon.png           → Netlify CDN 长缓存
           ↓
  Supabase（PostgreSQL + Storage）
    - service_role 仅存在于服务端（API Routes / SSR 组件）
-   - RLS 策略：四张业务表与 images 桶公开只读，写入只走本站 API
+   - RLS 策略：四张商品表与 images 桶公开只读，写入只走本站 API；
+     发卡管理三表（card_*）零 policy，仅服务端可访问
 ```
 
 ### 为什么没有 `_redirects` / SPA 回退
@@ -50,7 +51,11 @@ Netlify Functions 并自动接管全部路由（含深链、404、API）。
 
 ### 首次部署
 1. Supabase 控制台建项目，SQL Editor 中执行 `supabase/schema.sql`
-   （建表、RLS、images 公开桶）。
+   （建表、RLS、images 公开桶），再依次执行增量迁移：
+   - `supabase/migrations/002_card_management.sql`（发卡管理三表 + 发放 RPC）
+   - `supabase/migrations/003_redeem.sql`（兑换图片列 + 卡密商品多态化）
+   - `supabase/migrations/004_subscription_description.sql`（订阅详细介绍列 + 兑换商品注释）
+   （001 已并入 schema.sql；所有迁移幂等，可安全重跑。）
 2. 把本仓库推送到 GitHub/GitLab。
 3. Netlify → `Add new site → Import an existing project` → 选择仓库。
 4. 构建配置会自动读取 `netlify.toml`
@@ -102,9 +107,11 @@ npm run dev       # 本地联调
 2. ✅ 愿望单：数量步进、左滑删除、合计金额、单件直跳/多件确认、清空
 3. ✅ 活动页：Today 大卡片、图+标题叠加、介绍三行截断、点击跳转
 4. ✅ 订阅页：套餐卡片、¥xx.xx 大价格、时长徽章、按钮新标签页跳支付
-5. ✅ 后台：密码登录（7 天 cookie）、四模块 CRUD、图片上传（进度/拖拽/预览）、排序生效、级联删除警示
-6. ✅ Tab Bar：四 Tab 高亮、图标、愿望单角标实时计数
-7. ✅ 移动端：设计基准 375-428px，`px-5` + 圆角卡片 + 底部安全区适配
-8. ✅ 数据流：后台录入 → 前台 force-dynamic 实时可见 → 跳转酷发卡支付
-9. ✅ 部署：`npm run build` 本地零报错（= Netlify 构建步骤）；
-   路由/鉴权/上传经 curl 全量回归
+5. ✅ 后台：密码登录（7 天 cookie）、四模块 CRUD、图片上传（进度/拖拽/预览）、排序生效、级联删除警示、三类商品「兑换商品」上传（图片/视频/文档）
+6. ✅ 发卡管理：概览 / 卡密商品（多态关联小单元·活动·订阅）/ 库存状态机 / 批量导入 / 取卡登记 / 卡密批量清空与商品连带删除
+7. ✅ 兑换链路：`/redeem` 输入未用卡密 → 核销 + 弹出兑换商品（图片/视频/文档按类型渲染）；重复输入 → 已兑换提示；错码/作废码统一 403；未配置兑换商品 409 且不核销
+8. ✅ Tab Bar：五 Tab 高亮、图标、愿望单角标实时计数
+9. ✅ 移动端：设计基准 375-428px，`px-5` + 圆角卡片 + 底部安全区适配
+10. ✅ 数据流：后台录入 → 前台 force-dynamic 实时可见 → 跳转酷发卡支付 → 卡密搬运回本站兑换
+11. ✅ 部署：`npm run build` 本地零报错（= Netlify 构建步骤）；
+   路由/鉴权/上传/兑换经 curl 全量回归

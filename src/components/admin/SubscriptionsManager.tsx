@@ -12,16 +12,19 @@ import { formatPrice, toNumber } from '@/lib/format';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
+import FileUploader from './FileUploader';
 import {
   Field,
   PageHeader,
   TableShell,
+  Thumb,
   LinkCell,
   LoadingRows,
   EmptyRow,
   RowActions,
   Notice,
   inputCls,
+  textareaCls,
   btnPrimary,
   btnGhost,
   thCls,
@@ -32,7 +35,9 @@ interface FormState {
   name: string;
   price: string;
   duration: string;
+  description: string;
   payment_url: string;
+  redeem_image_url: string;
   sort_order: string;
 }
 
@@ -40,7 +45,9 @@ const EMPTY_FORM: FormState = {
   name: '',
   price: '0',
   duration: '',
+  description: '',
   payment_url: '',
+  redeem_image_url: '',
   sort_order: '0',
 };
 
@@ -102,7 +109,9 @@ export default function SubscriptionsManager() {
       name: row.name,
       price: String(row.price),
       duration: row.duration ?? '',
+      description: row.description ?? '',
       payment_url: row.payment_url ?? '',
+      redeem_image_url: row.redeem_image_url ?? '',
       sort_order: String(row.sort_order),
     });
     setFormError(null);
@@ -131,7 +140,9 @@ export default function SubscriptionsManager() {
             name,
             price,
             duration: form.duration.trim() || null,
+            description: form.description.trim() || null,
             payment_url: form.payment_url.trim() || null,
+            redeem_image_url: form.redeem_image_url.trim() || null,
             sort_order: sortOrder,
           }),
         },
@@ -191,15 +202,16 @@ export default function SubscriptionsManager() {
               <th className={thCls}>价格</th>
               <th className={thCls}>时长</th>
               <th className={thCls}>付款链接</th>
+              <th className={thCls}>兑换商品</th>
               <th className={thCls}>操作</th>
             </tr>
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={6} />
+              <LoadingRows colSpan={7} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={6}
+                colSpan={7}
                 text="还没有订阅套餐，新增后前台订阅页即可展示"
                 createLabel="新增订阅"
                 onCreate={openCreate}
@@ -223,6 +235,9 @@ export default function SubscriptionsManager() {
                   </td>
                   <td className={tdCls}>
                     <LinkCell href={row.payment_url} />
+                  </td>
+                  <td className={tdCls}>
+                    <Thumb src={row.redeem_image_url} alt={`${row.name} 兑换商品`} />
                   </td>
                   <td className={tdCls}>
                     <RowActions
@@ -296,6 +311,21 @@ export default function SubscriptionsManager() {
               maxLength={20}
             />
           </Field>
+          <Field
+            label="详细介绍"
+            hint="前台点击订阅卡片后弹层展示的完整介绍，选填"
+          >
+            <textarea
+              className={textareaCls}
+              value={form.description}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, description: e.target.value }))
+              }
+              rows={4}
+              placeholder="介绍订阅权益、适用范围与注意事项…"
+              maxLength={600}
+            />
+          </Field>
           <Field label="付款链接" hint="填写酷发卡（kufaka.com）的商品链接，选填">
             <input
               className={inputCls}
@@ -305,6 +335,17 @@ export default function SubscriptionsManager() {
               }
               placeholder="https://kufaka.com/…"
               inputMode="url"
+            />
+          </Field>
+          <Field
+            label="兑换商品"
+            hint="不公开；买家在「兑换」页输入卡密成功后弹出该内容（图片 / 视频 / 文档）"
+          >
+            <FileUploader
+              value={form.redeem_image_url || null}
+              onChange={(url) =>
+                setForm((f) => ({ ...f, redeem_image_url: url ?? '' }))
+              }
             />
           </Field>
           <Field label="排序" hint="数字越小越靠前">

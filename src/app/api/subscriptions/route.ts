@@ -42,7 +42,9 @@ export async function POST(req: NextRequest) {
       name: body.name.trim(),
       price,
       duration: toNullableText(body.duration),
+      description: toNullableText(body.description),
       payment_url: toNullableText(body.payment_url),
+      redeem_image_url: toNullableText(body.redeem_image_url),
       sort_order: toSortOrder(body.sort_order),
     })
     .select()

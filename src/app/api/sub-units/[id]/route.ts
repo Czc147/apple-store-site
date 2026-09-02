@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
   const patch: Record<string, unknown> = {};
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
-  for (const key of ['major_unit_id', 'sort_order', 'price', 'payment_url'] as const) {
+  for (const key of ['major_unit_id', 'sort_order', 'price', 'payment_url', 'redeem_image_url'] as const) {
     if (body[key] !== undefined) patch[key] = body[key];
   }
   if (Object.keys(patch).length === 0) return fail('没有可更新的字段');

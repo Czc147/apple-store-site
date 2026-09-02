@@ -12,10 +12,12 @@ import { formatPrice, toNumber } from '@/lib/format';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
+import FileUploader from './FileUploader';
 import {
   Field,
   PageHeader,
   TableShell,
+  Thumb,
   LinkCell,
   LoadingRows,
   EmptyRow,
@@ -35,6 +37,7 @@ interface FormState {
   sort_order: string;
   price: string;
   payment_url: string;
+  redeem_image_url: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -43,6 +46,7 @@ const EMPTY_FORM: FormState = {
   sort_order: '0',
   price: '0',
   payment_url: '',
+  redeem_image_url: '',
 };
 
 /** 小单元管理：支持按大单元筛选；删除前二次确认 */
@@ -120,6 +124,7 @@ export default function SubUnitsManager() {
       sort_order: String(row.sort_order),
       price: String(row.price),
       payment_url: row.payment_url ?? '',
+      redeem_image_url: row.redeem_image_url ?? '',
     });
     setFormError(null);
     setModalOpen(true);
@@ -150,6 +155,7 @@ export default function SubUnitsManager() {
             sort_order: sortOrder,
             price,
             payment_url: form.payment_url.trim() || null,
+            redeem_image_url: form.redeem_image_url.trim() || null,
           }),
         },
       );
@@ -228,15 +234,16 @@ export default function SubUnitsManager() {
               <th className={thCls}>所属大单元</th>
               <th className={thCls}>价格</th>
               <th className={thCls}>付款链接</th>
+              <th className={thCls}>兑换商品</th>
               <th className={thCls}>操作</th>
             </tr>
           </thead>
           <tbody>
             {visible === null ? (
-              <LoadingRows colSpan={6} />
+              <LoadingRows colSpan={7} />
             ) : visible.length === 0 ? (
               <EmptyRow
-                colSpan={6}
+                colSpan={7}
                 text={rows?.length ? '当前筛选条件下没有小单元' : '还没有小单元，新增后前台即可选购'}
                 createLabel="新增小单元"
                 onCreate={openCreate}
@@ -256,6 +263,9 @@ export default function SubUnitsManager() {
                   </td>
                   <td className={tdCls}>
                     <LinkCell href={row.payment_url} />
+                  </td>
+                  <td className={tdCls}>
+                    <Thumb src={row.redeem_image_url} alt={`${row.name} 兑换商品`} />
                   </td>
                   <td className={tdCls}>
                     <RowActions
@@ -351,6 +361,17 @@ export default function SubUnitsManager() {
               }
               placeholder="https://kufaka.com/…"
               inputMode="url"
+            />
+          </Field>
+          <Field
+            label="兑换商品"
+            hint="不公开；买家在「兑换」页输入卡密成功后弹出该内容（图片 / 视频 / 文档）"
+          >
+            <FileUploader
+              value={form.redeem_image_url || null}
+              onChange={(url) =>
+                setForm((f) => ({ ...f, redeem_image_url: url ?? '' }))
+              }
             />
           </Field>
           <Field label="排序" hint="数字越小越靠前">

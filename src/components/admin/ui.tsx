@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video } from 'lucide-react';
+import { classifyMedia } from '@/lib/upload';
 
 /** 后台通用样式常量与原子组件（Apple 风格，沿用前台设计令牌） */
 
@@ -87,12 +88,24 @@ export function Notice({
   );
 }
 
-/** 表格内 48px 图片缩略图（无图显示占位图标） */
+/** 表格内 48px 缩略图：图片直显；视频 / 文档显示类型图标（无内容显示占位图标） */
 export function Thumb({ src, alt }: { src: string | null; alt: string }) {
   if (!src) {
     return (
       <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-apple-hairline bg-apple-bg text-apple-text-3">
         <ImageIcon className="h-4 w-4" aria-hidden />
+      </div>
+    );
+  }
+  const kind = classifyMedia(src);
+  if (kind !== 'image') {
+    const Icon = kind === 'video' ? Video : FileText;
+    return (
+      <div
+        title={src}
+        className="flex h-12 w-12 items-center justify-center rounded-lg border border-apple-hairline bg-apple-bg text-apple-text-2"
+      >
+        <Icon className="h-4 w-4" aria-hidden />
       </div>
     );
   }
@@ -188,6 +201,73 @@ export function RowActions({
       >
         删除
       </button>
+    </div>
+  );
+}
+
+/** 状态徽章配色（发卡管理等模块复用） */
+export type BadgeTone = 'green' | 'blue' | 'gray' | 'red' | 'amber';
+
+const BADGE_TONES: Record<BadgeTone, string> = {
+  green: 'bg-[#E8F5E9] text-[#1B7F3B]',
+  blue: 'bg-apple-blue-soft text-apple-blue',
+  gray: 'bg-apple-bg text-apple-text-2',
+  red: 'bg-[#FDECEE] text-[#B80012]',
+  amber: 'bg-[#FFF4E0] text-[#8A6100]',
+};
+
+/** 状态徽章（未使用/已发放/待取卡…） */
+export function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-medium ${BADGE_TONES[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** 分页按钮（紧凑幽灵样式） */
+const pageBtnCls =
+  'inline-flex h-8 items-center justify-center rounded-lg border border-apple-border bg-white px-3.5 text-[13px] font-medium text-apple-text transition hover:bg-apple-bg active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40';
+
+/** 服务端分页控件：上一页 / 下一页 + 总条数与页码信息 */
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  if (total <= 0) return null;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <p className="text-[13px] text-apple-text-2">
+        共 {total} 条 · 第 {page} / {pageCount} 页
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className={pageBtnCls}
+          disabled={page <= 1}
+          onClick={() => onChange(page - 1)}
+        >
+          上一页
+        </button>
+        <button
+          type="button"
+          className={pageBtnCls}
+          disabled={page >= pageCount}
+          onClick={() => onChange(page + 1)}
+        >
+          下一页
+        </button>
+      </div>
     </div>
   );
 }

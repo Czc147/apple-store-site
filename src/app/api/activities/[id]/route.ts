@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!body) return fail('请求体必须为 JSON 对象');
 
   const patch: Record<string, unknown> = {};
-  for (const key of ['title', 'image_url', 'description', 'link_url', 'sort_order'] as const) {
+  for (const key of ['title', 'image_url', 'description', 'link_url', 'redeem_image_url', 'sort_order'] as const) {
     if (body[key] !== undefined) patch[key] = body[key];
   }
   if (Object.keys(patch).length === 0) return fail('没有可更新的字段');

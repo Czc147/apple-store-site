@@ -72,6 +72,7 @@ create table if not exists public.subscriptions (
   name         text not null,                            -- 订阅名称
   price        numeric(10,2) not null default 0,         -- 价格（元）
   duration     text,                                     -- 订阅时长，自由文本：'1个月' / '1年'
+  description  text,                                     -- 详细介绍（前台点击弹层展示）
   payment_url  text,                                     -- 付款链接
   sort_order   integer not null default 0,               -- 排序
   created_at   timestamptz not null default now()
@@ -79,6 +80,8 @@ create table if not exists public.subscriptions (
 
 comment on column public.subscriptions.duration
   is '订阅时长，自由文本，例如「1个月」「连续包年」';
+comment on column public.subscriptions.description
+  is '详细介绍：前台订阅页点击卡片弹层展示';
 
 create index if not exists idx_subscriptions_sort
   on public.subscriptions (sort_order);

@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
       sort_order: toSortOrder(body.sort_order),
       price,
       payment_url: toNullableText(body.payment_url),
+      redeem_image_url: toNullableText(body.redeem_image_url),
     })
     .select()
     .single();

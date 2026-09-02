@@ -11,7 +11,7 @@ interface ShopClientProps {
   isDemo: boolean;
 }
 
-/** 选购页主体：大单元卡片纵向列表（含演示数据提示条与空态） */
+/** 选购页主体：大单元卡片两列网格（从左到右、先上后下；含演示数据提示条与空态） */
 export default function ShopClient({
   majors,
   subsByMajor,
@@ -28,19 +28,21 @@ export default function ShopClient({
   }
 
   return (
-    <div className="space-y-5 px-5">
+    <div className="px-4 sm:px-5">
       {isDemo && (
-        <div className="rounded-card bg-apple-blue-soft px-4 py-3 text-[12.5px] leading-relaxed text-apple-blue">
+        <div className="mb-4 rounded-card bg-apple-blue-soft px-4 py-3 text-[12.5px] leading-relaxed text-apple-blue">
           当前为演示数据 · 配置 SUPABASE 环境变量后将自动显示真实商品
         </div>
       )}
-      {majors.map((major) => (
-        <MajorUnitCard
-          key={major.id}
-          major={major}
-          subs={subsByMajor[major.id] ?? []}
-        />
-      ))}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        {majors.map((major) => (
+          <MajorUnitCard
+            key={major.id}
+            major={major}
+            subs={subsByMajor[major.id] ?? []}
+          />
+        ))}
+      </div>
     </div>
   );
 }

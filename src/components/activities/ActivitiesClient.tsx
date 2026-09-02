@@ -10,7 +10,7 @@ interface ActivitiesClientProps {
   isDemo: boolean;
 }
 
-/** 活动页主体：大卡片纵向列表（含演示数据提示条与空态） */
+/** 活动页主体：卡片两列网格，从左到右、先上后下（含演示数据提示条与空态） */
 export default function ActivitiesClient({
   activities,
   isDemo,
@@ -26,15 +26,17 @@ export default function ActivitiesClient({
   }
 
   return (
-    <div className="space-y-6 px-5">
+    <div className="px-4 sm:px-5">
       {isDemo && (
-        <div className="rounded-card bg-apple-blue-soft px-4 py-3 text-[12.5px] leading-relaxed text-apple-blue">
+        <div className="mb-4 rounded-card bg-apple-blue-soft px-4 py-3 text-[12.5px] leading-relaxed text-apple-blue">
           当前为演示数据 · 配置 SUPABASE 环境变量后将自动显示真实活动
         </div>
       )}
-      {activities.map((activity) => (
-        <ActivityCard key={activity.id} activity={activity} />
-      ))}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        {activities.map((activity) => (
+          <ActivityCard key={activity.id} activity={activity} />
+        ))}
+      </div>
     </div>
   );
 }

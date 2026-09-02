@@ -12,7 +12,7 @@ interface SubscriptionsClientProps {
 
 /**
  * 订阅页主体：Apple 式套餐对比卡片布局。
- * 移动端单列；宽屏自动升级为 2/3 列网格，按钮底部对齐。
+ * 两列网格，从左到右、先上后下；点击卡片弹层查看详细介绍。
  */
 export default function SubscriptionsClient({
   subscriptions,
@@ -35,7 +35,7 @@ export default function SubscriptionsClient({
           当前为演示数据 · 配置 SUPABASE 环境变量后将自动显示真实订阅方案
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {subscriptions.map((subscription) => (
           <SubscriptionCard key={subscription.id} subscription={subscription} />
         ))}

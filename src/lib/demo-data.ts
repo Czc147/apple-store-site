@@ -33,13 +33,13 @@ export const DEMO_MAJOR_UNITS: MajorUnit[] = [
 ];
 
 export const DEMO_SUB_UNITS: SubUnit[] = [
-  { id: 'demo-s1', major_unit_id: 'demo-m1', name: '入门版', sort_order: 1, price: 39, payment_url: null, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'demo-s2', major_unit_id: 'demo-m1', name: '进阶版', sort_order: 2, price: 69, payment_url: null, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'demo-s3', major_unit_id: 'demo-m1', name: '完整版（含全部更新）', sort_order: 3, price: 99, payment_url: 'https://example.com/pay/s3', created_at: '2026-01-01T00:00:00Z' },
-  { id: 'demo-s4', major_unit_id: 'demo-m2', name: '标准版', sort_order: 1, price: 129, payment_url: null, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'demo-s5', major_unit_id: 'demo-m2', name: '旗舰版', sort_order: 2, price: 199, payment_url: 'https://example.com/pay/s5', created_at: '2026-01-01T00:00:00Z' },
-  { id: 'demo-s6', major_unit_id: 'demo-m3', name: '定制咨询定金', sort_order: 1, price: 50, payment_url: null, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'demo-s7', major_unit_id: 'demo-m3', name: '全包定制（尾款）', sort_order: 2, price: 500, payment_url: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-s1', major_unit_id: 'demo-m1', name: '入门版', sort_order: 1, price: 39, payment_url: null, redeem_image_url: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-s2', major_unit_id: 'demo-m1', name: '进阶版', sort_order: 2, price: 69, payment_url: null, redeem_image_url: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-s3', major_unit_id: 'demo-m1', name: '完整版（含全部更新）', sort_order: 3, price: 99, payment_url: 'https://example.com/pay/s3', redeem_image_url: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-s4', major_unit_id: 'demo-m2', name: '标准版', sort_order: 1, price: 129, payment_url: null, redeem_image_url: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-s5', major_unit_id: 'demo-m2', name: '旗舰版', sort_order: 2, price: 199, payment_url: 'https://example.com/pay/s5', redeem_image_url: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-s6', major_unit_id: 'demo-m3', name: '定制咨询定金', sort_order: 1, price: 50, payment_url: null, redeem_image_url: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-s7', major_unit_id: 'demo-m3', name: '全包定制（尾款）', sort_order: 2, price: 500, payment_url: null, redeem_image_url: null, created_at: '2026-01-01T00:00:00Z' },
 ];
 
 export const DEMO_ACTIVITIES: Activity[] = [
@@ -50,6 +50,7 @@ export const DEMO_ACTIVITIES: Activity[] = [
     description:
       '首次下单即享专属折扣，叠加愿望单商品还有额外惊喜。活动限时开放，先到先得，快去选购页挑选你心仪的第一件商品吧。',
     link_url: 'https://example.com/activity/new-user',
+    redeem_image_url: null,
     sort_order: 1,
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -60,6 +61,7 @@ export const DEMO_ACTIVITIES: Activity[] = [
     description:
       '本季全新系列提前亮相，抢先加入愿望单，开售当天第一时间通知你。更多搭配灵感与细节图陆续放出，敬请期待。',
     link_url: 'https://example.com/activity/autumn-preview',
+    redeem_image_url: null,
     sort_order: 2,
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -70,6 +72,7 @@ export const DEMO_ACTIVITIES: Activity[] = [
     description:
       '邀请一位好友完成首单，双方都能获得优惠券奖励。邀请越多奖励越多，详情见活动规则页。',
     link_url: null,
+    redeem_image_url: null,
     sort_order: 3,
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -81,7 +84,9 @@ export const DEMO_SUBSCRIPTIONS: Subscription[] = [
     name: '月度订阅',
     price: 18,
     duration: '月付',
+    description: '每月更新精选内容，随时取消，适合先体验再决定的朋友。',
     payment_url: 'https://example.com/pay/monthly',
+    redeem_image_url: null,
     sort_order: 1,
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -90,7 +95,9 @@ export const DEMO_SUBSCRIPTIONS: Subscription[] = [
     name: '季度订阅',
     price: 48,
     duration: '季付',
+    description: '按季付费更划算，含全部季度更新与优先客服支持。',
     payment_url: 'https://example.com/pay/quarterly',
+    redeem_image_url: null,
     sort_order: 2,
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -99,7 +106,9 @@ export const DEMO_SUBSCRIPTIONS: Subscription[] = [
     name: '年度订阅',
     price: 158,
     duration: '年付',
+    description: '一次订阅全年畅用，含所有更新、专属内容与年度权益包。',
     payment_url: 'https://example.com/pay/yearly',
+    redeem_image_url: null,
     sort_order: 3,
     created_at: '2026-01-01T00:00:00Z',
   },

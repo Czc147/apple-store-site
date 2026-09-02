@@ -18,6 +18,8 @@ export interface SubUnit {
   sort_order: number;
   price: number;
   payment_url: string | null;
+  /** 兑换商品：不公开，买家输入卡密兑换成功后弹出（图片 / 视频 / 文档） */
+  redeem_image_url: string | null;
   created_at: string;
 }
 
@@ -29,6 +31,8 @@ export interface Activity {
   image_url: string | null;
   description: string | null;
   link_url: string | null;
+  /** 兑换商品：不公开，买家输入卡密兑换成功后弹出（与公开卡片图 image_url 无关） */
+  redeem_image_url: string | null;
   sort_order: number;
   created_at: string;
 }
@@ -39,7 +43,15 @@ export interface Subscription {
   name: string;
   price: number;
   duration: string | null;
+  /** 详细介绍：前台订阅卡片点击弹层展示 */
+  description: string | null;
   payment_url: string | null;
+  /** 兑换商品：不公开，买家输入卡密兑换成功后弹出（图片 / 视频 / 文档） */
+  redeem_image_url: string | null;
   sort_order: number;
   created_at: string;
 }
+
+/** 发卡管理模块（卡密商品 / 卡密 / 取卡登记单）类型统一在 card-types.ts，
+ *  此处再导出保持「类型单一入口」的既有约定 */
+export * from './card-types';

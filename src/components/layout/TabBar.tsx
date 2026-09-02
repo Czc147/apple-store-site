@@ -8,6 +8,7 @@ import {
   Heart,
   CalendarDays,
   RefreshCw,
+  Gift,
   type LucideIcon,
 } from 'lucide-react';
 import { useWishlist } from '@/lib/wishlist';
@@ -18,12 +19,13 @@ interface Tab {
   icon: LucideIcon;
 }
 
-/** 底部 4 个 Tab：选购 / 愿望单 / 活动 / 订阅 */
+/** 底部 5 个 Tab：选购 / 愿望单 / 活动 / 订阅 / 兑换 */
 const TABS: Tab[] = [
   { href: '/', label: '选购', icon: ShoppingBag },
   { href: '/wishlist', label: '愿望单', icon: Heart },
   { href: '/activities', label: '活动', icon: CalendarDays },
   { href: '/subscription', label: '订阅', icon: RefreshCw },
+  { href: '/redeem', label: '兑换', icon: Gift },
 ];
 
 /**

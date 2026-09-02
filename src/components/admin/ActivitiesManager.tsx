@@ -12,6 +12,7 @@ import { adminFetch, extractError } from '@/lib/admin-fetch';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import ImageUploader from './ImageUploader';
+import FileUploader from './FileUploader';
 import {
   Field,
   PageHeader,
@@ -35,6 +36,7 @@ interface FormState {
   image_url: string;
   description: string;
   link_url: string;
+  redeem_image_url: string;
   sort_order: string;
 }
 
@@ -43,6 +45,7 @@ const EMPTY_FORM: FormState = {
   image_url: '',
   description: '',
   link_url: '',
+  redeem_image_url: '',
   sort_order: '0',
 };
 
@@ -102,6 +105,7 @@ export default function ActivitiesManager() {
       image_url: row.image_url ?? '',
       description: row.description ?? '',
       link_url: row.link_url ?? '',
+      redeem_image_url: row.redeem_image_url ?? '',
       sort_order: String(row.sort_order),
     });
     setFormError(null);
@@ -132,6 +136,7 @@ export default function ActivitiesManager() {
             image_url: form.image_url || null,
             description: description || null,
             link_url: form.link_url.trim() || null,
+            redeem_image_url: form.redeem_image_url.trim() || null,
             sort_order: sortOrder,
           }),
         },
@@ -191,15 +196,16 @@ export default function ActivitiesManager() {
               <th className={thCls}>标题</th>
               <th className={thCls}>活动介绍</th>
               <th className={thCls}>跳转链接</th>
+              <th className={thCls}>兑换商品</th>
               <th className={thCls}>操作</th>
             </tr>
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={6} />
+              <LoadingRows colSpan={7} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={6}
+                colSpan={7}
                 text="还没有活动，新增后前台活动页即可展示"
                 createLabel="新增活动"
                 onCreate={openCreate}
@@ -223,6 +229,12 @@ export default function ActivitiesManager() {
                   </td>
                   <td className={tdCls}>
                     <LinkCell href={row.link_url} />
+                  </td>
+                  <td className={tdCls}>
+                    <Thumb
+                      src={row.redeem_image_url}
+                      alt={row.title ?? '活动兑换商品'}
+                    />
                   </td>
                   <td className={tdCls}>
                     <RowActions
@@ -299,6 +311,17 @@ export default function ActivitiesManager() {
               onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))}
               placeholder="https://…（选填）"
               inputMode="url"
+            />
+          </Field>
+          <Field
+            label="兑换商品"
+            hint="不公开；买家在「兑换」页输入卡密成功后弹出该内容（图片 / 视频 / 文档）"
+          >
+            <FileUploader
+              value={form.redeem_image_url || null}
+              onChange={(url) =>
+                setForm((f) => ({ ...f, redeem_image_url: url ?? '' }))
+              }
             />
           </Field>
           <Field label="排序" hint="数字越小越靠前">

@@ -47,7 +47,7 @@ export default function LoginForm() {
           <Lock className="h-5 w-5 text-apple-blue" aria-hidden />
         </div>
         <h1 className="mt-4 text-center text-[20px] font-bold text-apple-text">
-          管理后台
+          Zorvin 管理后台
         </h1>
         <p className="mt-1 text-center text-[13px] text-apple-text-2">
           请输入管理员密码

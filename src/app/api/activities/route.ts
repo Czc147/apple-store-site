@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       image_url,
       description,
       link_url,
+      redeem_image_url: toNullableText(body.redeem_image_url),
       sort_order: toSortOrder(body.sort_order),
     })
     .select()

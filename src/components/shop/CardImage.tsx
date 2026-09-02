@@ -6,20 +6,26 @@ import { ImageOff } from 'lucide-react';
 interface CardImageProps {
   src: string | null;
   alt: string;
+  /** 两列网格紧凑卡片用 1:1 方图（默认 16:9） */
+  square?: boolean;
 }
 
 /**
- * 卡片展示图：16:9 · object-cover。
+ * 卡片展示图：object-cover。
  * - 加载中显示 shimmer 占位
  * - 无图 / 加载失败时显示浅渐变占位（不让卡片破版）
  */
-export default function CardImage({ src, alt }: CardImageProps) {
+export default function CardImage({ src, alt, square = false }: CardImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const showImage = Boolean(src) && !failed;
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden bg-apple-bg">
+    <div
+      className={`relative w-full overflow-hidden bg-apple-bg ${
+        square ? 'aspect-square' : 'aspect-video'
+      }`}
+    >
       {showImage ? (
         <>
           {!loaded && <div className="skeleton absolute inset-0" aria-hidden />}
