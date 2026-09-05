@@ -45,6 +45,22 @@ export interface Activity {
   created_at: string;
 }
 
+/** 订阅类型（与迁移 008 的 subscriptions.type 对应） */
+export const SUBSCRIPTION_TYPE = {
+  /** 普通订阅：兑换内容 */
+  NORMAL: 'normal',
+  /** 每日计划：解锁每日推荐 */
+  DAILY_PLAN: 'daily_plan',
+} as const;
+
+export type SubscriptionType =
+  (typeof SUBSCRIPTION_TYPE)[keyof typeof SUBSCRIPTION_TYPE];
+
+export const SUBSCRIPTION_TYPE_LABEL: Record<SubscriptionType, string> = {
+  normal: '普通订阅',
+  daily_plan: '每日计划',
+};
+
 /** 订阅 */
 export interface Subscription {
   id: string;
@@ -56,6 +72,10 @@ export interface Subscription {
   payment_url: string | null;
   /** 兑换商品：不公开，买家输入卡密兑换成功后弹出（图片 / 视频 / 文档） */
   redeem_image_url: string | null;
+  /** 订阅类型：normal 普通订阅 / daily_plan 每日计划（旧数据默认 normal） */
+  type?: SubscriptionType;
+  /** 每日计划解锁有效天数（仅 daily_plan 有意义）；null = 永久 */
+  unlock_duration_days?: number | null;
   sort_order: number;
   created_at: string;
 }

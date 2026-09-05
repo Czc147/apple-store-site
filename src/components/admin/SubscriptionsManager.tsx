@@ -7,7 +7,11 @@ import {
   useState,
   type FormEvent,
 } from 'react';
-import type { Subscription } from '@/lib/types';
+import {
+  SUBSCRIPTION_TYPE_LABEL,
+  type Subscription,
+  type SubscriptionType,
+} from '@/lib/types';
 import { formatPrice, toNumber } from '@/lib/format';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import Modal from './Modal';
@@ -23,8 +27,10 @@ import {
   EmptyRow,
   RowActions,
   Notice,
+  Badge,
   inputCls,
   textareaCls,
+  selectCls,
   btnPrimary,
   btnGhost,
   thCls,
@@ -38,6 +44,8 @@ interface FormState {
   description: string;
   payment_url: string;
   redeem_image_url: string;
+  type: SubscriptionType;
+  unlock_duration_days: string;
   sort_order: string;
 }
 
@@ -48,6 +56,8 @@ const EMPTY_FORM: FormState = {
   description: '',
   payment_url: '',
   redeem_image_url: '',
+  type: 'normal',
+  unlock_duration_days: '',
   sort_order: '0',
 };
 
@@ -112,6 +122,11 @@ export default function SubscriptionsManager() {
       description: row.description ?? '',
       payment_url: row.payment_url ?? '',
       redeem_image_url: row.redeem_image_url ?? '',
+      type: row.type ?? 'normal',
+      unlock_duration_days:
+        row.unlock_duration_days != null
+          ? String(row.unlock_duration_days)
+          : '',
       sort_order: String(row.sort_order),
     });
     setFormError(null);
@@ -128,6 +143,17 @@ export default function SubscriptionsManager() {
     const sortOrder = Number(form.sort_order);
     if (!Number.isFinite(sortOrder)) return setFormError('排序必须是数字');
 
+    const isDaily = form.type === 'daily_plan';
+    const durationRaw = form.unlock_duration_days.trim();
+    let durationValue: number | null = null;
+    if (isDaily && durationRaw !== '') {
+      const n = Number(durationRaw);
+      if (!Number.isInteger(n) || n <= 0) {
+        return setFormError('有效天数必须是正整数（留空即永久有效）');
+      }
+      durationValue = n;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
@@ -143,6 +169,8 @@ export default function SubscriptionsManager() {
             description: form.description.trim() || null,
             payment_url: form.payment_url.trim() || null,
             redeem_image_url: form.redeem_image_url.trim() || null,
+            type: form.type,
+            unlock_duration_days: isDaily ? durationValue : null,
             sort_order: sortOrder,
           }),
         },
@@ -177,6 +205,10 @@ export default function SubscriptionsManager() {
     }
   };
 
+  // 已存在「每日计划」订阅时禁止再新建（编辑每日计划本身不受影响）
+  const dailyPlanTaken =
+    rows?.some((r) => r.type === 'daily_plan' && r.id !== editing?.id) ?? false;
+
   return (
     <>
       <PageHeader
@@ -199,6 +231,7 @@ export default function SubscriptionsManager() {
             <tr>
               <th className={thCls}>排序</th>
               <th className={thCls}>名称</th>
+              <th className={thCls}>类型</th>
               <th className={thCls}>价格</th>
               <th className={thCls}>时长</th>
               <th className={thCls}>付款链接</th>
@@ -208,10 +241,10 @@ export default function SubscriptionsManager() {
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={7} />
+              <LoadingRows colSpan={8} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={7}
+                colSpan={8}
                 text="还没有订阅套餐，新增后前台订阅页即可展示"
                 createLabel="新增订阅"
                 onCreate={openCreate}
@@ -221,6 +254,13 @@ export default function SubscriptionsManager() {
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
                   <td className={tdCls}>{row.sort_order}</td>
                   <td className={`${tdCls} font-medium`}>{row.name}</td>
+                  <td className={tdCls}>
+                    {row.type === 'daily_plan' ? (
+                      <Badge tone="blue">{SUBSCRIPTION_TYPE_LABEL.daily_plan}</Badge>
+                    ) : (
+                      <Badge tone="gray">{SUBSCRIPTION_TYPE_LABEL.normal}</Badge>
+                    )}
+                  </td>
                   <td className={`${tdCls} whitespace-nowrap`}>
                     {formatPrice(row.price)}
                   </td>
@@ -311,6 +351,41 @@ export default function SubscriptionsManager() {
               maxLength={20}
             />
           </Field>
+          <Field
+            label="订阅类型"
+            hint="每日计划：用户购买后拿卡密兑换即解锁每日推荐，全局最多一条"
+          >
+            <select
+              className={selectCls}
+              value={form.type}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, type: e.target.value as SubscriptionType }))
+              }
+              disabled={saving}
+            >
+              <option value="normal">普通订阅</option>
+              <option value="daily_plan" disabled={dailyPlanTaken}>
+                每日计划{dailyPlanTaken ? '（已存在，仅能有一条）' : ''}
+              </option>
+            </select>
+          </Field>
+          {form.type === 'daily_plan' && (
+            <Field label="解锁有效天数" hint="自核销时刻起算；留空即永久有效">
+              <input
+                className={inputCls}
+                value={form.unlock_duration_days}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, unlock_duration_days: e.target.value }))
+                }
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                placeholder="留空 = 永久"
+                disabled={saving}
+              />
+            </Field>
+          )}
           <Field
             label="详细介绍"
             hint="前台点击订阅卡片后弹层展示的完整介绍，选填"

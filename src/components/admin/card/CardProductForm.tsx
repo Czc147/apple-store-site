@@ -151,6 +151,11 @@ export default function CardProductForm({
 
   const typeLabel = TARGET_TYPE_LABEL[form.target_type];
 
+  // 订阅目标：兑换语义由订阅类型决定（迁移 008），此处锁定展示与提交口径
+  const selectedPlan = plans.find((p) => p.id === form.target_id);
+  const selectedPlanIsDaily =
+    form.target_type === 'subscription' && selectedPlan?.type === 'daily_plan';
+
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     if (saving) return;
@@ -159,10 +164,14 @@ export default function CardProductForm({
     if (!Number.isFinite(sortOrder)) return setFormError('排序必须是数字');
 
     // 解锁每日计划：校验有效天数（留空 = 永久；否则必须为正整数）
-    const isUnlock = form.redeem_type === 'unlock_daily';
+    // 订阅目标的天数由「订阅管理」配置，此处不填（提交 null）
+    const isSubscriptionTarget = form.target_type === 'subscription';
+    const isUnlock = isSubscriptionTarget
+      ? selectedPlanIsDaily
+      : form.redeem_type === 'unlock_daily';
     const durationRaw = form.unlock_duration_days.trim();
     let durationValue: number | null = null;
-    if (isUnlock && durationRaw !== '') {
+    if (isUnlock && !isSubscriptionTarget && durationRaw !== '') {
       const n = Number(durationRaw);
       if (!Number.isInteger(n) || n <= 0) {
         return setFormError('有效天数必须是正整数（留空即永久有效）');
@@ -182,7 +191,7 @@ export default function CardProductForm({
             target_type: form.target_type,
             target_id: form.target_id,
             description: form.description,
-            redeem_type: form.redeem_type,
+            redeem_type: isUnlock ? 'unlock_daily' : 'content',
             // 非解锁类型统一提交 null，避免给 content 商品留脏字段
             unlock_duration_days: isUnlock ? durationValue : null,
             sort_order: sortOrder,
@@ -382,45 +391,59 @@ export default function CardProductForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {form.target_type === 'subscription' ? (
           <Field
             label="兑换类型"
-            hint="兑换内容 = 核销后展示商品；解锁每日计划 = 核销后解锁每日推荐"
+            hint="订阅的兑换语义由其「订阅类型」决定，此处只读：每日计划订阅自动解锁每日推荐，普通订阅兑换内容"
           >
-            <select
-              className={selectCls}
-              value={form.redeem_type}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, redeem_type: e.target.value as RedeemType }))
-              }
-              disabled={saving}
-            >
-              <option value="content">兑换内容</option>
-              <option value="unlock_daily">解锁每日计划</option>
-            </select>
+            <input
+              className={inputCls}
+              value={selectedPlanIsDaily ? '解锁每日计划' : '兑换内容'}
+              disabled
+              readOnly
+            />
           </Field>
-
-          {form.redeem_type === 'unlock_daily' && (
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
-              label="有效天数"
-              hint="解锁有效期，自核销时刻起算；留空即永久有效"
+              label="兑换类型"
+              hint="兑换内容 = 核销后展示商品；解锁每日计划 = 核销后解锁每日推荐"
             >
-              <input
-                className={inputCls}
-                value={form.unlock_duration_days}
+              <select
+                className={selectCls}
+                value={form.redeem_type}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, unlock_duration_days: e.target.value }))
+                  setForm((f) => ({ ...f, redeem_type: e.target.value as RedeemType }))
                 }
-                type="number"
-                min={1}
-                step={1}
-                inputMode="numeric"
-                placeholder="留空 = 永久"
                 disabled={saving}
-              />
+              >
+                <option value="content">兑换内容</option>
+                <option value="unlock_daily">解锁每日计划</option>
+              </select>
             </Field>
-          )}
-        </div>
+
+            {form.redeem_type === 'unlock_daily' && (
+              <Field
+                label="有效天数"
+                hint="解锁有效期，自核销时刻起算；留空即永久有效"
+              >
+                <input
+                  className={inputCls}
+                  value={form.unlock_duration_days}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, unlock_duration_days: e.target.value }))
+                  }
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  placeholder="留空 = 永久"
+                  disabled={saving}
+                />
+              </Field>
+            )}
+          </div>
+        )}
 
         <Field label="商品描述" hint="可展示在买家取卡页，帮助买家确认商品内容；选填">
           <textarea

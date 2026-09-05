@@ -2,6 +2,8 @@ import type { NextRequest } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail, parseBody } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
+import { parseUnlockDurationDays } from '@/lib/card-redeem-fields';
+import { SUBSCRIPTION_TYPE } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +35,17 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   for (const key of ['price', 'duration', 'description', 'payment_url', 'redeem_image_url', 'sort_order'] as const) {
     if (body[key] !== undefined) patch[key] = body[key];
   }
+  if (body.type !== undefined) {
+    patch.type =
+      body.type === SUBSCRIPTION_TYPE.DAILY_PLAN
+        ? SUBSCRIPTION_TYPE.DAILY_PLAN
+        : SUBSCRIPTION_TYPE.NORMAL;
+  }
+  if (body.unlock_duration_days !== undefined) {
+    const days = parseUnlockDurationDays(body.unlock_duration_days);
+    if (!days.ok) return fail(days.error);
+    patch.unlock_duration_days = days.value;
+  }
   if (Object.keys(patch).length === 0) return fail('没有可更新的字段');
 
   const { data, error } = await supabaseAdmin()
@@ -41,7 +54,12 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     .eq('id', params.id)
     .select()
     .maybeSingle();
-  if (error) return fail(error.message, 500);
+  if (error) {
+    if (error.code === '23505') {
+      return fail('每日计划订阅已存在，最多只能有一条', 409);
+    }
+    return fail(error.message, 500);
+  }
   if (!data) return fail('订阅不存在', 404);
   return ok(data);
 }

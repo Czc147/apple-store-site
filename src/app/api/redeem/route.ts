@@ -4,6 +4,7 @@ import { ok, fail, parseBody } from '@/lib/api';
 import {
   CARD_KEY_STATUS,
   REDEEM_TYPE,
+  TARGET_TYPE,
   type CardTargetType,
   type RedeemType,
 } from '@/lib/card-types';
@@ -174,8 +175,35 @@ export async function POST(req: NextRequest) {
   // 登录用户（可选）：带 Bearer 时顺带绑定账号 + 写「我的库」权益
   const user = await getRequestUser(req);
 
-  if ((prod.redeem_type ?? REDEEM_TYPE.CONTENT) === REDEEM_TYPE.UNLOCK_DAILY) {
-    return handleUnlockDaily(db, prod, targetType, targetId, target, user);
+  // 订阅目标：兑换语义由其「类型」决定（迁移 008）——每日计划订阅 → 解锁，普通订阅 → 兑换内容。
+  // 其它目标（小单元 / 活动）仍按 card_products.redeem_type（现状不变）。
+  let effectiveType: RedeemType = prod.redeem_type ?? REDEEM_TYPE.CONTENT;
+  let effectiveDurationDays: number | null = prod.unlock_duration_days;
+  if (targetType === TARGET_TYPE.SUBSCRIPTION) {
+    const { data: sub, error: subErr } = await db
+      .from('subscriptions')
+      .select('type, unlock_duration_days')
+      .eq('id', targetId)
+      .maybeSingle();
+    if (subErr) return fail(subErr.message, 500);
+    const s = sub as { type: string | null; unlock_duration_days: number | null } | null;
+    if (s?.type === 'daily_plan') {
+      effectiveType = REDEEM_TYPE.UNLOCK_DAILY;
+      effectiveDurationDays = s.unlock_duration_days;
+    } else {
+      effectiveType = REDEEM_TYPE.CONTENT;
+    }
+  }
+
+  if (effectiveType === REDEEM_TYPE.UNLOCK_DAILY) {
+    return handleUnlockDaily(
+      db,
+      { ...prod, redeem_type: effectiveType, unlock_duration_days: effectiveDurationDays },
+      targetType,
+      targetId,
+      target,
+      user,
+    );
   }
   return handleContent(db, prod, targetType, targetId, target, user);
 }
