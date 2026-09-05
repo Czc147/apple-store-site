@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Zorvin 使用指南</title>
+<style>
+  :root {
+    --blue: #0071e3;
+    --blue-hover: #0077ed;
+    --text: #1d1d1f;
+    --text-2: #6e6e73;
+    --text-3: #86868b;
+    --bg: #ffffff;
+    --bg-soft: #f5f5f7;
+    --card: #ffffff;
+    --border: #d2d2d7;
+    --hairline: #e8e8ed;
+    --radius: 20px;
+    --radius-sm: 12px;
+    --green: #1b7f3b;
+    --orange: #d9550a;
+    --purple: #8944ab;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+      "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- 顶部导航（毛玻璃） ---------- */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .nav-inner {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+  }
+  .brand svg { color: var(--text); }
+  .tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    appearance: none;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 14px;
+    color: var(--text-2);
+    padding: 8px 14px;
+    border-radius: 980px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s, background 0.2s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); background: #e8e8ed; font-weight: 500; }
+
+  /* ---------- 主体 ---------- */
+  main { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+  .page { display: none; padding: 56px 0 32px; }
+  .page.active {
+    display: block;
+    animation: pageIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .eyebrow {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--blue);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+  }
+  .lede {
+    font-size: clamp(18px, 2.6vw, 24px);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text-2);
+    margin-top: 12px;
+    max-width: 30em;
+  }
+  .page-head { margin-bottom: 40px; }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 40px 0 16px;
+  }
+  p.body {
+    font-size: 16px;
+    color: var(--text-2);
+    line-height: 1.65;
+    max-width: 40em;
+  }
+  p.body + p.body { margin-top: 12px; }
+
+  /* ---------- 卡片 ---------- */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+  .grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    margin-top: 24px;
+  }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* 概览速览卡片 */
+  .quick {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 22px;
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s;
+    border-radius: var(--radius);
+    background: var(--bg-soft);
+  }
+  .quick:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08); }
+  .quick .ico {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: #fff; display: grid; place-items: center; flex-shrink: 0;
+    color: var(--blue); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+  .quick h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .quick p { font-size: 14px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
+
+  /* ---------- 步骤 ---------- */
+  .steps { margin-top: 24px; display: grid; gap: 14px; }
+  .step {
+    display: flex; gap: 18px; align-items: flex-start;
+    background: var(--bg-soft); border-radius: var(--radius); padding: 20px;
+  }
+  .step .num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--blue); color: #fff; flex-shrink: 0;
+    display: grid; place-items: center; font-weight: 600; font-size: 16px;
+  }
+  .step h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .step p { font-size: 14.5px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+
+  /* ---------- 标签 ---------- */
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 500;
+    padding: 5px 12px; border-radius: 980px;
+    background: #f5f5f7; color: var(--text-2);
+  }
+  .tag svg { width: 14px; height: 14px; }
+  .tag.blue { background: #e8f2fd; color: var(--blue); }
+  .tag.green { background: #e7f5ec; color: var(--green); }
+  .tag.orange { background: #fdf0e5; color: var(--orange); }
+  .tag.purple { background: #f3ecf9; color: var(--purple); }
+
+  /* ---------- 提示卡 ---------- */
+  .note {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: #e8f2fd; border-radius: var(--radius); padding: 20px;
+    margin-top: 24px;
+  }
+  .note svg { width: 22px; height: 22px; color: var(--blue); flex-shrink: 0; margin-top: 1px; }
+  .note h3 { font-size: 15px; font-weight: 600; }
+  .note p { font-size: 14px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+  .note.amber { background: #fdf0e5; }
+  .note.amber svg { color: var(--orange); }
+
+  /* ---------- 媒体占位（待替换图片） ---------- */
+  .media {
+    margin-top: 24px;
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-soft);
+    display: grid; place-items: center;
+    min-height: 220px; color: var(--text-3); text-align: center;
+  }
+  .media svg { width: 40px; height: 40px; opacity: 0.5; }
+  .media span { display: block; font-size: 13px; margin-top: 10px; }
+
+  /* ---------- 页脚 ---------- */
+  footer {
+    max-width: 980px; margin: 40px auto 0; padding: 28px 20px 48px;
+    border-top: 1px solid var(--hairline);
+    color: var(--text-3); font-size: 12.5px; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== SVG 图标集 ==================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>
+    </symbol>
+    <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+    </symbol>
+    <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>
+    </symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m12 2 8.5 4.5L12 11 3.5 6.5 12 2Z"/><path d="m3.5 11.5 8.5 4.5 8.5-4.5"/><path d="m3.5 16.5 8.5 4.5 8.5-4.5"/>
+    </symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+    </symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+    </symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 6 9 17l-5-5"/>
+    </symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>
+    </symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+    </symbol>
+    <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- ==================== 顶部导航 ==================== -->
+<header class="nav">
+  <div class="nav-inner">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="m3 7 9 5 9-5"/><path d="M12 22V12"/>
+      </svg>
+      Zorvin
+    </div>
+    <nav class="tabs" role="tablist" aria-label="指南导航">
+      <button class="tab active" role="tab" data-target="overview">概览</button>
+      <button class="tab" role="tab" data-target="shop">选购</button>
+      <button class="tab" role="tab" data-target="purchase">购买与付款</button>
+      <button class="tab" role="tab" data-target="redeem">兑换码</button>
+      <button class="tab" role="tab" data-target="activities">活动</button>
+      <button class="tab" role="tab" data-target="subscriptions">订阅方案</button>
+      <button class="tab" role="tab" data-target="daily">每日计划</button>
+      <button class="tab" role="tab" data-target="library">我的库</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <!-- ==================== 概览 ==================== -->
+  <section class="page active" id="overview">
+    <div class="page-head">
+      <div class="eyebrow">Zorvin 使用指南</div>
+      <h1>欢迎使用 Zorvin。</h1>
+      <p class="lede">从选购、付款到兑换，几步之内，尽享属于你的精选内容。</p>
+    </div>
+    <p class="body">
+      这里是一份完整的使用说明，涵盖从发现商品、完成付款、获取兑换码，到兑换内容、解锁每日计划的全部流程。
+      点击下方任意卡片，或使用顶部导航，即可快速跳转到对应章节。
+    </p>
+
+    <div class="grid">
+      <div class="quick" data-target="shop">
+        <div class="ico"><svg width="22" height="22"><use href="#i-bag"/></svg></div>
+        <div><h3>选购</h3><p>浏览板块与商品，发现心仪内容。</p></div>
+      </div>
+      <div class="quick" data-target="purchase">
+        <div class="ico"><svg width="22" height="22"><use href="#i-card"/></svg></div>
+        <div><h3>购买与付款</h3><p>在第三方平台安全付款，获取兑换码。</p></div>
+      </div>
+      <div class="quick" data-target="redeem">
+        <div class="ico"><svg width="22" height="22"><use href="#i-key"/></svg></div>
+        <div><h3>兑换码</h3><p>输入兑换码，即兑即用。</p></div>
+      </div>
+      <div class="quick" data-target="activities">
+        <div class="ico"><svg width="22" height="22"><use href="#i-calendar"/></svg></div>
+        <div><h3>活动</h3><p>发现限时与主题内容。</p></div>
+      </div>
+      <div class="quick" data-target="subscriptions">
+        <div class="ico"><svg width="22" height="22"><use href="#i-layers"/></svg></div>
+        <div><h3>订阅方案</h3><p>选一个适合你的付费节奏。</p></div>
+      </div>
+      <div class="quick" data-target="daily">
+        <div class="ico"><svg width="22" height="22"><use href="#i-star"/></svg></div>
+        <div><h3>每日计划</h3><p>解锁每天一条精选推荐。</p></div>
+      </div>
+    </div>
+
+    <div class="tags">
+      <span class="tag blue"><svg><use href="#i-check"/></svg>简单几步</span>
+      <span class="tag green"><svg><use href="#i-shield"/></svg>安全付款</span>
+      <span class="tag orange"><svg><use href="#i-star"/></svg>每日更新</span>
+    </div>
+  </section>
+
+  <!-- ==================== 选购 ==================== -->
+  <section class="page" id="shop">
+    <div class="page-head">
+      <div class="eyebrow">选购</div>
+      <h1>发现属于你的那一款。</h1>
+      <p class="lede">首页按板块组织，精选与全部商品一目了然。</p>
+    </div>
+
+    <p class="body">
+      进入首页，你会看到一个个横向滑动的板块：带「精选」标记的卡片是编辑特别推荐，其余商品也按分类整齐排列。
+      点开任意卡片，即可查看该分类下的具体内容。
+    </p>
+
+    <!-- 图片占位：首页板块截图（用户后续提供） -->
+    <div class="media">
+      <div><svg><use href="#i-image"/></svg><span>图片待添加 · 首页板块示例</span></div>
+    </div>
+
+    <h2>如何浏览</h2>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div><h3>打开首页</h3><p>进入 Zorvin 选购页，顶部是每日推荐，下方是商品板块。</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>滑动板块</h3><p>左右滑动卡片流，浏览不同分类与精选内容。</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>点开卡片</h3><p>点击卡片展开选项，查看该分类下的具体商品。</p></div></div>
+    </div>
+
+    <div class="tags">
+      <span class="tag blue"><svg><use href="#i-star"/></svg>精选</span>
+      <span class="tag gray">板块</span>
+      <span class="tag gray">分类</span>
+    </div>
+  </section>
+
+  <!-- ==================== 购买与付款 ==================== -->
+  <section class="page" id="purchase">
+    <div class="page-head">
+      <div class="eyebrow">购买与付款</div>
+      <h1>几步之内，完成购买。</h1>
+      <p class="lede">付款在第三方发卡平台完成，安全、私密。</p>
+    </div>
+
+    <p class="body">
+      选择好商品或订阅方案后，点击「立即订阅」即可跳转到第三方发卡平台完成付款。
+      付款成功后，平台会为你生成一个兑换码——它是你兑换内容的凭证，请妥善保管。
+    </p>
+
+    <h2>购买流程</h2>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div><h3>选择方案</h3><p>在商品或订阅详情中，确定你要购买的内容。</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>跳转付款</h3><p>点击「立即订阅」，在新标签页打开第三方发卡平台的付款链接。</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>完成支付</h3><p>按平台提示完成付款。</p></div></div>
+      <div class="step"><div class="num">4</div><div><h3>获取兑换码</h3><p>付款成功后，平台会显示你的兑换码（卡密），请复制保存。</p></div></div>
+    </div>
+
+    <div class="note">
+      <svg><use href="#i-shield"/></svg>
+      <div>
+        <h3>付款安全</h3>
+        <p>所有付款均在第三方平台完成，Zorvin 不接触、不保存你的任何支付信息。</p>
+      </div>
+    </div>
+
+    <div class="tags">
+      <span class="tag blue"><svg><use href="#i-shield"/></svg>安全付款</span>
+      <span class="tag green"><svg><use href="#i-link"/></svg>第三方平台</span>
+      <span class="tag orange"><svg><use href="#i-key"/></svg>兑换码凭证</span>
+    </div>
+  </section>
+
+  <!-- ==================== 兑换码 ==================== -->
+  <section class="page" id="redeem">
+    <div class="page-head">
+      <div class="eyebrow">兑换码</div>
+      <h1>一码在手，即兑即用。</h1>
+      <p class="lede">在兑换页输入兑换码，内容即刻解锁。</p>
+    </div>
+
+    <p class="body">
+      拿到兑换码后，回到 Zorvin，进入「兑换」页面输入兑换码。
+      兑换成功后会立即弹出你购买的内容，或为你解锁「每日计划」。
+    </p>
+
+    <h2>兑换步骤</h2>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div><h3>打开兑换页</h3><p>在首页或导航中找到「兑换」入口。</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>输入兑换码</h3><p>粘贴你在付款后获得的兑换码。</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>确认兑换</h3><p>点击兑换，内容会立即展示，或提示你已解锁每日计划。</p></div></div>
+    </div>
+
+    <div class="note amber">
+      <svg><use href="#i-key"/></svg>
+      <div>
+        <h3>温馨提示</h3>
+        <p>兑换码是唯一凭证，请妥善保管。兑换成功后，内容会归档到「我的库」，随时可再次查看。</p>
+      </div>
+    </div>
+
+    <div class="tags">
+      <span class="tag blue"><svg><use href="#i-key"/></svg>卡密</span>
+      <span class="tag green"><svg><use href="#i-check"/></svg>即兑即用</span>
+    </div>
+  </section>
+
+  <!-- ==================== 活动 ==================== -->
+  <section class="page" id="activities">
+    <div class="page-head">
+      <div class="eyebrow">活动</div>
+      <h1>精彩，随时发生。</h1>
+      <p class="lede">限时与主题内容，第一时间在这里与你见面。</p>
+    </div>
+
+    <p class="body">
+      活动是 Zorvin 不定期推出的限时或主题内容。点击活动卡片即可查看详情，
+      卡片上的「了解更多」会带你前往完整介绍页面。
+    </p>
+
+    <!-- 图片占位：活动卡片示例（用户后续提供） -->
+    <div class="media">
+      <div><svg><use href="#i-image"/></svg><span>图片待添加 · 活动示例</span></div>
+    </div>
+
+    <div class="tags">
+      <span class="tag orange"><svg><use href="#i-calendar"/></svg>限时</span>
+      <span class="tag purple">主题内容</span>
+      <span class="tag blue"><svg><use href="#i-link"/></svg>了解更多</span>
+    </div>
+  </section>
+
+  <!-- ==================== 订阅方案 ==================== -->
+  <section class="page" id="subscriptions">
+    <div class="page-head">
+      <div class="eyebrow">订阅方案</div>
+      <h1>选一个适合你的节奏。</h1>
+      <p class="lede">月付、季付、年付，灵活选择。</p>
+    </div>
+
+    <p class="body">
+      订阅提供多种付费周期，你可以按需选择月付、季付或年付。
+      购买订阅后同样会获得兑换码，兑换后即可获得对应的内容权益。
+    </p>
+
+    <h2>可选周期</h2>
+    <div class="grid">
+      <div class="card"><h3 style="font-size:18px;font-weight:600">月付</h3><p class="body" style="margin-top:8px">按月订阅，随时取消，适合先体验再决定的朋友。</p></div>
+      <div class="card"><h3 style="font-size:18px;font-weight:600">季付</h3><p class="body" style="margin-top:8px">按季订阅，性价比更高，含完整季度更新。</p></div>
+      <div class="card"><h3 style="font-size:18px;font-weight:600">年付</h3><p class="body" style="margin-top:8px">一次订阅全年畅用，含所有更新与年度权益。</p></div>
+    </div>
+
+    <div class="tags">
+      <span class="tag blue">月付</span>
+      <span class="tag blue">季付</span>
+      <span class="tag blue">年付</span>
+      <span class="tag green"><svg><use href="#i-check"/></svg>兑换内容</span>
+    </div>
+  </section>
+
+  <!-- ==================== 每日计划 ==================== -->
+  <section class="page" id="daily">
+    <div class="page-head">
+      <div class="eyebrow">每日计划</div>
+      <h1>每天一点新惊喜。</h1>
+      <p class="lede">解锁后，每天为你更新一条精选推荐。</p>
+    </div>
+
+    <p class="body">
+      每日计划解锁后，首页的「每日推荐」会每天更新一条精选内容。
+      你可以通过购买每日计划订阅、兑换对应的兑换码来解锁；解锁有效期可以是固定天数，也可以是永久。
+    </p>
+
+    <h2>如何解锁</h2>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div><h3>购买每日计划</h3><p>在订阅方案中选择「每日计划」并完成购买。</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>兑换解锁</h3><p>使用获得的兑换码在「兑换」页完成解锁。</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>每天查看</h3><p>解锁后回到首页，每日推荐每天更新。</p></div></div>
+    </div>
+
+    <div class="note">
+      <svg><use href="#i-star"/></svg>
+      <div>
+        <h3>有效期说明</h3>
+        <p>解锁有效期自兑换成功那一刻起算，可以是固定天数，也可以是永久有效，以购买方案为准。</p>
+      </div>
+    </div>
+
+    <div class="tags">
+      <span class="tag orange"><svg><use href="#i-star"/></svg>每日更新</span>
+      <span class="tag blue"><svg><use href="#i-check"/></svg>解锁</span>
+      <span class="tag green">永久 / 限时</span>
+    </div>
+  </section>
+
+  <!-- ==================== 我的库 ==================== -->
+  <section class="page" id="library">
+    <div class="page-head">
+      <div class="eyebrow">我的库</div>
+      <h1>你拥有的，都在这里。</h1>
+      <p class="lede">兑换的内容与权益，自动归档、随时查看。</p>
+    </div>
+
+    <p class="body">
+      登录后，你兑换的所有内容与权益都会自动归档到「我的库」。
+      即使作为游客兑换的内容，也会保存在本地；登录后会自动同步到你的账号。
+    </p>
+
+    <h2>你会看到</h2>
+    <div class="grid">
+      <div class="card"><h3 style="font-size:18px;font-weight:600">已兑换内容</h3><p class="body" style="margin-top:8px">你购买并兑换的图片、视频与文档。</p></div>
+      <div class="card"><h3 style="font-size:18px;font-weight:600">每日计划权益</h3><p class="body" style="margin-top:8px">每日计划解锁状态与有效期。</p></div>
+    </div>
+
+    <div class="tags">
+      <span class="tag blue"><svg><use href="#i-book"/></svg>权益归档</span>
+      <span class="tag green"><svg><use href="#i-check"/></svg>自动同步</span>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Zorvin 使用指南 · 本页内容会随功能更新而调整。<br/>
+  如有疑问，请通过站内客服或「了解更多」渠道与我们联系。
+</footer>
+
+<script>
+  (function () {
+    var tabs = document.querySelectorAll('.tab');
+    var pages = document.querySelectorAll('.page');
+    var quicks = document.querySelectorAll('.quick');
+
+    function activate(id) {
+      tabs.forEach(function (t) {
+        t.classList.toggle('active', t.getAttribute('data-target') === id);
+      });
+      pages.forEach(function (p) {
+        p.classList.toggle('active', p.id === id);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function go(e) {
+      var id = e.currentTarget.getAttribute('data-target');
+      if (id && document.getElementById(id)) {
+        activate(id);
+        if (history.replaceState) history.replaceState(null, '', '#' + id);
+      }
+    }
+
+    tabs.forEach(function (t) { t.addEventListener('click', go); });
+    quicks.forEach(function (q) { q.addEventListener('click', go); });
+
+    // 支持直接打开带 #锚点 的链接（深链）
+    var hash = location.hash.slice(1);
+    if (hash && document.getElementById(hash)) activate(hash);
+  })();
+</script>
+</body>
+</html>
