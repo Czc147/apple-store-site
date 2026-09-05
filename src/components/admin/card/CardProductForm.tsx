@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import type { Activity, MajorUnit, SubUnit, Subscription } from '@/lib/types';
-import { TARGET_TYPE_LABEL, type CardTargetType } from '@/lib/card-types';
+import { TARGET_TYPE_LABEL, type CardTargetType, type RedeemType } from '@/lib/card-types';
 import { Field, Notice, inputCls, textareaCls, selectCls, btnPrimary, btnGhost } from '../ui';
 import { productLabel, type CardProductRow } from './shared';
 
@@ -14,6 +14,10 @@ interface FormState {
   target_type: CardTargetType;
   target_id: string;
   description: string;
+  /** 兑换类型：兑换内容 / 解锁每日计划（迁移 005） */
+  redeem_type: RedeemType;
+  /** 解锁有效天数（仅解锁每日计划生效）；空串 = 永久 */
+  unlock_duration_days: string;
   sort_order: string;
   enabled: boolean;
 }
@@ -58,6 +62,8 @@ export default function CardProductForm({
     target_type: 'sub_unit',
     target_id: '',
     description: '',
+    redeem_type: 'content',
+    unlock_duration_days: '',
     sort_order: '0',
     enabled: true,
   });
@@ -107,6 +113,12 @@ export default function CardProductForm({
           target_type: d.target_type ?? 'sub_unit',
           target_id: d.target_id ?? '',
           description: d.description ?? '',
+          // 旧数据可能无这两列：兜底为「兑换内容 / 永久」
+          redeem_type: (d.redeem_type as RedeemType) ?? 'content',
+          unlock_duration_days:
+            typeof d.unlock_duration_days === 'number'
+              ? String(d.unlock_duration_days)
+              : '',
           sort_order: String(d.sort_order),
           enabled: d.enabled,
         });
@@ -146,6 +158,18 @@ export default function CardProductForm({
     const sortOrder = Number(form.sort_order);
     if (!Number.isFinite(sortOrder)) return setFormError('排序必须是数字');
 
+    // 解锁每日计划：校验有效天数（留空 = 永久；否则必须为正整数）
+    const isUnlock = form.redeem_type === 'unlock_daily';
+    const durationRaw = form.unlock_duration_days.trim();
+    let durationValue: number | null = null;
+    if (isUnlock && durationRaw !== '') {
+      const n = Number(durationRaw);
+      if (!Number.isInteger(n) || n <= 0) {
+        return setFormError('有效天数必须是正整数（留空即永久有效）');
+      }
+      durationValue = n;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
@@ -158,6 +182,9 @@ export default function CardProductForm({
             target_type: form.target_type,
             target_id: form.target_id,
             description: form.description,
+            redeem_type: form.redeem_type,
+            // 非解锁类型统一提交 null，避免给 content 商品留脏字段
+            unlock_duration_days: isUnlock ? durationValue : null,
             sort_order: sortOrder,
             enabled: form.enabled,
           }),
@@ -353,6 +380,46 @@ export default function CardProductForm({
               </select>
             )}
           </Field>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field
+            label="兑换类型"
+            hint="兑换内容 = 核销后展示商品；解锁每日计划 = 核销后解锁每日推荐"
+          >
+            <select
+              className={selectCls}
+              value={form.redeem_type}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, redeem_type: e.target.value as RedeemType }))
+              }
+              disabled={saving}
+            >
+              <option value="content">兑换内容</option>
+              <option value="unlock_daily">解锁每日计划</option>
+            </select>
+          </Field>
+
+          {form.redeem_type === 'unlock_daily' && (
+            <Field
+              label="有效天数"
+              hint="解锁有效期，自核销时刻起算；留空即永久有效"
+            >
+              <input
+                className={inputCls}
+                value={form.unlock_duration_days}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, unlock_duration_days: e.target.value }))
+                }
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                placeholder="留空 = 永久"
+                disabled={saving}
+              />
+            </Field>
+          )}
         </div>
 
         <Field label="商品描述" hint="可展示在买家取卡页，帮助买家确认商品内容；选填">

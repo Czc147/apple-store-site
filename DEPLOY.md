@@ -9,15 +9,18 @@
 
 ```
 浏览器
- ├─ 前台页面  /  /wishlist  /activities  /subscription  /redeem   → Next.js SSR（每次请求实时渲染）
+ ├─ 前台页面  /  /wishlist  /activities  /subscription  /redeem  /library  /daily  /login
+ │                                                              → Next.js SSR（每次请求实时渲染）
  ├─ 后台      /admin/**                                           → Next.js SSR + Cookie 鉴权
  ├─ API       /api/*                                              → Netlify Functions（插件自动转换）
  └─ 静态资源  /_next/static/*、icon.svg、apple-icon.png           → Netlify CDN 长缓存
           ↓
- Supabase（PostgreSQL + Storage）
+ Supabase（PostgreSQL + Storage + Auth）
    - service_role 仅存在于服务端（API Routes / SSR 组件）
    - RLS 策略：四张商品表与 images 桶公开只读，写入只走本站 API；
-     发卡管理三表（card_*）零 policy，仅服务端可访问
+     发卡管理三表（card_*）、daily_picks、user_entitlements 零 policy，仅服务端可访问
+   - Storage：images 公开桶；daily 私有桶（每日内容，服务端现签 1h 签名 URL）
+   - Auth：用户邮箱+密码登录（浏览器端 supabase-js，anon key）
 ```
 
 ### 为什么没有 `_redirects` / SPA 回退
@@ -38,8 +41,8 @@ Netlify Functions 并自动接管全部路由（含深链、404、API）。
 |---|---|---|---|
 | `SUPABASE_URL` | ✅ | 服务端读写数据库/Storage | Supabase → Project Settings → API |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | 服务端密钥（绕 RLS，严禁泄露） | 同上 |
-| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | 前台浏览器端（本项目仅服务端取值，建议与 SUPABASE_URL 同值） | 同上 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | 匿名公钥 | 同上 |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | 浏览器端邮箱登录（supabase-js），与 SUPABASE_URL 同值 | 同上 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | 匿名公钥（构建期内联，改后必须重新部署） | 同上 |
 | `ADMIN_PASSWORD` | ✅ | 后台登录密码 + 会话签名密钥，设为强密码 | 自拟 |
 
 > 本地开发：复制 `.env.local.example` 为 `.env.local` 填入即可，互不影响。
@@ -55,13 +58,25 @@ Netlify Functions 并自动接管全部路由（含深链、404、API）。
    - `supabase/migrations/002_card_management.sql`（发卡管理三表 + 发放 RPC）
    - `supabase/migrations/003_redeem.sql`（兑换图片列 + 卡密商品多态化）
    - `supabase/migrations/004_subscription_description.sql`（订阅详细介绍列 + 兑换商品注释）
+   - `supabase/migrations/005_daily_plan.sql`（每日推荐 + 用户权益 +
+     `grant_daily_plan` RPC + `daily` 私有桶）
    （001 已并入 schema.sql；所有迁移幂等，可安全重跑。）
-2. 把本仓库推送到 GitHub/GitLab。
-3. Netlify → `Add new site → Import an existing project` → 选择仓库。
-4. 构建配置会自动读取 `netlify.toml`
+2. **邮箱登录设置**：Supabase Dashboard → Authentication → Providers → Email，
+   关闭 **Confirm email**（否则注册需邮件确认，默认 SMTP 限 2 封/小时）；
+   「忘记密码」邮件如需稳定收发可另配自定义 SMTP（可后补）。
+3. 把本仓库推送到 GitHub/GitLab。
+4. Netlify → `Add new site → Import an existing project` → 选择仓库。
+5. 构建配置会自动读取 `netlify.toml`
    （`npm run build` / publish `.next` / 插件自动安装），无需改动。
-5. 按上表配置环境变量 → `Deploy site`。
-6. 构建成功后访问站点；`/admin` 用 `ADMIN_PASSWORD` 登录开始维护数据。
+6. 按上表配置环境变量（含两个 `NEXT_PUBLIC_*`，浏览器端登录必需）→ `Deploy site`。
+7. 构建成功后访问站点；`/admin` 用 `ADMIN_PASSWORD` 登录开始维护数据。
+
+### 每日计划上线配置顺序（后台按序操作）
+1. 订阅管理 → 新建「每日计划」订阅（前台解锁入口与展示名取自这里）。
+2. 卡密商品 → 新建关联该订阅的商品，**兑换类型选「解锁每日计划」**，
+   填有效天数（留空 = 永久）。
+3. 批量导入该商品下的卡密 → 在第三方平台售卖。
+4. 每日推荐 → 上传当天内容（封面 + 内容文件 / 跳转链接）。
 
 ### 日常迭代
 - `git push` → Netlify 自动构建发布（约 1-3 分钟），可在
@@ -110,8 +125,11 @@ npm run dev       # 本地联调
 5. ✅ 后台：密码登录（7 天 cookie）、四模块 CRUD、图片上传（进度/拖拽/预览）、排序生效、级联删除警示、三类商品「兑换商品」上传（图片/视频/文档）
 6. ✅ 发卡管理：概览 / 卡密商品（多态关联小单元·活动·订阅）/ 库存状态机 / 批量导入 / 取卡登记 / 卡密批量清空与商品连带删除
 7. ✅ 兑换链路：`/redeem` 输入未用卡密 → 核销 + 弹出兑换商品（图片/视频/文档按类型渲染）；重复输入 → 已兑换提示；错码/作废码统一 403；未配置兑换商品 409 且不核销
-8. ✅ Tab Bar：五 Tab 高亮、图标、愿望单角标实时计数
+8. ✅ Tab Bar：六 Tab 高亮、图标、愿望单角标实时计数
 9. ✅ 移动端：设计基准 375-428px，`px-5` + 圆角卡片 + 底部安全区适配
 10. ✅ 数据流：后台录入 → 前台 force-dynamic 实时可见 → 跳转酷发卡支付 → 卡密搬运回本站兑换
-11. ✅ 部署：`npm run build` 本地零报错（= Netlify 构建步骤）；
+11. ✅ 每日计划：后台每日推荐上传（封面/内容文件/链接）→ 解锁类卡密商品设有效期 → 游客输码解锁（选购页区块锁定→解锁）→ `/daily` 今日内容 + 历史仓库（签名 URL 1h）→ 过期回到锁定态
+12. ✅ 账号链路：邮箱注册/登录（关闭 Confirm email）→ 我的库同步本机码（逐条结果）→ 退出重登权益仍在；忘记密码邮件重置
+13. ✅ 权益管理：后台 `/admin/library` 延长（叠加/置永久）→ 生效；撤销 → `/api/daily-access` 回到未解锁且该码重输/同步不复活（关联码已作废）
+14. ✅ 部署：`npm run build` 本地零报错（= Netlify 构建步骤）；
    路由/鉴权/上传/兑换经 curl 全量回归

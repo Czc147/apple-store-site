@@ -12,10 +12,12 @@ import {
 } from '@/lib/upload';
 
 interface FileUploaderProps {
-  /** 当前文件 URL（null 表示未上传） */
+  /** 当前文件 URL（null 表示未上传；私有桶传签名预览 URL） */
   value: string | null;
-  /** 上传成功 → 新 URL；移除 → null */
-  onChange: (url: string | null) => void;
+  /** 上传成功 → 新 URL（及存储桶内 path，私有桶入库用）；移除 → null */
+  onChange: (url: string | null, path?: string | null) => void;
+  /** 目标存储桶：images 公开桶（默认）| daily 每日推荐私有桶 */
+  bucket?: 'images' | 'daily';
 }
 
 /**
@@ -23,8 +25,10 @@ interface FileUploaderProps {
  * - 支持图片 / 视频 / 文档（规则见 lib/upload.ts，服务端二次校验）
  * - XHR 上传以支持真实进度条
  * - 已有内容时按类型预览（图片缩略图 / 视频播放器 / 文档图标），可替换 / 移除
+ * - bucket='daily' 时上传到每日推荐私有桶：onChange 第二参返回对象 path（入库用），
+ *   url 为 1 小时签名预览链接
  */
-export default function FileUploader({ value, onChange }: FileUploaderProps) {
+export default function FileUploader({ value, onChange, bucket = 'images' }: FileUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +51,7 @@ export default function FileUploader({ value, onChange }: FileUploaderProps) {
 
     const form = new FormData();
     form.append('file', file);
+    if (bucket !== 'images') form.append('bucket', bucket);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload');
@@ -65,7 +70,10 @@ export default function FileUploader({ value, onChange }: FileUploaderProps) {
         try {
           const data = JSON.parse(xhr.responseText);
           if (typeof data?.url === 'string' && data.url) {
-            onChange(data.url);
+            onChange(
+              data.url,
+              typeof data.path === 'string' ? data.path : null,
+            );
             return;
           }
         } catch {
@@ -219,7 +227,7 @@ export default function FileUploader({ value, onChange }: FileUploaderProps) {
             <button
               type="button"
               onClick={() => {
-                if (!uploading) onChange(null);
+                if (!uploading) onChange(null, null);
               }}
               disabled={uploading}
               className="inline-flex h-8 items-center gap-1 rounded-xl border border-apple-border bg-white px-3 text-[12.5px] font-medium text-[#D70015] transition hover:bg-[#D70015]/5 active:scale-95 disabled:opacity-50"

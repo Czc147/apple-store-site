@@ -1,4 +1,5 @@
-import type { Activity, MajorUnit, SubUnit, Subscription } from './types';
+import type { Activity, DailyPick, MajorUnit, SubUnit, Subscription } from './types';
+import { todayDateCN } from './daily';
 
 /**
  * 演示数据 —— 仅在 Supabase 环境变量未配置时兜底使用，
@@ -113,3 +114,36 @@ export const DEMO_SUBSCRIPTIONS: Subscription[] = [
     created_at: '2026-01-01T00:00:00Z',
   },
 ];
+
+/**
+ * 每日推荐演示数据：「今日」按北京时区现算（函数形式，避免模块缓存跨天不更新）。
+ * 演示模式下 media_path 一律置空（无真实私有桶内容），仅展示区块/列表外观。
+ */
+export function getDemoDailyPicks(): DailyPick[] {
+  const today = todayDateCN();
+  const yesterday = todayDateCN(new Date(Date.now() - 24 * 3600 * 1000));
+  return [
+    {
+      id: 'demo-d1',
+      pick_date: today,
+      title: '今日推荐 · 精选内容演示',
+      description: '这是演示数据：配置 Supabase 环境变量并在后台上传后将显示真实内容。',
+      cover_url: 'https://picsum.photos/seed/daily-today/960/540',
+      media_path: null,
+      link_url: 'https://example.com/daily/today',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: 'demo-d2',
+      pick_date: yesterday,
+      title: '往期推荐 · 历史仓库演示',
+      description: '解锁每日计划后可查看全部历史内容。',
+      cover_url: 'https://picsum.photos/seed/daily-past/960/540',
+      media_path: null,
+      link_url: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    },
+  ];
+}

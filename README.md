@@ -3,13 +3,18 @@
 移动端优先的商品展示与选购网站，视觉对标 Apple Store（苹果官网商店 / Apple Store App）。
 站点品牌名 **Zorvin**（`<title>` 模板为 `%s · Zorvin`）。
 
-前台五个 Tab：**选购 / 愿望单 / 活动 / 订阅 / 兑换**；后台 `/admin` 提供密码登录 +
-商品四模块与「发卡管理」（卡密商品 / 卡密库存 / 批量导入 / 取卡登记）的 CRUD。
-数据存 Supabase（PostgreSQL + Storage），部署在 Netlify。
+前台六个 Tab：**选购 / 愿望单 / 活动 / 订阅 / 兑换 / 我的库**；后台 `/admin` 提供密码登录 +
+商品四模块、「每日推荐」与「发卡管理」（卡密商品 / 卡密库存 / 批量导入 / 取卡登记）的 CRUD。
+数据存 Supabase（PostgreSQL + Storage + Auth），部署在 Netlify。
 
 支付链路为**外跳第三方发卡平台**（酷发卡）：本站不做站内支付。买家在第三方平台
 付款后收到卡密，管理员把卡密搬运进本站「发卡管理」，买家到「兑换」Tab 输入卡密，
 核销后弹出商品后台预先上传的**兑换商品**（图片 / 视频 / 文档，详见 [发卡管理与兑换](#发卡管理与兑换)）。
+
+卡密另支持**「解锁每日计划」**类型：管理员每天在后台上传 1 条「每日推荐」，
+买家凭解锁码解锁后每天可看当日更新 + 全部历史仓库（详见 [每日计划与用户体系](#每日计划与用户体系)）。
+用户可注册邮箱账号（Supabase Auth），权益永久存入「我的库」，换设备登录即找回；
+游客也允许兑换（记录存本机 + 强提示注册）。
 
 ---
 
@@ -31,8 +36,9 @@
 14. [Supabase 初始化](#supabase-初始化)
 15. [部署（Netlify）](#部署netlify)
 16. [SEO 与性能](#seo-与性能)
-17. [扩展指南：如何加新功能](#扩展指南如何加新功能)
-18. [已知约定与坑](#已知约定与坑)
+17. [每日计划与用户体系](#每日计划与用户体系)
+18. [扩展指南：如何加新功能](#扩展指南如何加新功能)
+19. [已知约定与坑](#已知约定与坑)
 
 ---
 
@@ -43,8 +49,9 @@
 | 框架 | Next.js 14（App Router） | 全部页面 `force-dynamic` 实时 SSR |
 | UI | React 18 + Tailwind CSS 3 | 自定义 Apple 设计 Tokens（见下文） |
 | 图标 | lucide-react | SF Symbols 风格线性图标 |
-| 数据库 | Supabase PostgreSQL | 4 张业务表，RLS 公开只读 |
-| 图片存储 | Supabase Storage | `images` 公开桶 |
+| 数据库 | Supabase PostgreSQL | 商品 4 表公开只读；发卡/每日推荐/权益表零 policy |
+| 文件存储 | Supabase Storage | `images` 公开桶 + `daily` 私有桶（签名 URL 1h） |
+| 用户账号 | Supabase Auth | 邮箱 + 密码，浏览器端 supabase-js |
 | 后端 | Next.js API Routes | Netlify 上自动转为 Functions |
 | 部署 | Netlify | `@netlify/plugin-nextjs`，Node 20 |
 | 状态管理 | 自研极简外部 store | `useSyncExternalStore` + localStorage，未引入 Zustand |
@@ -100,20 +107,26 @@ apple-store-site/
 │     ├─ 001_activities_add_title.sql# activities 补 title 列（schema.sql 已包含）
 │     ├─ 002_card_management.sql     # 发卡管理三表：card_products / card_keys / card_deliveries
 │     ├─ 003_redeem.sql              # 三商品表补 redeem_image_url；card_products 多态化
-│     └─ 004_subscription_description.sql # 订阅详细介绍列 + 兑换商品注释统一
+│     ├─ 004_subscription_description.sql # 订阅详细介绍列 + 兑换商品注释统一
+│     └─ 005_daily_plan.sql          # 每日推荐 + 权益：daily_picks / daily 私有桶 /
+│                                    #   card_products 兑换类型 / card_keys 绑定 /
+│                                    #   user_entitlements / grant_daily_plan RPC
 └─ src/
    ├─ app/
    │  ├─ layout.tsx                  # 根布局：metadata、viewport（viewportFit=cover）、背景色
    │  ├─ globals.css                 # Tailwind 入口 + 安全区/毛玻璃/动画/骨架屏工具类
    │  ├─ icon.svg / apple-icon.png   # favicon 与 iOS 桌面图标
    │  ├─ robots.ts                   # 允许收录前台，禁止 /admin/ 与 /api/
-   │  ├─ (store)/                    # 前台路由组（共享底部 TabBar）
+   │  ├─ (store)/                    # 前台路由组（共享底部 TabBar + AuthProvider）
    │  │  ├─ layout.tsx               #   内容区 + TabBar + 安全区留白 + PageFade 过场
-   │  │  ├─ page.tsx                 #   Tab 1 选购        /
+   │  │  ├─ page.tsx                 #   Tab 1 选购        /（含每日推荐区块）
    │  │  ├─ wishlist/page.tsx        #   Tab 2 愿望单      /wishlist
    │  │  ├─ activities/page.tsx      #   Tab 3 活动        /activities
    │  │  ├─ subscription/page.tsx    #   Tab 4 订阅        /subscription
-   │  │  └─ redeem/page.tsx          #   Tab 5 兑换        /redeem
+   │  │  ├─ redeem/page.tsx          #   Tab 5 兑换        /redeem
+   │  │  ├─ library/page.tsx         #   Tab 6 我的库      /library（登录/游客双视图）
+   │  │  ├─ daily/page.tsx           #   每日推荐          /daily（今日更新 + 历史仓库）
+   │  │  └─ login/page.tsx           #   账号              /login（登录/注册/忘记密码）
    │  ├─ admin/
    │  │  ├─ login/page.tsx           #   登录页（已登录自动回 /admin）
    │  │  └─ (panel)/
@@ -123,6 +136,8 @@ apple-store-site/
    │  │     ├─ sub-units/page.tsx    #   小单元管理
    │  │     ├─ activities/page.tsx   #   活动管理
    │  │     ├─ subscriptions/page.tsx#   订阅管理
+   │  │     ├─ daily-picks/page.tsx  #   每日推荐内容管理（一天一条）
+   │  │     ├─ library/page.tsx      #   用户权益管理（延长 / 撤销）
    │  │     └─ card-management/      #   发卡管理：概览 / 商品 / 库存 / 导入 / 取卡登记
    │  └─ api/
    │     ├─ major-units/  route.ts + [id]/route.ts
@@ -130,12 +145,21 @@ apple-store-site/
    │     ├─ activities/   route.ts + [id]/route.ts
    │     ├─ subscriptions/route.ts + [id]/route.ts
    │     ├─ card-management/          # 发卡管理：products / keys / keys/import / deliveries / deliver / stats
-   │     ├─ redeem/route.ts           # POST 卡密兑换（公开接口）
-   │     ├─ upload/route.ts           # POST 图片上传 → Supabase Storage
+   │     ├─ redeem/route.ts           # POST 卡密兑换（公开接口，支持解锁每日计划）
+   │     ├─ daily-picks/  route.ts + [id]/route.ts   # 后台每日推荐管理（含签名预览）
+   │     ├─ daily-access/route.ts     # POST 校验每日计划解锁状态（Bearer 或游客码）
+   │     ├─ daily-content/route.ts    # POST 按日期取内容（私有桶签名 URL 1h）
+   │     ├─ library/route.ts + sync/route.ts  # 我的库：权益列表 / 本机码同步
+   │     ├─ entitlements/ route.ts + [id]/extend + [id]/revoke  # 后台权益管理
+   │     ├─ upload/route.ts           # POST 文件上传 → images 公开桶 / daily 私有桶
    │     └─ auth/login|logout/route.ts# 管理员会话
    ├─ components/
-   │  ├─ layout/TabBar.tsx            # 底部毛玻璃导航（5 Tab + 愿望单角标）
-   │  ├─ redeem/RedeemClient.tsx      # 兑换页交互（输入卡密 → 核销 → 弹兑换商品）
+   │  ├─ layout/TabBar.tsx            # 底部毛玻璃导航（6 Tab + 愿望单角标）
+   │  ├─ redeem/RedeemClient.tsx      # 兑换页交互（兑换内容 / 解锁每日计划两种结果）
+   │  ├─ shop/DailyPickBlock.tsx      # 选购页「每日推荐」区块（锁定/解锁双态）
+   │  ├─ daily/                       # /daily 页：今日更新 + 历史仓库 + 按需签名取内容
+   │  ├─ auth/AuthClient.tsx          # 登录/注册/忘记密码/重置密码（Supabase Auth）
+   │  ├─ library/LibraryClient.tsx    # 我的库（游客本机记录 / 登录权威权益 + 一键同步）
    │  ├─ shop/
    │  │  ├─ ShopServer.tsx            # 服务端取数（含演示降级/错误态）
    │  │  ├─ ShopClient / ShopSkeleton
@@ -155,8 +179,10 @@ apple-store-site/
    │  │  ├─ AdminShell.tsx            # 桌面侧栏 / 移动顶栏胶囊 Tab
    │  │  ├─ LoginForm.tsx
    │  │  ├─ MajorUnitsManager / SubUnitsManager / ActivitiesManager / SubscriptionsManager
+   │  │  ├─ DailyPicksManager.tsx     # 每日推荐管理（日期/标题/封面/内容文件/跳转链接）
+   │  │  ├─ EntitlementsManager.tsx   # 用户权益管理（列表/延长/撤销）
    │  │  ├─ ImageUploader.tsx         # 图片上传（真实进度/拖拽/预览/替换）
-│  │  ├─ FileUploader.tsx          # 兑换商品上传（图片/视频/文档）
+   │  │  ├─ FileUploader.tsx          # 兑换商品/每日内容上传（图片/视频/文档，可选私有桶）
    │  │  ├─ Modal / ConfirmDialog
    │  │  ├─ ui.tsx                    # 共享样式常量 + 原子组件
    │  │  └─ card/                     # 发卡管理：Overview / Products / Keys / Import / Deliveries + shared
@@ -166,17 +192,23 @@ apple-store-site/
    │     ├─ ActionSheet.tsx           # iOS 风居中弹层（背景压暗 + 列表行）
    │     └─ PageFade.tsx              # 路由切换淡入（按 pathname 重挂载）
    └─ lib/
-      ├─ types.ts                     # 4 张商品表的 TS 类型（含 redeem_image_url）
-      ├─ card-types.ts                # 发卡管理三表类型 + 状态机常量 + 目标类型
+      ├─ types.ts                     # 4 张商品表 + 每日推荐 + 权益的 TS 类型
+      ├─ card-types.ts                # 发卡管理三表类型 + 状态机常量 + 目标类型 + 兑换类型
       ├─ card-targets.ts              # 服务端：卡密商品关联目标解析/校验（勿入前端）
       ├─ api.ts                       # 路由工具：ok / fail / parseBody / toSortOrder / toNullableText
-      ├─ auth.ts                      # HMAC 签名会话（签发/校验/密码比较）
+      ├─ auth.ts                      # HMAC 签名会话（后台管理员；签发/校验/密码比较）
+      ├─ user-auth.ts                 # 用户 Bearer 鉴权：getRequestUser（与后台会话严格分离）
+      ├─ auth-context.tsx             # 前台 AuthProvider / useAuth（supabase-js 会话）
+      ├─ unlocks.ts                   # 游客本机兑换库（localStorage，同 wishlist 模式）
+      ├─ library-client.ts            # 「我的库」客户端取数（仅 type import 服务端类型）
+      ├─ daily.ts / daily-access.ts   # 每日计划：北京时区日期 / 解锁状态现算
+      ├─ rate-limit.ts                # 内存限速（尽力而为，多实例不共享）
       ├─ admin-fetch.ts               # adminFetch（401 自动跳登录）+ extractError
       ├─ wishlist.ts                  # 愿望单外部 store + useWishlist
-      ├─ format.ts                    # formatPrice / toNumber
+      ├─ format.ts                    # formatPrice / toNumber / formatDateTime / maskTail
       ├─ demo-data.ts                 # 演示数据（未配置 Supabase 时）
       └─ supabase/
-         ├─ client.ts                 # 浏览器端（anon，只读；当前前台未直接用，预留）
+         ├─ client.ts                 # 浏览器端（anon；邮箱登录 / 会话自动刷新）
          └─ admin.ts                  # 服务端（service_role；isSupabaseConfigured / no-store）
 ```
 
@@ -252,6 +284,17 @@ apple-store-site/
 三表均为**零 RLS policy**（匿名不可读写），只经服务端 service_role 访问。
 兑换流程与接口细节见 [发卡管理与兑换](#发卡管理与兑换)。
 
+### 每日计划与用户权益（迁移 005）
+
+| 表 / 对象 | 说明 |
+| --- | --- |
+| `daily_picks` · 每日推荐 | `pick_date`（date，unique，一天一条）+ `title` + `description` + `cover_url`（公开封面，营销用）+ `media_path`（内容文件在私有桶的对象路径，**不落签名 URL**）+ `link_url`。零 policy，只经服务端访问 |
+| `daily` 私有桶 | 每日内容文件；无任何 storage policy，仅 service_role 可读写，前台凭服务端现签 1h 签名 URL 访问 |
+| `card_products` 扩展 | `redeem_type`（`content` 兑换内容 / `unlock_daily` 解锁每日计划）+ `unlock_duration_days`（有效天数，null = 永久；有效期由后台决定，自核销时刻起算） |
+| `card_keys` 扩展 | `bound_user_id`（绑定的账号；CAS 抢占 `where bound_user_id is null`，防并发重复绑定） |
+| `user_entitlements` · 用户权益（我的库数据源） | `user_id` + `user_email`（快照）+ `kind`（daily_plan/content）+ `card_key_id` + content 类快照字段（name/description/media_url/target_*）+ `unlocked_at` + `expires_at`（null = 永久）+ `source`（redeem/sync/admin）。部分唯一索引：`(user_id) where kind='daily_plan'`（每用户单条）、`(user_id, card_key_id) where kind='content'`。零 policy |
+| `grant_daily_plan` RPC | 每日计划权益**原子叠加上期**：无则插入；新码永久 → 置 null；现值永久 → 保持；双方有限 → `greatest(现到期, now()) + N 天`。并发兑换不丢延期 |
+
 ### RLS 安全模型
 
 - 4 张表 + `images` 桶：**只开放匿名 `SELECT`**（policy 名如 `"public: read major_units"`）。
@@ -279,6 +322,9 @@ apple-store-site/
 - **小单元行**（`SubUnitRow`）：名称 + `¥xx.xx` 价格 + 右侧操作按钮。
   - 未收藏：`Plus` 图标，点击 `toggle` 加入愿望单；
   - 已收藏：浅蓝底 + 实心蓝爱心，再点移除（`aria-pressed`）。
+- **每日推荐区块**（`DailyPickBlock`，header 与商品网格之间）：
+  未解锁 → 封面卡片 + 🔒「订阅每日计划开启」→ `/subscription`；
+  已解锁 → 「今日更新」角标 + 标题 → `/daily`（本地解锁态客户端判定，`mounted` 防注水不一致）。
 - **客服悬浮按钮**（`ServiceButton`）：固定右下角（TabBar 上方），
   点击弹出底部毛玻璃卡片，一键复制 QQ 号（常量在组件内），复制成功态 2s 还原。
 - 无数据时 `EmptyState`；演示数据时显示蓝色提示条。
@@ -319,16 +365,34 @@ Apple Store「Today」式大卡片流（`ActivityCard`，24px 圆角）：
 买家拿着第三方平台发的卡密来本站兑换（`RedeemClient`，纯客户端交互）：
 
 - 输入框（`font-mono`，上限 500 字符，回车提交）+ 蓝色胶囊「兑换」按钮。
-- 调公开接口 `POST /api/redeem`：
-  - 核销成功 → 绿色「兑换成功」徽章 + 商品名/描述 + **兑换商品**卡片（按类型渲染图片 / 视频 / 文档）；
-  - 该码之前已兑换过 → 内容照常展示，文案为「该卡密已兑换过，以下为兑换内容」；
+- 调公开接口 `POST /api/redeem`，按商品 `redeem_type` 分流：
+  - **content（兑换内容）**：核销成功 → 绿色「兑换成功」徽章 + 商品名/描述 + **兑换商品**卡片（按类型渲染图片 / 视频 / 文档）；
+    该码之前已兑换过 → 内容照常展示，文案为「该卡密已兑换过，以下为兑换内容」。
+  - **unlock_daily（解锁每日计划）**：绿色成功卡「每日计划解锁成功」+「永久有效 / 有效期至 YYYY-MM-DD」+ 主按钮「查看今日推荐」→ `/daily`。
   - 码不存在/已作废 → 统一「兑换码不正确，请核对后再试」（防枚举）；
-  - 商品未配置兑换商品 → 「该商品暂未配置兑换内容，请联系客服」（**不核销**）。
+    商品未配置兑换商品 → 「该商品暂未配置兑换内容，请联系客服」（**不核销**）。
+- 已登录（带 Bearer）→ 服务端顺带绑定账号并写「我的库」权益；
+  **游客**兑换 → 记录写入本机库（`lib/unlocks.ts`）+ 结果页显示注册引导横幅。
 - 内容加载失败显示占位，并提供「在新标签页打开」；「兑换其他卡密」重置表单。
+
+### Tab 6 · 我的库 `/library`
+
+- **游客视图**：展示本机兑换记录（每日计划卡 + 已兑换内容）+ 醒目注册横幅
+  「注册账号，永久保存你的权益」（换设备会丢失）。
+- **登录视图**：`GET /api/library` 为权威（每日计划卡：永久/剩余天数/已过期续费入口 + 内容列表）；
+  本机有未同步记录时提示「一键同步到账号」（`POST /api/library/sync`，逐条展示结果）；
+  顶部显示邮箱 + 退出。
+
+### 每日推荐 `/daily`（非 Tab，从选购页区块进入）
+
+- 三段式：`force-dynamic` 页头 → `DailyServer`（SSR 只查日期/标题/封面的 teaser 列表，**不含私有内容**）→ `DailyClient`。
+- 挂载后调 `/api/daily-access` 现算解锁状态：未解锁/过期 → 今日卡显示「订阅每日计划开启」+ 历史列表标题可见但内容带锁（teaser 促销）；
+  已解锁 → 今日内容完整展示 + 全部历史仓库可点开（按需调 `/api/daily-content` 取 1h 签名 URL，组件内缓存）。
+- 游客凭证 = 本机库中已核销的解锁码；登录用户 = Bearer。
 
 ### TabBar（`components/layout/TabBar.tsx`）
 
-- 固定底部，`.glass` 毛玻璃 + 发丝顶边，`pb-safe` 适配 iPhone 底部横条。
+- 固定底部，`.glass` 毛玻璃 + 发丝顶边，`pb-safe` 适配 iPhone 底部横条；6 个 Tab。
 - 高亮：`/` 精确匹配，其余 `startsWith`；选中蓝色 + 图标加粗，按压 `scale-95`。
 - 愿望单角标：条目数（非件数）实时计数，`>99` 显示 `99+`，
   数字变化触发 `animate-badge-pop` 弹跳；挂载后才渲染，避免 SSR 水合不一致。
@@ -406,19 +470,22 @@ Apple Store「Today」式大卡片流（`ActivityCard`，24px 圆角）：
         └─ void（作废） → restore（恢复：回 unused）
 ```
 
-### 兑换流程（`POST /api/redeem`，公开）
+### 兑换流程（`POST /api/redeem`，公开，限速约 30 次/分钟）
 
 1. 归一化卡密（trim；空 → 400，超 500 字符 → 400）。
 2. 按 `content` 精确查 `card_keys`：查不到或仅有作废 → **统一 403「兑换码不正确，请核对后再试」**
    （真实原因只进服务端日志，防枚举）。
 3. 多行命中时优先 `unused`，其次 `issued`（允许买家重复查看已兑换内容）。
-4. **先解析内容再核销**：卡密商品 → `target_type + target_id` → 目标表取名称与
-   `redeem_image_url`；商品未关联目标或目标未配置图片 → **409「该商品暂未配置兑换内容，请联系客服」**
-   （此时不核销，卡密保持原状态，配置好图片后可再次兑换）。
+4. **先读商品再核销**：商品未关联目标 → **409「该商品暂未配置兑换内容，请联系客服」**（不核销）。
 5. 核销：`unused` 行 CAS 更新为 `issued`（`issued_at=now()`，`order_id` 保持 null）；
-   并发被抢先时重读——已发放则幂等返回内容，被作废按 403。
-6. 成功响应：`{ product_name, product_description, image_url, redeemed_now }`
-   （`redeemed_now=false` 表示此前已兑换过，本次仅查看）。
+   并发被抢先时重读——已发放则幂等返回，被作废按 403。
+6. **按 `redeem_type` 分流**：
+   - `content`：目标表取名称与 `redeem_image_url`（未配置 → 409 不核销），返回兑换内容；
+   - `unlock_daily`：无需兑换图，有效期 = 商品 `unlock_duration_days`（null = 永久），
+     返回解锁成功卡。
+7. **带 Bearer（已登录）**：CAS 绑定卡密（`where bound_user_id is null`）→ 仅**新绑定**时写权益：
+   每日计划走 `grant_daily_plan` RPC 原子叠加延期，content 插快照权益（23505 幂等忽略）。
+   已绑定（本人重复兑换）不再发放，只回显现有权益状态；游客不写权益，码存本机库。
 
 ---
 
@@ -457,8 +524,17 @@ Apple Store「Today」式大卡片流（`ActivityCard`，24px 圆角）：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/redeem` | **公开**，卡密兑换。body `{code}`；成功 `{ product_name, product_description, image_url, redeemed_now }`；无效码统一 403，未配置兑换内容 409（不核销） |
-| POST | `/api/upload` | multipart/form-data 字段 `file`（图片 ≤5MB / 视频 ≤50MB / 文档 ≤10MB，见 `lib/upload.ts`）→ `201 { path, url }`；存储路径 `products/<时间戳>-<随机>.<ext>` |
+| POST | `/api/redeem` | **公开**，卡密兑换（限速）。body `{code}`，可带 Bearer 顺带绑定账号。content → `{ result_type:'content', product_name, product_description, image_url, redeemed_now, bound }`；unlock_daily → `{ result_type:'unlock', product_name, permanent, expires_at, redeemed_now, bound }`；无效码统一 403，未配置兑换内容 409（不核销） |
+| POST | `/api/daily-access` | 校验每日计划解锁状态（限速）。凭证二选一：Bearer（登录）或 body `{code}`（游客码）。服务端按 `issued_at + 有效天数` 现算，**不信客户端日期**；返回 `{ unlocked, permanent, expires_at, remaining_days }` |
+| POST | `/api/daily-content` | 取某日内容（限速）。body `{pick_date, code?}` 或 Bearer。先校验解锁 → `{ title, description, link_url, media_kind, media_url }`，media_url 为私有桶 1h 签名 URL（`cacheControl: private`） |
+| GET/POST | `/api/daily-picks` | 后台每日推荐列表（附现签预览链接）/ 新建（一天一条，23505 → 409） |
+| PUT/DELETE | `/api/daily-picks/:id` | 后台局部更新 / 删除 |
+| GET | `/api/library` | **Bearer**。我的库：`{ user, daily_plan, daily_status, contents }` |
+| POST | `/api/library/sync` | **Bearer**。body `{codes[]}`（≤20），本机码逐条绑定并逐条返回结果（成功/已绑定/被他人绑定/未核销/无效） |
+| GET | `/api/entitlements` | 后台权益列表（附实时状态/剩余天数/来源码掩码），`?kind=` 过滤 |
+| POST | `/api/entitlements/:id/extend` | 后台延长：`{days}` 叠加（过期从当前时刻起算）或 `{permanent:true}` 置永久；永久权益拒绝按天延长 409 |
+| POST | `/api/entitlements/:id/revoke` | 后台撤销：删权益 + 作废关联卡密（每日计划会作废该用户名下全部解锁码），防重放复活 |
+| POST | `/api/upload` | multipart/form-data 字段 `file`（图片 ≤5MB / 视频 ≤50MB / 文档 ≤10MB，见 `lib/upload.ts`）+ `bucket`（`images` 默认 / `daily` 私有，返回 `{path, url:1h签名}`）→ `201 { path, url }` |
 | POST | `/api/auth/login` | body `{password}`；成功 `Set-Cookie: admin_session`（7 天）；密码错 401；未配置 `ADMIN_PASSWORD` 503 |
 | POST | `/api/auth/logout` | 清除会话 cookie |
 
@@ -558,7 +634,7 @@ Apple Store「Today」式大卡片流（`ActivityCard`，24px 圆角）：
 | `SUPABASE_ANON_KEY` | ✅ | 匿名公钥（仅服务端读取回退用，见下） |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | 服务端写入密钥，**严禁进前端** |
 | `ADMIN_PASSWORD` | ✅ | 后台密码 + 会话 HMAC 密钥，设强密码 |
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 可选 | 仅当需要浏览器端直连查询（`supabaseBrowser()`）时 |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | 浏览器端 supabase-js 邮箱登录必需；**构建期内联**，改后必须重新构建 |
 
 ```bash
 npm install
@@ -581,9 +657,16 @@ npm run dev                           # http://localhost:3000
      （`card_products` / `card_keys` / `card_deliveries`）+ FIFO 发放 RPC；
    - `supabase/migrations/003_redeem.sql` — 三商品表补 `redeem_image_url`；
      `card_products` 多态化（`target_type + target_id`，回填旧 `sub_unit_id`，
-     目标删除触发器）。
-4. 验证：Table Editor 可见 7 张表；Storage 可见 `images`（Public）。
-5. 后续表结构变更：新增迁移文件到 `supabase/migrations/`（仿照现有文件，
+     目标删除触发器）；
+   - `supabase/migrations/004_subscription_description.sql` — 订阅详细介绍列；
+   - `supabase/migrations/005_daily_plan.sql` — 每日推荐 + 用户权益：
+     `daily_picks` 表、`daily` 私有桶、`card_products` 兑换类型/有效天数、
+     `card_keys` 绑定账号、`user_entitlements` 权益表、`grant_daily_plan` RPC。
+4. **邮箱登录设置**（Supabase Dashboard → Authentication → Providers → Email）：
+   关闭 **Confirm email**（否则注册需邮件确认，默认 SMTP 限 2 封/小时）；
+   如需「忘记密码」邮件稳定收发，可另配自定义 SMTP。
+5. 验证：Table Editor 可见 9 张表；Storage 可见 `images`（Public）与 `daily`（Private）。
+6. 后续表结构变更：新增迁移文件到 `supabase/migrations/`（仿照现有文件，
    写成幂等语句），在 SQL Editor 执行。
 
 ---
@@ -610,6 +693,43 @@ npm run dev                           # http://localhost:3000
 - 图标：`icon.svg` + `apple-icon.png`（`node scripts/generate-icons.mjs` 零依赖生成）。
 - 图片懒加载 + 骨架屏；App Router 按路由分包；前台查询只 select 渲染必需字段；
   业务页全部 `force-dynamic`（数据实时性优先）。
+
+---
+
+## 每日计划与用户体系
+
+迁移 005 引入的完整业务闭环：**管理员每天上传 1 条「每日推荐」→ 买家在第三方平台
+付款拿解锁码 → 站内输码解锁（有效期由后台决定）→ 选购页区块常驻开启 →
+每天看今日更新 + 全部历史仓库**；配合邮箱账号把权益永久存入「我的库」。
+
+### 业务规则要点
+
+- **解锁凭证两级**：登录用户 = Bearer（`user_entitlements` 为权威）；
+  游客 = 已核销的解锁码本身（服务端按 `issued_at + unlock_duration_days` 现算有效期，
+  不信客户端存的日期）。「今日」按**北京时区**比对。
+- **有效期**：`unlock_duration_days` 在卡密商品上配置（null = 永久），自核销时刻起算；
+  同一用户多个码经 `grant_daily_plan` RPC **原子叠加**（并发不丢延期）。
+- **游客 → 注册找回**：游客兑换写本机库（`apple-store.library.v1`）；注册登录后
+  「我的库」出现同步提示，`POST /api/library/sync` 逐码 CAS 绑定 + 发放权益，逐条回结果。
+- **内容防盗**：每日内容文件存私有桶 `daily`，前台只能拿到服务端现签的 1h 签名 URL；
+  封面（`cover_url`）存公开 `images` 桶，作未解锁时的营销 teaser。
+- **后台权益管理**（`/admin/library`）：延长（按天叠加 / 置永久）；
+  撤销 = 删权益 + 作废该用户名下全部解锁码（防重放复活，弹窗内有说明）。
+- **限速**（`lib/rate-limit.ts`，内存尽力而为）：redeem 30/min · daily-access 40/min ·
+  daily-content 60/min · library-sync 10/min。
+
+### 上线手动步骤（新装 / 升级都要做）
+
+1. Supabase SQL Editor 执行 `supabase/migrations/005_daily_plan.sql`
+   （幂等，可安全重跑；含 `grant_daily_plan` RPC）。
+2. Supabase Dashboard → Authentication → Providers → Email：**关闭 Confirm email**；
+   如需「忘记密码」邮件稳定收发，建议配置自定义 SMTP（可后补）。
+3. `.env.local` 与 **Netlify 环境变量**补上 `NEXT_PUBLIC_SUPABASE_URL` /
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`（构建期内联，改后必须重新部署）。
+4. 后台按序配置：订阅管理建「每日计划」→ 卡密商品建「解锁每日计划」类型并设有效天数
+   （留空 = 永久）→ 批量导入码 → 每日推荐上传当天内容。
+5. 验证：游客输码解锁 → 选购页区块变解锁态 → `/daily` 可看今日与历史；
+   注册登录后我的库出现权益。
 
 ---
 
@@ -675,4 +795,10 @@ npm run dev                           # http://localhost:3000
 - **愿望单数据是客户端快照**：收藏后商品改价不会同步（按收藏时价格结算）。
 - **删除大单元级联删小单元**：数据库外键 `on delete cascade`，后台已有警示文案。
 - **不要加 SPA 回退重定向**（`_redirects`），SSR 路由由 Netlify 插件全权接管。
+- **两套鉴权严格分离**：后台管理员 = HMAC cookie（`checkAdmin`），用户 = Supabase
+  Bearer（`getRequestUser`），互不接受；用户接口勿用 `checkAdmin`，反之亦然。
+- **用户 token 现取现用**：每次调 API 经 `getAuthHeaders()`（内部 `getSession()`）
+  拿最新 token，禁止模块级缓存（supabase-js 会自动刷新，缓存会拿到过期 token）。
+- **游客解锁码即凭证**：错误文案统一（不存在/作废同句）防枚举；有效期一律服务端
+  按 `issued_at + 有效天数` 现算，前端存的日期只作本机回显。
 - 未接 ESLint：新增代码请自行保证质量，或顺手补上 lint 配置。

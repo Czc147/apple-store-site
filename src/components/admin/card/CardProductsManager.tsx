@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import { formatDateTime } from '@/lib/format';
-import { TARGET_TYPE_LABEL } from '@/lib/card-types';
+import { TARGET_TYPE_LABEL, REDEEM_TYPE_LABEL } from '@/lib/card-types';
 import {
   PageHeader,
   TableShell,
@@ -161,6 +161,7 @@ export default function CardProductsManager() {
             <tr>
               <th className={thCls}>排序</th>
               <th className={thCls}>关联对象</th>
+              <th className={thCls}>兑换类型</th>
               <th className={thCls}>描述</th>
               <th className={thCls}>状态</th>
               <th className={thCls}>库存</th>
@@ -170,10 +171,10 @@ export default function CardProductsManager() {
           </thead>
           <tbody>
             {visible === null ? (
-              <LoadingRows colSpan={7} />
+              <LoadingRows colSpan={8} />
             ) : visible.length === 0 ? (
               <EmptyRow
-                colSpan={7}
+                colSpan={8}
                 text={
                   rows?.length
                     ? '当前筛选条件下没有卡密商品'
@@ -208,6 +209,18 @@ export default function CardProductsManager() {
                           关联对象已删除，商品已被自动禁用
                         </p>
                       </>
+                    )}
+                  </td>
+                  <td className={tdCls}>
+                    <Badge tone={row.redeem_type === 'unlock_daily' ? 'blue' : 'gray'}>
+                      {REDEEM_TYPE_LABEL[row.redeem_type] ?? row.redeem_type}
+                    </Badge>
+                    {row.redeem_type === 'unlock_daily' && (
+                      <p className="mt-0.5 whitespace-nowrap text-[12px] text-apple-text-3">
+                        {typeof row.unlock_duration_days === 'number'
+                          ? `${row.unlock_duration_days} 天`
+                          : '永久'}
+                      </p>
                     )}
                   </td>
                   <td className={tdCls}>

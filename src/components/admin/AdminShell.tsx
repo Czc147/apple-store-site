@@ -12,9 +12,11 @@ import {
   Gauge,
   KeyRound,
   Layers,
+  LibraryBig,
   LogOut,
   Package,
   ShieldCheck,
+  Sparkles,
   Truck,
   Upload,
 } from 'lucide-react';
@@ -31,6 +33,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/sub-units', label: '小单元管理', icon: Package },
       { href: '/admin/activities', label: '活动管理', icon: CalendarDays },
       { href: '/admin/subscriptions', label: '订阅管理', icon: CreditCard },
+      { href: '/admin/daily-picks', label: '每日推荐', icon: Sparkles },
+      { href: '/admin/library', label: '用户权益', icon: LibraryBig },
     ],
   },
   {

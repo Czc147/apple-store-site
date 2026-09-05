@@ -78,6 +78,29 @@ export const TARGET_TYPE_LABEL: Record<CardTargetType, string> = {
 };
 
 /* ----------------------------------------------------------
+   兑换类型（迁移 005：content 兑换内容 / unlock_daily 解锁每日计划）
+   ---------------------------------------------------------- */
+
+/** 兑换类型值（与数据库 check 约束保持一致） */
+export const REDEEM_TYPE = {
+  /** 兑换内容（现有行为）：核销后展示兑换商品（图片 / 视频 / 文档） */
+  CONTENT: 'content',
+  /** 解锁每日计划（新）：核销后解锁「每日推荐」，有效期由后台决定 */
+  UNLOCK_DAILY: 'unlock_daily',
+} as const;
+
+export type RedeemType = (typeof REDEEM_TYPE)[keyof typeof REDEEM_TYPE];
+
+/** 合法的兑换类型取值列表（校验外部输入用） */
+export const REDEEM_TYPE_VALUES: RedeemType[] = Object.values(REDEEM_TYPE);
+
+/** 兑换类型中文文案（后台界面用） */
+export const REDEEM_TYPE_LABEL: Record<RedeemType, string> = {
+  content: '兑换内容',
+  unlock_daily: '解锁每日计划',
+};
+
+/* ----------------------------------------------------------
    表类型
    ---------------------------------------------------------- */
 
@@ -90,6 +113,10 @@ export interface CardProduct {
   target_id: string | null;
   /** 商品描述（取卡页 / 兑换页可展示给买家） */
   description: string | null;
+  /** 兑换类型：content 兑换内容 / unlock_daily 解锁每日计划（迁移 005） */
+  redeem_type: RedeemType;
+  /** 解锁有效天数（仅 unlock_daily 有意义）：null = 永久；有效期自核销时刻起算 */
+  unlock_duration_days: number | null;
   enabled: boolean;
   sort_order: number;
   created_at: string;

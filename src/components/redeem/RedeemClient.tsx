@@ -1,32 +1,91 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import {
   CheckCircle2,
   ExternalLink,
   FileText,
   Image as ImageIcon,
+  Sparkles,
+  UserPlus,
   Video,
 } from 'lucide-react';
 import { classifyMedia } from '@/lib/upload';
+import { useAuth } from '@/lib/auth-context';
+import { useLocalLibrary } from '@/lib/unlocks';
 
-/** POST /api/redeem 成功响应 */
-interface RedeemResult {
+/** POST /api/redeem 成功响应（迁移 005 起区分兑换类型） */
+interface RedeemResultBase {
+  result_type: 'content' | 'unlock';
   product_name: string;
-  product_description: string | null;
-  image_url: string;
   /** true = 本次核销；false = 该码此前已兑换过（重复查看） */
   redeemed_now: boolean;
+  /** 服务端是否识别到登录态并完成绑定（false = 游客，提示注册） */
+  bound: boolean;
 }
+
+/** content 类兑换结果：展示图片 / 视频 / 文档 */
+interface ContentResult extends RedeemResultBase {
+  result_type: 'content';
+  product_description: string | null;
+  image_url: string;
+}
+
+/** unlock_daily 类兑换结果：解锁每日计划 + 有效期 */
+interface UnlockResult extends RedeemResultBase {
+  result_type: 'unlock';
+  /** true = 永久有效；否则以 expires_at 为准 */
+  permanent: boolean;
+  expires_at: string | null;
+}
+
+type RedeemResult = ContentResult | UnlockResult;
 
 type Status = 'idle' | 'loading' | 'error' | 'result';
 
+/** 到期时间 → YYYY-MM-DD（仅日期；非法值返回空串） */
+function formatExpiry(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** 未登录时的注册引导横幅（游客兑换成功结果下方展示） */
+function RegisterBanner() {
+  return (
+    <Link
+      href="/login"
+      className="mt-4 flex items-start gap-3 rounded-card border border-apple-blue/25 bg-apple-blue-soft/60 p-4 transition hover:bg-apple-blue-soft"
+    >
+      <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-blue/10">
+        <UserPlus className="h-4 w-4 text-apple-blue" aria-hidden />
+      </span>
+      <span>
+        <span className="block text-[14px] font-semibold text-apple-text">
+          注册账号，永久保存你的权益
+        </span>
+        <span className="mt-0.5 block text-[12.5px] leading-relaxed text-apple-text-2">
+          当前为游客兑换，换设备可能丢失。注册 / 登录后可同步到「我的库」，随时找回。
+        </span>
+      </span>
+    </Link>
+  );
+}
+
 /**
- * 兑换交互：输入卡密 → 调 /api/redeem → 展示兑换商品（图片 / 视频 / 文档）。
- * 已发放过的卡密可重复输入查看内容（redeemed_now=false 时提示「已兑换过」）；
- * 无效码统一展示「兑换码不正确」。
+ * 兑换交互：输入卡密 → 调 /api/redeem（登录时携带 Bearer 顺带绑定账号）→
+ * 按结果类型展示：
+ * - content：兑换内容（图片 / 视频 / 文档）
+ * - unlock：每日计划解锁成功卡（有效期 / 永久）+「查看今日推荐」
+ * 游客兑换成功时强提示注册；兑换记录写入本地库（登录后经「我的库」同步）。
  */
 export default function RedeemClient() {
+  const { getAuthHeaders } = useAuth();
+  const { setDailyPlan, addContent } = useLocalLibrary();
+
   const [code, setCode] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -45,9 +104,10 @@ export default function RedeemClient() {
     setStatus('loading');
     setErrorMsg('');
     try {
+      const headers = await getAuthHeaders(); // 登录 → 携带 Bearer 顺带绑定账号
       const res = await fetch('/api/redeem', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify({ code: trimmed }),
       });
       const data = (await res.json().catch(() => null)) as
@@ -57,6 +117,27 @@ export default function RedeemClient() {
         throw new Error(data?.error ?? '兑换失败，请稍后再试');
       }
       if (!data) throw new Error('兑换失败，请稍后再试');
+
+      // 游客兑换：写入本地库（作为凭证 + 登录后同步的依据）；
+      // 已登录（bound=true）时权益已由服务端落库，无需再写本地，避免冗余同步提示。
+      if (!data.bound) {
+        if (data.result_type === 'unlock') {
+          setDailyPlan({
+            code: trimmed,
+            redeemed_at: new Date().toISOString(),
+            expires_at: data.expires_at,
+          });
+        } else {
+          addContent({
+            code: trimmed,
+            name: data.product_name,
+            description: data.product_description,
+            media_url: data.image_url,
+            redeemed_at: new Date().toISOString(),
+          });
+        }
+      }
+
       setResult(data);
       setImgFailed(false);
       setStatus('result');
@@ -75,6 +156,50 @@ export default function RedeemClient() {
   };
 
   if (status === 'result' && result) {
+    if (result.result_type === 'unlock') {
+      return (
+        <div className="mx-auto max-w-md px-5">
+          <div className="rounded-card border border-apple-border bg-apple-card p-5 shadow-card">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#1B7F3B]/10">
+                <CheckCircle2 className="h-5 w-5 text-[#1B7F3B]" aria-hidden />
+              </span>
+              <p className="text-[15px] font-semibold text-apple-text">
+                {result.redeemed_now ? '每日计划解锁成功' : '每日计划已解锁'}
+              </p>
+            </div>
+
+            <p className="mt-4 text-[17px] font-bold leading-snug text-apple-text">
+              {result.product_name}
+            </p>
+            <p className="mt-1.5 flex items-center gap-1.5 text-[13.5px] leading-relaxed text-apple-text-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-apple-blue" aria-hidden />
+              {result.permanent
+                ? '永久有效 · 每天更新 1 期精选内容，可看全部历史仓库'
+                : `有效期至 ${formatExpiry(result.expires_at)} · 每天更新 1 期精选内容`}
+            </p>
+
+            <Link
+              href="/daily"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-btn bg-apple-blue px-5 text-[15px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active"
+            >
+              查看今日推荐
+            </Link>
+          </div>
+
+          {!result.bound && <RegisterBanner />}
+
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-4 w-full rounded-btn border border-apple-border bg-white py-3 text-[15px] font-medium text-apple-text transition-colors duration-200 ease-apple hover:bg-apple-bg active:bg-apple-surface"
+          >
+            兑换其他卡密
+          </button>
+        </div>
+      );
+    }
+
     const kind = classifyMedia(result.image_url);
     const openLabel =
       kind === 'image'
@@ -154,6 +279,8 @@ export default function RedeemClient() {
           </a>
         </div>
 
+        {!result.bound && <RegisterBanner />}
+
         <button
           type="button"
           onClick={reset}
@@ -198,7 +325,7 @@ export default function RedeemClient() {
 
       <p className="mt-6 text-[12.5px] leading-relaxed text-apple-text-3">
         在第三方平台付款后会收到一串卡密，把它输入到上面即可完成兑换；
-        兑换过的卡密可以重复输入查看内容。
+        兑换过的卡密可以重复输入查看内容。登录账号兑换可同步到「我的库」。
       </p>
     </div>
   );

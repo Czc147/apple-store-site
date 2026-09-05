@@ -7,7 +7,9 @@ import {
   type CardTargetType,
   type CardProduct,
   type CardKeyStats,
+  type RedeemType,
 } from '@/lib/card-types';
+import { parseRedeemType, parseUnlockDurationDays } from '@/lib/card-redeem-fields';
 import { resolveTargetNames, targetExists } from '@/lib/card-targets';
 import { aggregateKeyStats } from '@/lib/card-stats';
 
@@ -59,6 +61,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
  * - description（string）   空串归一为 null
  * - enabled（boolean）      启用/禁用
  * - sort_order（number）    非数字归一为 0
+ * - redeem_type（content/unlock_daily）+ unlock_duration_days（正整数，空=永久）
+ *   通常成对提交；切换为 content 时自动清空有效天数
  */
 export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!checkAdmin(req)) return fail('未登录或登录已过期', 401);
@@ -105,6 +109,28 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   if (body.description !== undefined) patch.description = toNullableText(body.description);
   if (typeof body.enabled === 'boolean') patch.enabled = body.enabled;
   if (body.sort_order !== undefined) patch.sort_order = toSortOrder(body.sort_order);
+
+  // 兑换类型 / 有效天数（迁移 005）：后台表单总是成对提交这两个字段
+  const rt = parseRedeemType(body.redeem_type);
+  if (!rt.ok) return fail(rt.error);
+  const dur = parseUnlockDurationDays(body.unlock_duration_days);
+  if (!dur.ok) return fail(dur.error);
+  if (rt.specified && rt.value) {
+    patch.redeem_type = rt.value;
+    // 切换为 content 时清空有效天数；切换为 unlock_daily 时应用所提交的天数（可为 null=永久）
+    patch.unlock_duration_days = rt.value === 'unlock_daily' ? dur.value : null;
+  } else if (dur.specified) {
+    // 仅单独提交有效天数：只对 unlock_daily 商品生效，避免给 content 商品留脏字段
+    const { data: cur, error: curErr } = await db
+      .from('card_products')
+      .select('redeem_type')
+      .eq('id', params.id)
+      .maybeSingle();
+    if (curErr) return fail(curErr.message, 500);
+    if ((cur as { redeem_type: RedeemType } | null)?.redeem_type === 'unlock_daily') {
+      patch.unlock_duration_days = dur.value;
+    }
+  }
 
   if (Object.keys(patch).length === 0) return fail('没有可更新的字段');
 

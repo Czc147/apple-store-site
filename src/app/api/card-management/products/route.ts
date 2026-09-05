@@ -4,9 +4,12 @@ import { ok, fail, parseBody, toSortOrder, toNullableText } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import {
   TARGET_TYPE_VALUES,
+  REDEEM_TYPE_VALUES,
   type CardTargetType,
   type CardProduct,
+  type RedeemType,
 } from '@/lib/card-types';
+import { parseRedeemType, parseUnlockDurationDays } from '@/lib/card-redeem-fields';
 import { resolveTargetNames, targetExists } from '@/lib/card-targets';
 import { aggregateKeyStats, EMPTY_KEY_STATS } from '@/lib/card-stats';
 import { PUT as putById, DELETE as deleteById } from './[id]/route';
@@ -62,7 +65,9 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/card-management/products — 新建卡密商品（需登录）
  * body: { target_type*（sub_unit/activity/subscription）, target_id*（uuid）,
- *         description?, enabled?, sort_order? }
+ *         description?, redeem_type?, unlock_duration_days?, enabled?, sort_order? }
+ * - redeem_type：content（默认）/ unlock_daily
+ * - unlock_duration_days：仅 unlock_daily 生效，正整数天数，缺省=永久
  * 约束：一个目标至多关联一个卡密商品，重复关联返回 409
  */
 export async function POST(req: NextRequest) {
@@ -80,6 +85,14 @@ export async function POST(req: NextRequest) {
   const type = targetType as CardTargetType;
   const typeLabel =
     type === 'sub_unit' ? '小单元' : type === 'activity' ? '活动' : '订阅';
+
+  // 兑换类型 / 有效天数（迁移 005）：类型缺省 content；有效天数仅 unlock_daily 生效
+  const rt = parseRedeemType(body?.redeem_type);
+  if (!rt.ok) return fail(rt.error);
+  const redeemType = rt.value ?? 'content';
+  const dur = parseUnlockDurationDays(body?.unlock_duration_days);
+  if (!dur.ok) return fail(dur.error);
+  const unlockDays = redeemType === 'unlock_daily' ? dur.value : null;
 
   const db = supabaseAdmin();
   try {
@@ -104,6 +117,8 @@ export async function POST(req: NextRequest) {
         target_type: type,
         target_id: targetId,
         description: toNullableText(body?.description),
+        redeem_type: redeemType,
+        unlock_duration_days: unlockDays,
         enabled: typeof body?.enabled === 'boolean' ? body.enabled : true,
         sort_order: toSortOrder(body?.sort_order),
       })

@@ -272,7 +272,7 @@ export function Pagination({
   );
 }
 
-/** 管理页标题栏：标题 + 描述 + 右侧新增按钮 */
+/** 管理页标题栏：标题 + 描述 + 右侧新增按钮（新增按钮可选：无新增入口的页面省略） */
 export function PageHeader({
   title,
   description,
@@ -281,8 +281,8 @@ export function PageHeader({
 }: {
   title: string;
   description: string;
-  createLabel: string;
-  onCreate: () => void;
+  createLabel?: string;
+  onCreate?: () => void;
 }) {
   return (
     <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -292,12 +292,14 @@ export function PageHeader({
         </h1>
         <p className="mt-1 text-[13px] text-apple-text-2">{description}</p>
       </div>
-      <button type="button" onClick={onCreate} className={btnPrimary}>
-        <span className="text-[16px] leading-none" aria-hidden>
-          ＋
-        </span>
-        {createLabel}
-      </button>
+      {createLabel && onCreate && (
+        <button type="button" onClick={onCreate} className={btnPrimary}>
+          <span className="text-[16px] leading-none" aria-hidden>
+            ＋
+          </span>
+          {createLabel}
+        </button>
+      )}
     </header>
   );
 }
