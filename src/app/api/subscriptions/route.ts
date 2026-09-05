@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       duration: toNullableText(body.duration),
       description: toNullableText(body.description),
       payment_url: toNullableText(body.payment_url),
+      link_url: toNullableText(body.link_url),
       redeem_image_url: toNullableText(body.redeem_image_url),
       type,
       unlock_duration_days: unlockDurationDays,

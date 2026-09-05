@@ -43,6 +43,7 @@ interface FormState {
   duration: string;
   description: string;
   payment_url: string;
+  link_url: string;
   redeem_image_url: string;
   type: SubscriptionType;
   unlock_duration_days: string;
@@ -55,6 +56,7 @@ const EMPTY_FORM: FormState = {
   duration: '',
   description: '',
   payment_url: '',
+  link_url: '',
   redeem_image_url: '',
   type: 'normal',
   unlock_duration_days: '',
@@ -121,6 +123,7 @@ export default function SubscriptionsManager() {
       duration: row.duration ?? '',
       description: row.description ?? '',
       payment_url: row.payment_url ?? '',
+      link_url: row.link_url ?? '',
       redeem_image_url: row.redeem_image_url ?? '',
       type: row.type ?? 'normal',
       unlock_duration_days:
@@ -168,6 +171,7 @@ export default function SubscriptionsManager() {
             duration: form.duration.trim() || null,
             description: form.description.trim() || null,
             payment_url: form.payment_url.trim() || null,
+            link_url: form.link_url.trim() || null,
             redeem_image_url: form.redeem_image_url.trim() || null,
             type: form.type,
             unlock_duration_days: isDaily ? durationValue : null,
@@ -235,16 +239,17 @@ export default function SubscriptionsManager() {
               <th className={thCls}>价格</th>
               <th className={thCls}>时长</th>
               <th className={thCls}>付款链接</th>
+              <th className={thCls}>跳转链接</th>
               <th className={thCls}>兑换商品</th>
               <th className={thCls}>操作</th>
             </tr>
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={8} />
+              <LoadingRows colSpan={9} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={8}
+                colSpan={9}
                 text="还没有订阅套餐，新增后前台订阅页即可展示"
                 createLabel="新增订阅"
                 onCreate={openCreate}
@@ -275,6 +280,9 @@ export default function SubscriptionsManager() {
                   </td>
                   <td className={tdCls}>
                     <LinkCell href={row.payment_url} />
+                  </td>
+                  <td className={tdCls}>
+                    <LinkCell href={row.link_url} />
                   </td>
                   <td className={tdCls}>
                     <Thumb src={row.redeem_image_url} alt={`${row.name} 兑换商品`} />
@@ -409,6 +417,17 @@ export default function SubscriptionsManager() {
                 setForm((f) => ({ ...f, payment_url: e.target.value }))
               }
               placeholder="https://kufaka.com/…"
+              inputMode="url"
+            />
+          </Field>
+          <Field label="跳转链接" hint="前台订阅卡片弹层的「了解更多」入口，选填">
+            <input
+              className={inputCls}
+              value={form.link_url}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, link_url: e.target.value }))
+              }
+              placeholder="https://…"
               inputMode="url"
             />
           </Field>

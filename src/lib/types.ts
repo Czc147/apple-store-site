@@ -70,6 +70,8 @@ export interface Subscription {
   /** 详细介绍：前台订阅卡片点击弹层展示 */
   description: string | null;
   payment_url: string | null;
+  /** 跳转链接：前台订阅卡片弹层的「了解更多」入口（选填） */
+  link_url: string | null;
   /** 兑换商品：不公开，买家输入卡密兑换成功后弹出（图片 / 视频 / 文档） */
   redeem_image_url: string | null;
   /** 订阅类型：normal 普通订阅 / daily_plan 每日计划（旧数据默认 normal） */

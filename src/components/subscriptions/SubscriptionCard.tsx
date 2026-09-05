@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard } from 'lucide-react';
+import { CreditCard, ExternalLink } from 'lucide-react';
 import { formatPrice } from '@/lib/format';
 import type { Subscription } from '@/lib/types';
 import ActionSheet, { SheetItem } from '@/components/ui/ActionSheet';
@@ -17,8 +17,9 @@ interface SubscriptionCardProps {
  */
 export default function SubscriptionCard({ subscription }: SubscriptionCardProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { name, price, duration, description, payment_url } = subscription;
+  const { name, price, duration, description, payment_url, link_url } = subscription;
   const hasUrl = Boolean(payment_url);
+  const hasLink = Boolean(link_url);
 
   return (
     <>
@@ -89,6 +90,14 @@ export default function SubscriptionCard({ subscription }: SubscriptionCardProps
             <p className="px-6 py-4 text-center text-[12px] text-apple-text-3">
               暂未开放订阅
             </p>
+          )}
+          {hasLink && (
+            <SheetItem
+              icon={ExternalLink}
+              title="了解更多"
+              subtitle="在新标签页打开链接"
+              href={link_url!}
+            />
           )}
         </div>
       </ActionSheet>

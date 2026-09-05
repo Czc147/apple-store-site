@@ -32,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
   const patch: Record<string, unknown> = {};
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
-  for (const key of ['price', 'duration', 'description', 'payment_url', 'redeem_image_url', 'sort_order'] as const) {
+  for (const key of ['price', 'duration', 'description', 'payment_url', 'link_url', 'redeem_image_url', 'sort_order'] as const) {
     if (body[key] !== undefined) patch[key] = body[key];
   }
   if (body.type !== undefined) {

@@ -22,7 +22,7 @@ export default async function SubscriptionsServer() {
     try {
       const { data, error } = await supabaseAdmin()
         .from('subscriptions')
-        .select('id, name, price, duration, payment_url, sort_order')
+        .select('id, name, price, duration, description, payment_url, link_url, sort_order')
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
       if (error) throw new Error(error.message);
