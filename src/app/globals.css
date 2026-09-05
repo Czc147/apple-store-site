@@ -37,6 +37,14 @@
     backdrop-filter: blur(20px) saturate(1.8);
     -webkit-backdrop-filter: blur(20px) saturate(1.8);
   }
+  /* 横向卡片流隐藏滚动条（保留可滚动手势） */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 
   /* 页面切换淡入（200ms） */
   .animate-page-enter {

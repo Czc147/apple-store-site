@@ -31,7 +31,7 @@ export default async function DailyPickServer() {
     try {
       const { data, error } = await supabaseAdmin()
         .from('daily_picks')
-        .select('pick_date, title, cover_url, media_path, link_url')
+        .select('*')
         .order('pick_date', { ascending: false })
         .limit(1);
       if (error) throw new Error(error.message);
@@ -42,6 +42,8 @@ export default async function DailyPickServer() {
             cover_url: string | null;
             media_path: string | null;
             link_url: string | null;
+            subtitle?: string | null;
+            accent_color?: string | null;
           }
         | undefined;
       teaser = row
@@ -49,6 +51,8 @@ export default async function DailyPickServer() {
             pick_date: row.pick_date,
             title: row.title,
             cover_url: row.cover_url,
+            subtitle: row.subtitle,
+            accent_color: row.accent_color,
             has_content: Boolean(row.media_path || row.link_url),
           }
         : null;

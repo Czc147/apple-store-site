@@ -43,6 +43,8 @@ interface FormState {
   /** 内容文件的签名预览链接（仅表单预览，不入库） */
   media_preview: string;
   link_url: string;
+  subtitle: string;
+  accent_color: string;
 }
 
 /** 内容文件类型徽章文案 */
@@ -67,6 +69,8 @@ const emptyForm = (): FormState => ({
   media_path: '',
   media_preview: '',
   link_url: '',
+  subtitle: '',
+  accent_color: '',
 });
 
 /**
@@ -131,6 +135,8 @@ export default function DailyPicksManager() {
       media_path: row.media_path ?? '',
       media_preview: row.media_preview_url ?? '',
       link_url: row.link_url ?? '',
+      subtitle: row.subtitle ?? '',
+      accent_color: row.accent_color ?? '',
     });
     setFormError(null);
     setModalOpen(true);
@@ -163,6 +169,8 @@ export default function DailyPicksManager() {
             cover_url: form.cover_url.trim() || null,
             media_path: form.media_path.trim() || null,
             link_url: form.link_url.trim() || null,
+            subtitle: form.subtitle.trim() || null,
+            accent_color: form.accent_color.trim() || null,
           }),
         },
       );
@@ -319,6 +327,23 @@ export default function DailyPicksManager() {
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               placeholder="如：第 12 期 · 主题名称"
               maxLength={60}
+            />
+          </Field>
+          <Field label="副标题 tagline" hint="叠在 Hero 封面上，未解锁也可见；选填">
+            <input
+              className={inputCls}
+              value={form.subtitle}
+              onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))}
+              placeholder="如：本期 30+ 款精选工具"
+              maxLength={80}
+            />
+          </Field>
+          <Field label="强调色" hint="Hero 无封面时的渐变主色，如 #0A84FF；选填">
+            <input
+              className={inputCls}
+              value={form.accent_color}
+              onChange={(e) => setForm((f) => ({ ...f, accent_color: e.target.value }))}
+              placeholder="#0A84FF"
             />
           </Field>
           <Field label="介绍" hint="解锁后在内容页展示，选填">

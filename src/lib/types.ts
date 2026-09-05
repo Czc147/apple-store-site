@@ -8,6 +8,14 @@ export interface MajorUnit {
   link_url: string | null;
   sort_order: number;
   created_at: string;
+  /** 卡片名称下的副标题（为空时前台回退「N 个可选内容」） */
+  subtitle?: string | null;
+  /** 无图时的底色 / 渐变（hex 或 CSS 渐变串） */
+  cover_color?: string | null;
+  /** 卡片左上角小图标（emoji 或图片 URL） */
+  app_icon?: string | null;
+  /** 精选标记：首页「精选」板块只展示勾选的卡片 */
+  featured?: boolean;
 }
 
 /** 小单元（挂在某个大单元下） */
@@ -66,6 +74,10 @@ export interface DailyPick {
   media_path: string | null;
   /** 跳转链接（可选，如外部视频地址） */
   link_url: string | null;
+  /** Hero 封面上的 tagline（未解锁也可见） */
+  subtitle?: string | null;
+  /** Hero 无图占位的渐变主色 */
+  accent_color?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -75,6 +87,10 @@ export interface DailyPickTeaser {
   pick_date: string;
   title: string;
   cover_url: string | null;
+  /** Hero 封面上的 tagline（未解锁也可见） */
+  subtitle?: string | null;
+  /** Hero 无图占位的渐变主色 */
+  accent_color?: string | null;
   /** 是否有正文内容（媒体文件或跳转链接） */
   has_content: boolean;
 }
@@ -114,6 +130,32 @@ export interface UserEntitlement {
   /** 到期时间；null = 永久 */
   expires_at: string | null;
   source: 'redeem' | 'sync' | 'admin';
+}
+
+/** 首页板块（与迁移 006 的 home_sections 对应）：一段「标题 + 卡片流」 */
+export interface HomeSection {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  /** carousel 横向滚动吸附 / grid 两列网格 */
+  layout: 'carousel' | 'grid';
+  /** true=只显示打了「精选」标记的大单元（仅在未显式选大单元时生效） */
+  featured_only: boolean;
+  /** 显式选入的大单元 id 列表（按此顺序渲染）；为空则回退 featured_only / 全部 */
+  major_unit_ids: string[];
+  enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 全局配置（与迁移 006 的 app_settings 对应）：key-value，值可能为空串 */
+export interface AppSettings {
+  site_title?: string;
+  home_greeting?: string;
+  home_subtitle?: string;
+  announcement?: string;
+  [key: string]: string | undefined;
 }
 
 /** 发卡管理模块（卡密商品 / 卡密 / 取卡登记单）类型统一在 card-types.ts，

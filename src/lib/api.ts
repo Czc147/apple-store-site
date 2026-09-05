@@ -33,3 +33,9 @@ export function toSortOrder(v: unknown): number {
 export function toNullableText(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v : null;
 }
+
+/** 字符串数组归一化：过滤非空字符串（用于 uuid[] / id 列表字段） */
+export function toStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '');
+}

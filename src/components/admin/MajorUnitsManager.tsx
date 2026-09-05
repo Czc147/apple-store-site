@@ -22,6 +22,7 @@ import {
   EmptyRow,
   RowActions,
   Notice,
+  Badge,
   inputCls,
   btnPrimary,
   btnGhost,
@@ -34,9 +35,22 @@ interface FormState {
   image_url: string;
   link_url: string;
   sort_order: string;
+  subtitle: string;
+  cover_color: string;
+  app_icon: string;
+  featured: boolean;
 }
 
-const EMPTY_FORM: FormState = { name: '', image_url: '', link_url: '', sort_order: '0' };
+const EMPTY_FORM: FormState = {
+  name: '',
+  image_url: '',
+  link_url: '',
+  sort_order: '0',
+  subtitle: '',
+  cover_color: '',
+  app_icon: '',
+  featured: false,
+};
 
 /** 大单元管理：表格 + 新增/编辑弹窗 + 级联删除确认 */
 export default function MajorUnitsManager() {
@@ -94,6 +108,10 @@ export default function MajorUnitsManager() {
       image_url: row.image_url ?? '',
       link_url: row.link_url ?? '',
       sort_order: String(row.sort_order),
+      subtitle: row.subtitle ?? '',
+      cover_color: row.cover_color ?? '',
+      app_icon: row.app_icon ?? '',
+      featured: row.featured === true,
     });
     setFormError(null);
     setModalOpen(true);
@@ -120,6 +138,10 @@ export default function MajorUnitsManager() {
             image_url: form.image_url || null,
             link_url: form.link_url.trim() || null,
             sort_order: sortOrder,
+            subtitle: form.subtitle.trim() || null,
+            cover_color: form.cover_color.trim() || null,
+            app_icon: form.app_icon.trim() || null,
+            featured: form.featured,
           }),
         },
       );
@@ -177,15 +199,16 @@ export default function MajorUnitsManager() {
               <th className={thCls}>名称</th>
               <th className={thCls}>展示图片</th>
               <th className={thCls}>跳转链接</th>
+              <th className={thCls}>精选</th>
               <th className={thCls}>操作</th>
             </tr>
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={5} />
+              <LoadingRows colSpan={6} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={5}
+                colSpan={6}
                 text="还没有大单元，新增后前台选购页即可展示"
                 createLabel="新增大单元"
                 onCreate={openCreate}
@@ -194,12 +217,22 @@ export default function MajorUnitsManager() {
               rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
                   <td className={tdCls}>{row.sort_order}</td>
-                  <td className={`${tdCls} font-medium`}>{row.name}</td>
+                  <td className={`${tdCls} max-w-[220px]`}>
+                    <div className="font-medium">{row.name}</div>
+                    {row.subtitle && (
+                      <div className="truncate text-[12px] text-apple-text-3">
+                        {row.subtitle}
+                      </div>
+                    )}
+                  </td>
                   <td className={tdCls}>
                     <Thumb src={row.image_url} alt={row.name} />
                   </td>
                   <td className={tdCls}>
                     <LinkCell href={row.link_url} />
+                  </td>
+                  <td className={tdCls}>
+                    {row.featured ? <Badge tone="blue">精选</Badge> : <span className="text-apple-text-3">—</span>}
                   </td>
                   <td className={tdCls}>
                     <RowActions
@@ -266,6 +299,46 @@ export default function MajorUnitsManager() {
               inputMode="url"
             />
           </Field>
+          <Field label="副标题" hint="显示在卡片名称下方；留空则回退「N 个可选内容」">
+            <input
+              className={inputCls}
+              value={form.subtitle}
+              onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))}
+              placeholder="如：本周上新"
+              maxLength={60}
+            />
+          </Field>
+          <Field label="封面底色" hint="无图时的底色或渐变，如 #E9F1FB 或 linear-gradient(...)">
+            <input
+              className={inputCls}
+              value={form.cover_color}
+              onChange={(e) => setForm((f) => ({ ...f, cover_color: e.target.value }))}
+              placeholder="#E9F1FB"
+            />
+          </Field>
+          <Field label="图标" hint="卡片左上角小图标：emoji（如 🎮）或图片 URL">
+            <input
+              className={inputCls}
+              value={form.app_icon}
+              onChange={(e) => setForm((f) => ({ ...f, app_icon: e.target.value }))}
+              placeholder="🎮 或 https://…"
+              maxLength={300}
+            />
+          </Field>
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-card border border-apple-hairline bg-apple-card p-4">
+            <input
+              type="checkbox"
+              checked={form.featured}
+              onChange={(e) => setForm((f) => ({ ...f, featured: e.target.checked }))}
+              className="mt-0.5 h-4 w-4 accent-apple-blue"
+            />
+            <span className="text-[13px] leading-relaxed text-apple-text">
+              标记为精选
+              <span className="block text-[12px] text-apple-text-3">
+                首页「精选」板块（featured_only）只展示勾选的卡片
+              </span>
+            </span>
+          </label>
           <Field label="排序" hint="数字越小越靠前">
             <input
               className={inputCls}

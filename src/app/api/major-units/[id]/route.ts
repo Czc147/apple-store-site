@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
-import { ok, fail, parseBody } from '@/lib/api';
+import { ok, fail, parseBody, toNullableText, toSortOrder } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -30,9 +30,11 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
   const patch: Record<string, unknown> = {};
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
-  for (const key of ['image_url', 'link_url', 'sort_order'] as const) {
-    if (body[key] !== undefined) patch[key] = body[key];
+  for (const key of ['image_url', 'link_url', 'subtitle', 'cover_color', 'app_icon'] as const) {
+    if (body[key] !== undefined) patch[key] = toNullableText(body[key]);
   }
+  if (body.sort_order !== undefined) patch.sort_order = toSortOrder(body.sort_order);
+  if (body.featured !== undefined) patch.featured = body.featured === true;
   if (Object.keys(patch).length === 0) return fail('没有可更新的字段');
 
   const { data, error } = await supabaseAdmin()

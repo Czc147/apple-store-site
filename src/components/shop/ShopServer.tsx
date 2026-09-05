@@ -4,19 +4,20 @@ import {
 } from '@/lib/supabase/admin';
 import { DEMO_MAJOR_UNITS, DEMO_SUB_UNITS } from '@/lib/demo-data';
 import { toNumber } from '@/lib/format';
-import type { MajorUnit, SubUnit } from '@/lib/types';
+import type { MajorUnit, SubUnit, HomeSection } from '@/lib/types';
 import DataError from '@/components/ui/DataError';
 import ShopClient from './ShopClient';
 
 /**
  * 服务端取数组件（配合 <Suspense> 流式渲染骨架屏）。
- * - 已配置 Supabase：读取 major_units / sub_units（各自按 sort_order 升序）
+ * - 已配置 Supabase：读取 major_units / sub_units / home_sections（各按 sort_order 升序）
  * - 未配置：降级为演示数据（isDemo=true，页面显示提示条）
  * - 查询出错：渲染 DataError（可重试）
  */
 export default async function ShopServer() {
   let majors: MajorUnit[];
   let subs: SubUnit[];
+  let sections: HomeSection[] = [];
   let isDemo = false;
 
   if (!isSupabaseConfigured()) {
@@ -29,7 +30,7 @@ export default async function ShopServer() {
       const [majorsRes, subsRes] = await Promise.all([
         db
           .from('major_units')
-          .select('id, name, image_url, link_url, sort_order')
+          .select('*')
           .order('sort_order', { ascending: true })
           .order('created_at', { ascending: true }),
         db
@@ -46,6 +47,19 @@ export default async function ShopServer() {
         ...s,
         price: toNumber(s.price),
       }));
+
+      // 首页板块：表未建（迁移 006 尚未执行）时静默回退为空，绝不拖累主商品流
+      try {
+        const { data: secData, error: secErr } = await db
+          .from('home_sections')
+          .select('*')
+          .eq('enabled', true)
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: true });
+        if (!secErr) sections = (secData ?? []) as HomeSection[];
+      } catch {
+        sections = [];
+      }
     } catch (e) {
       return (
         <DataError
@@ -64,5 +78,12 @@ export default async function ShopServer() {
   // 大单元按 sort_order 升序（双重保险，兼容演示数据/旧数据）
   majors = [...majors].sort((a, b) => a.sort_order - b.sort_order);
 
-  return <ShopClient majors={majors} subsByMajor={subsByMajor} isDemo={isDemo} />;
+  return (
+    <ShopClient
+      majors={majors}
+      subsByMajor={subsByMajor}
+      sections={sections}
+      isDemo={isDemo}
+    />
+  );
 }

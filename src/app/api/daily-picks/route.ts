@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
       cover_url: toNullableText(body.cover_url),
       media_path: toNullableText(body.media_path),
       link_url: toNullableText(body.link_url),
+      subtitle: toNullableText(body.subtitle),
+      accent_color: toNullableText(body.accent_color),
     })
     .select()
     .single();

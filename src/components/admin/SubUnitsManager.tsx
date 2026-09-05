@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -64,6 +65,22 @@ export default function SubUnitsManager() {
 
   const [deleting, setDeleting] = useState<SubUnit | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batch, setBatch] = useState({
+    major_unit_id: '',
+    prefix: '',
+    start: '1',
+    end: '1',
+    pad: '0',
+  });
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchResult, setBatchResult] = useState<{
+    created: number;
+    skipped: number;
+    errors: number;
+  } | null>(null);
 
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const noticeTimer = useRef<number | null>(null);
@@ -189,6 +206,120 @@ export default function SubUnitsManager() {
     }
   };
 
+  const existingNames = useMemo(
+    () =>
+      new Set(
+        (rows ?? [])
+          .filter((r) => r.major_unit_id === batch.major_unit_id)
+          .map((r) => r.name),
+      ),
+    [rows, batch.major_unit_id],
+  );
+
+  const maxSort = useMemo(
+    () =>
+      Math.max(
+        0,
+        ...(rows ?? [])
+          .filter((r) => r.major_unit_id === batch.major_unit_id)
+          .map((r) => Number(r.sort_order) || 0),
+      ),
+    [rows, batch.major_unit_id],
+  );
+
+  const batchNames = useMemo(() => {
+    const start = Math.floor(Number(batch.start));
+    const end = Math.floor(Number(batch.end));
+    const pad = Math.floor(Number(batch.pad));
+    if (
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start > end ||
+      end - start + 1 > 500
+    ) {
+      return [];
+    }
+    const out: string[] = [];
+    for (let n = start; n <= end; n++) {
+      const numStr = pad > 0 ? String(n).padStart(pad, '0') : String(n);
+      out.push(`${batch.prefix}${numStr}`);
+    }
+    return out;
+  }, [batch]);
+
+  const openBatch = () => {
+    setBatch({
+      major_unit_id: filterMajor || majors[0]?.id || '',
+      prefix: '',
+      start: '1',
+      end: '1',
+      pad: '0',
+    });
+    setBatchError(null);
+    setBatchResult(null);
+    setBatchOpen(true);
+  };
+
+  const handleBatch = async () => {
+    if (batchBusy) return;
+    if (!batch.major_unit_id) return setBatchError('请选择大单元');
+    const start = Math.floor(Number(batch.start));
+    const end = Math.floor(Number(batch.end));
+    const pad = Math.floor(Number(batch.pad));
+    if (!Number.isInteger(start) || !Number.isInteger(end)) {
+      return setBatchError('起始 / 结束必须是整数');
+    }
+    if (start > end) return setBatchError('起始数字不能大于结束数字');
+    const count = end - start + 1;
+    if (count > 500) return setBatchError(`单次最多创建 500 个（当前 ${count} 个）`);
+    if (pad < 0 || pad > 20) return setBatchError('补零宽度需在 0–20 之间');
+
+    setBatchBusy(true);
+    setBatchError(null);
+    setBatchResult(null);
+    let created = 0;
+    let skipped = 0;
+    let errors = 0;
+    let sort = maxSort;
+    const existing = new Set(existingNames);
+    for (let n = start; n <= end; n++) {
+      const numStr = pad > 0 ? String(n).padStart(pad, '0') : String(n);
+      const name = `${batch.prefix}${numStr}`;
+      if (existing.has(name)) {
+        skipped += 1;
+        continue;
+      }
+      const nextSort = sort + 1;
+      try {
+        const res = await adminFetch('/api/sub-units', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            major_unit_id: batch.major_unit_id,
+            name,
+            sort_order: nextSort,
+            price: 0,
+          }),
+        });
+        if (res.ok) {
+          created += 1;
+          existing.add(name);
+          sort = nextSort;
+        } else {
+          const msg = await extractError(res);
+          if (/已存在|duplicate|unique|23505/i.test(msg)) skipped += 1;
+          else errors += 1;
+        }
+      } catch {
+        errors += 1;
+      }
+    }
+    setBatchResult({ created, skipped, errors });
+    setBatchBusy(false);
+    showNotice(true, `批量创建完成：新增 ${created}，跳过 ${skipped}`);
+    await load();
+  };
+
   return (
     <>
       <PageHeader
@@ -198,24 +329,29 @@ export default function SubUnitsManager() {
         onCreate={openCreate}
       />
 
-      {/* 按大单元筛选 */}
-      <div className="mb-4 flex items-center gap-2.5">
-        <label htmlFor="filter-major" className="shrink-0 text-[13px] text-apple-text-2">
-          按大单元筛选
-        </label>
-        <select
-          id="filter-major"
-          className={`${selectCls} w-44`}
-          value={filterMajor}
-          onChange={(e) => setFilterMajor(e.target.value)}
-        >
-          <option value="">全部</option>
-          {majors.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
+      {/* 按大单元筛选 + 批量创建入口 */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <label htmlFor="filter-major" className="shrink-0 text-[13px] text-apple-text-2">
+            按大单元筛选
+          </label>
+          <select
+            id="filter-major"
+            className={`${selectCls} w-44`}
+            value={filterMajor}
+            onChange={(e) => setFilterMajor(e.target.value)}
+          >
+            <option value="">全部</option>
+            {majors.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="button" className={btnGhost} onClick={openBatch}>
+          批量创建
+        </button>
       </div>
 
       {loadError ? (
@@ -392,6 +528,134 @@ export default function SubUnitsManager() {
             </p>
           )}
         </form>
+      </Modal>
+
+      <Modal
+        open={batchOpen}
+        title="批量创建小单元"
+        onClose={() => {
+          if (!batchBusy) setBatchOpen(false);
+        }}
+        footer={
+          <>
+            <button
+              type="button"
+              className={btnGhost}
+              onClick={() => setBatchOpen(false)}
+              disabled={batchBusy}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className={btnPrimary}
+              onClick={() => void handleBatch()}
+              disabled={batchBusy || batchNames.length === 0}
+            >
+              {batchBusy ? '创建中…' : `创建 ${batchNames.length} 个`}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="所属大单元" required>
+            <select
+              className={selectCls}
+              value={batch.major_unit_id}
+              onChange={(e) =>
+                setBatch((b) => ({ ...b, major_unit_id: e.target.value }))
+              }
+              disabled={batchBusy}
+            >
+              <option value="">请选择…</option>
+              {majors.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="名称前缀" hint="如「进阶版」「商品」">
+            <input
+              className={inputCls}
+              value={batch.prefix}
+              onChange={(e) => setBatch((b) => ({ ...b, prefix: e.target.value }))}
+              placeholder="如：进阶版"
+              disabled={batchBusy}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="起始数字" required>
+              <input
+                className={inputCls}
+                type="number"
+                value={batch.start}
+                onChange={(e) => setBatch((b) => ({ ...b, start: e.target.value }))}
+                disabled={batchBusy}
+              />
+            </Field>
+            <Field label="结束数字" required>
+              <input
+                className={inputCls}
+                type="number"
+                value={batch.end}
+                onChange={(e) => setBatch((b) => ({ ...b, end: e.target.value }))}
+                disabled={batchBusy}
+              />
+            </Field>
+          </div>
+          <Field label="补零宽度" hint="0 = 不补零；如填 3，则 1 → 001">
+            <input
+              className={inputCls}
+              type="number"
+              min={0}
+              max={20}
+              value={batch.pad}
+              onChange={(e) => setBatch((b) => ({ ...b, pad: e.target.value }))}
+              disabled={batchBusy}
+            />
+          </Field>
+
+          {batchNames.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-[12px] text-apple-text-2">
+                预览（{batchNames.length} 个，其中{' '}
+                {batchNames.filter((n) => existingNames.has(n)).length} 个已存在将跳过）
+              </p>
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-apple-hairline bg-apple-bg/40 px-3 py-2">
+                {batchNames.map((n) => {
+                  const exists = existingNames.has(n);
+                  return (
+                    <div
+                      key={n}
+                      className={`text-[13px] leading-relaxed ${
+                        exists ? 'text-apple-text-3 line-through' : 'text-apple-text'
+                      }`}
+                    >
+                      {n}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[12.5px] text-apple-text-3">
+              填写起始 / 结束数字后预览名单（单次最多 500 个）
+            </p>
+          )}
+
+          {batchResult && (
+            <p className="rounded-lg bg-[#E8F5E9] px-3 py-2 text-[13px] text-[#1B7F3B]">
+              完成：新增 {batchResult.created}，跳过 {batchResult.skipped}，失败{' '}
+              {batchResult.errors}
+            </p>
+          )}
+          {batchError && (
+            <p className="text-[13px] text-[#D70015]" role="alert">
+              {batchError}
+            </p>
+          )}
+        </div>
       </Modal>
 
       <ConfirmDialog

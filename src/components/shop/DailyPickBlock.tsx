@@ -52,7 +52,10 @@ export default function DailyPickBlock({
     <section className="px-4 sm:px-5" aria-label="每日推荐">
       <div className="overflow-hidden rounded-card-lg border border-apple-border bg-apple-card shadow-card">
         {/* 封面（或渐变占位）+ 状态角标 */}
-        <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-apple-blue-soft via-white to-apple-surface sm:aspect-[21/9]">
+        <div
+          className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-apple-blue-soft via-white to-apple-surface sm:aspect-[21/9]"
+          style={!teaser.cover_url && teaser.accent_color ? { background: teaser.accent_color } : undefined}
+        >
           {teaser.cover_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -63,7 +66,7 @@ export default function DailyPickBlock({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <Sparkles className="h-10 w-10 text-apple-blue/40" aria-hidden />
+              <Sparkles className="h-10 w-10 text-white/60" aria-hidden />
             </div>
           )}
           <span className="absolute left-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
@@ -89,6 +92,13 @@ export default function DailyPickBlock({
                 </>
               )}
             </span>
+          )}
+          {teaser.subtitle && (
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2.5 pt-8">
+              <p className="text-[12px] font-medium leading-snug text-white">
+                {teaser.subtitle}
+              </p>
+            </div>
           )}
         </div>
 
