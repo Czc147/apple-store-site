@@ -63,73 +63,80 @@ export default function CheckoutSheet({
     >
       {/* 遮罩（加深：让下层不再透成「白卡叠白卡」，保留毛玻璃感） */}
       <div
-        onClick={onClose}
+        aria-hidden
         className={`absolute inset-0 bg-black/45 transition-opacity duration-[250ms] ${
           open ? 'opacity-100' : 'opacity-0'
         }`}
       />
 
-      {/* 滑出卡片 */}
+      {/* 定位层：flex 靠底 + 上下安全间距，用百分比高度（非 dvh）约束卡片，保证任何窗口高度下卡片都不超出视口；点击空白处关闭 */}
       <div
-        className={`absolute inset-x-4 bottom-[calc(72px+env(safe-area-inset-bottom))] mx-auto max-h-[calc(100dvh-88px-env(safe-area-inset-bottom))] max-w-[480px] overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
-          open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
-        }`}
+        onClick={onClose}
+        className="absolute inset-0 flex flex-col items-center justify-end px-4 pb-[calc(72px+env(safe-area-inset-bottom))] pt-4"
       >
+        {/* 滑出卡片 */}
         <div
-          className="absolute left-1/2 top-2.5 h-1 w-9 -translate-x-1/2 rounded-full bg-black/10"
-          aria-hidden
-        />
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="关闭"
-          className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/5 text-apple-text-2 transition-colors duration-200 hover:bg-black/10 active:scale-95"
+          onClick={(e) => e.stopPropagation()}
+          className={`relative w-full max-w-[480px] max-h-full overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
+            open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+          }`}
         >
-          <X className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </button>
-
-        <h3
-          id="checkout-sheet-title"
-          className="text-center text-[17px] font-semibold tracking-tight"
-        >
-          确认结算
-        </h3>
-
-        {/* 商品清单 */}
-        <ul className="mt-4 space-y-2.5">
-          {items.map((item) => (
-            <li
-              key={item.sub_unit_id}
-              className="flex items-center gap-3 rounded-card border border-apple-border bg-apple-bg px-3.5 py-3"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-medium text-apple-text">
-                  {item.name}
-                </div>
-                <div className="mt-0.5 text-[12px] tabular-nums text-apple-text-2">
-                  ×{item.quantity} · 小计 {formatPrice(item.price * item.quantity)}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-4">
-          <PaymentMethodBody
-            total={total}
-            buildBody={buildBody}
-            onSuccess={onOrderCreated}
-            loginFrom="/wishlist"
+          <div
+            className="absolute left-1/2 top-2.5 h-1 w-9 -translate-x-1/2 rounded-full bg-black/10"
+            aria-hidden
           />
-        </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="关闭"
+            className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/5 text-apple-text-2 transition-colors duration-200 hover:bg-black/10 active:scale-95"
+          >
+            <X className="h-4 w-4" strokeWidth={2} aria-hidden />
+          </button>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-3 w-full rounded-btn border border-apple-border bg-white py-2.5 text-[14px] font-medium text-apple-text transition-colors duration-200 ease-apple hover:bg-apple-bg active:bg-apple-surface"
-        >
-          再想想
-        </button>
+          <h3
+            id="checkout-sheet-title"
+            className="text-center text-[17px] font-semibold tracking-tight"
+          >
+            确认结算
+          </h3>
+
+          {/* 商品清单 */}
+          <ul className="mt-4 space-y-2.5">
+            {items.map((item) => (
+              <li
+                key={item.sub_unit_id}
+                className="flex items-center gap-3 rounded-card border border-apple-border bg-apple-bg px-3.5 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-medium text-apple-text">
+                    {item.name}
+                  </div>
+                  <div className="mt-0.5 text-[12px] tabular-nums text-apple-text-2">
+                    ×{item.quantity} · 小计 {formatPrice(item.price * item.quantity)}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-4">
+            <PaymentMethodBody
+              total={total}
+              buildBody={buildBody}
+              onSuccess={onOrderCreated}
+              loginFrom="/wishlist"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-3 w-full rounded-btn border border-apple-border bg-white py-2.5 text-[14px] font-medium text-apple-text transition-colors duration-200 ease-apple hover:bg-apple-bg active:bg-apple-surface"
+          >
+            再想想
+          </button>
+        </div>
       </div>
     </div>
   );
