@@ -3,28 +3,29 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { WishlistItem } from '@/lib/wishlist';
+import type { PaymentMethod } from '@/lib/order-types';
 import { formatPrice } from '@/lib/format';
+import PaymentMethodBody from '@/components/checkout/PaymentMethodBody';
 
 interface CheckoutSheetProps {
   open: boolean;
   onClose: () => void;
   items: WishlistItem[];
-}
-
-/** 新标签页打开发卡平台付款链接 */
-function openPayment(url: string) {
-  window.open(url, '_blank', 'noopener');
+  /** 推送订单成功回调（父组件负责清空愿望单 / 展示成功提示） */
+  onOrderCreated: (orderNo: string) => void;
 }
 
 /**
  * 多商品结算弹窗（底部滑出毛玻璃卡片）：
- * - 列出每件商品的数量 / 小计 / 独立「去支付」按钮（逐个点击最稳妥）
- * - 「依次打开全部支付页」一键尝试（受浏览器弹窗拦截策略限制，故有提示）
- * - 所有 payment_url 均指向第三方发卡平台（酷发卡），本站只做跳转
+ * 展示商品清单 + 总金额 → 内置「去微信支付 / 去支付宝支付」两键 →
+ * 点开显示后台配置的收款码 → 「推送订单」走本站订单闭环（不再外跳酷发卡）。
  */
-export default function CheckoutSheet({ open, onClose, items }: CheckoutSheetProps) {
-  const payable = items.filter((i) => Boolean(i.payment_url));
-
+export default function CheckoutSheet({
+  open,
+  onClose,
+  items,
+  onOrderCreated,
+}: CheckoutSheetProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -38,6 +39,17 @@ export default function CheckoutSheet({ open, onClose, items }: CheckoutSheetPro
     };
   }, [open, onClose]);
 
+  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  const buildBody = (method: PaymentMethod) => ({
+    items: items.map((i) => ({
+      ref_type: 'sub_unit' as const,
+      ref_id: i.sub_unit_id,
+      quantity: i.quantity,
+    })),
+    payment_method: method,
+  });
+
   return (
     <div
       className={`fixed inset-0 z-[60] ${
@@ -49,17 +61,17 @@ export default function CheckoutSheet({ open, onClose, items }: CheckoutSheetPro
       aria-modal="true"
       aria-labelledby="checkout-sheet-title"
     >
-      {/* 遮罩 */}
+      {/* 遮罩（加深：让下层不再透成「白卡叠白卡」，保留毛玻璃感） */}
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-black/25 transition-opacity duration-[250ms] ${
+        className={`absolute inset-0 bg-black/45 transition-opacity duration-[250ms] ${
           open ? 'opacity-100' : 'opacity-0'
         }`}
       />
 
       {/* 滑出卡片 */}
       <div
-        className={`absolute inset-x-4 bottom-[calc(72px+env(safe-area-inset-bottom))] mx-auto max-h-[72dvh] max-w-[480px] overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
+        className={`absolute inset-x-4 bottom-[calc(72px+env(safe-area-inset-bottom))] mx-auto max-h-[78dvh] max-w-[480px] overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
           open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
         }`}
       >
@@ -82,9 +94,6 @@ export default function CheckoutSheet({ open, onClose, items }: CheckoutSheetPro
         >
           确认结算
         </h3>
-        <p className="mt-1 text-center text-[13px] leading-relaxed text-apple-text-2">
-          将依次跳转至发卡平台的支付页面，请逐笔完成付款
-        </p>
 
         {/* 商品清单 */}
         <ul className="mt-4 space-y-2.5">
@@ -101,35 +110,18 @@ export default function CheckoutSheet({ open, onClose, items }: CheckoutSheetPro
                   ×{item.quantity} · 小计 {formatPrice(item.price * item.quantity)}
                 </div>
               </div>
-              {item.payment_url ? (
-                <button
-                  type="button"
-                  onClick={() => openPayment(item.payment_url!)}
-                  className="flex-none rounded-btn bg-apple-blue px-4 py-1.5 text-[12.5px] font-medium text-white transition-colors duration-200 ease-apple hover:bg-apple-blue-hover active:bg-apple-blue-active"
-                >
-                  去支付
-                </button>
-              ) : (
-                <span className="flex-none text-[12px] text-apple-text-3">
-                  未配置付款链接
-                </span>
-              )}
             </li>
           ))}
         </ul>
 
-        {/* 一键全部打开 */}
-        <button
-          type="button"
-          disabled={payable.length === 0}
-          onClick={() => payable.forEach((i) => openPayment(i.payment_url!))}
-          className="mt-5 w-full rounded-btn bg-apple-blue py-3 text-[15px] font-medium text-white transition-colors duration-200 ease-apple hover:bg-apple-blue-hover active:bg-apple-blue-active disabled:cursor-not-allowed disabled:bg-apple-border disabled:text-apple-text-3"
-        >
-          全部打开（{payable.length} 个支付页）
-        </button>
-        <p className="mt-2 text-center text-[11.5px] leading-relaxed text-apple-text-3">
-          若浏览器拦截了多个弹窗，请逐个点击上方「去支付」
-        </p>
+        <div className="mt-4">
+          <PaymentMethodBody
+            total={total}
+            buildBody={buildBody}
+            onSuccess={onOrderCreated}
+            loginFrom="/wishlist"
+          />
+        </div>
 
         <button
           type="button"

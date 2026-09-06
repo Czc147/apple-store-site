@@ -42,7 +42,6 @@ interface FormState {
   price: string;
   duration: string;
   description: string;
-  payment_url: string;
   link_url: string;
   redeem_image_url: string;
   type: SubscriptionType;
@@ -55,7 +54,6 @@ const EMPTY_FORM: FormState = {
   price: '0',
   duration: '',
   description: '',
-  payment_url: '',
   link_url: '',
   redeem_image_url: '',
   type: 'normal',
@@ -63,7 +61,7 @@ const EMPTY_FORM: FormState = {
   sort_order: '0',
 };
 
-/** 订阅管理：名称 + 价格 + 时长徽章文案 + 付款链接 */
+/** 订阅管理：名称 + 价格 + 时长徽章文案 */
 export default function SubscriptionsManager() {
   const [rows, setRows] = useState<Subscription[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -122,7 +120,6 @@ export default function SubscriptionsManager() {
       price: String(row.price),
       duration: row.duration ?? '',
       description: row.description ?? '',
-      payment_url: row.payment_url ?? '',
       link_url: row.link_url ?? '',
       redeem_image_url: row.redeem_image_url ?? '',
       type: row.type ?? 'normal',
@@ -170,7 +167,6 @@ export default function SubscriptionsManager() {
             price,
             duration: form.duration.trim() || null,
             description: form.description.trim() || null,
-            payment_url: form.payment_url.trim() || null,
             link_url: form.link_url.trim() || null,
             redeem_image_url: form.redeem_image_url.trim() || null,
             type: form.type,
@@ -238,7 +234,6 @@ export default function SubscriptionsManager() {
               <th className={thCls}>类型</th>
               <th className={thCls}>价格</th>
               <th className={thCls}>时长</th>
-              <th className={thCls}>付款链接</th>
               <th className={thCls}>跳转链接</th>
               <th className={thCls}>兑换商品</th>
               <th className={thCls}>操作</th>
@@ -246,10 +241,10 @@ export default function SubscriptionsManager() {
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={9} />
+              <LoadingRows colSpan={8} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={9}
+                colSpan={8}
                 text="还没有订阅套餐，新增后前台订阅页即可展示"
                 createLabel="新增订阅"
                 onCreate={openCreate}
@@ -277,9 +272,6 @@ export default function SubscriptionsManager() {
                     ) : (
                       <span className="text-apple-text-3">—</span>
                     )}
-                  </td>
-                  <td className={tdCls}>
-                    <LinkCell href={row.payment_url} />
                   </td>
                   <td className={tdCls}>
                     <LinkCell href={row.link_url} />
@@ -407,17 +399,6 @@ export default function SubscriptionsManager() {
               rows={4}
               placeholder="介绍订阅权益、适用范围与注意事项…"
               maxLength={600}
-            />
-          </Field>
-          <Field label="付款链接" hint="填写酷发卡（kufaka.com）的商品链接，选填">
-            <input
-              className={inputCls}
-              value={form.payment_url}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, payment_url: e.target.value }))
-              }
-              placeholder="https://kufaka.com/…"
-              inputMode="url"
             />
           </Field>
           <Field label="跳转链接" hint="前台订阅卡片弹层的「了解更多」入口，选填">

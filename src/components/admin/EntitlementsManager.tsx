@@ -32,12 +32,14 @@ interface EntitlementRow extends UserEntitlement {
 const KIND_LABEL: Record<UserEntitlement['kind'], string> = {
   daily_plan: '每日计划',
   content: '兑换内容',
+  subscription: '订阅',
 };
 
 const SOURCE_LABEL: Record<UserEntitlement['source'], string> = {
   redeem: '兑换',
   sync: '同步',
   admin: '后台',
+  order: '订单',
 };
 
 /**

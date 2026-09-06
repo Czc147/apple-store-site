@@ -14,6 +14,8 @@ const SETTING_KEYS = [
   'home_greeting',
   'home_subtitle',
   'announcement',
+  'payment_wechat_qr_url',
+  'payment_alipay_qr_url',
 ] as const;
 
 /** GET /api/app-settings — 全局配置（公开；返回 { key: value } 对象） */

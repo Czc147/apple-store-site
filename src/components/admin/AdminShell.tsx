@@ -17,11 +17,13 @@ import {
   LibraryBig,
   LogOut,
   Package,
+  Receipt,
   Settings,
   ShieldCheck,
   Sparkles,
   Truck,
   Upload,
+  Users,
 } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: typeof Boxes };
@@ -36,8 +38,10 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/sub-units', label: '小单元管理', icon: Package },
       { href: '/admin/bulk-import', label: '文件夹导入', icon: FolderUp },
       { href: '/admin/activities', label: '活动管理', icon: CalendarDays },
+      { href: '/admin/orders', label: '订单管理', icon: Receipt },
       { href: '/admin/subscriptions', label: '订阅管理', icon: CreditCard },
-      { href: '/admin/daily-picks', label: '每日推荐', icon: Sparkles },
+      { href: '/admin/subscription-repos', label: '订阅仓库', icon: Sparkles },
+      { href: '/admin/community', label: '社区管理', icon: Users },
       { href: '/admin/library', label: '用户权益', icon: LibraryBig },
     ],
   },

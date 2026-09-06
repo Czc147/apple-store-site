@@ -8,7 +8,7 @@ import {
   Heart,
   CalendarDays,
   RefreshCw,
-  Gift,
+  Users,
   LibraryBig,
   type LucideIcon,
 } from 'lucide-react';
@@ -20,13 +20,13 @@ interface Tab {
   icon: LucideIcon;
 }
 
-/** 底部 6 个 Tab：选购 / 愿望单 / 活动 / 订阅 / 兑换 / 我的库 */
+/** 底部 6 个 Tab：选购 / 愿望单 / 活动 / 订阅 / 社区 / 我的库 */
 const TABS: Tab[] = [
   { href: '/', label: '选购', icon: ShoppingBag },
   { href: '/wishlist', label: '愿望单', icon: Heart },
   { href: '/activities', label: '活动', icon: CalendarDays },
   { href: '/subscription', label: '订阅', icon: RefreshCw },
-  { href: '/redeem', label: '兑换', icon: Gift },
+  { href: '/community', label: '社区', icon: Users },
   { href: '/library', label: '我的库', icon: LibraryBig },
 ];
 

@@ -6,26 +6,27 @@ import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
-  FileText,
-  Image as ImageIcon,
   LibraryBig,
   LogOut,
   RefreshCw,
   Sparkles,
   UserPlus,
-  Video,
   X,
 } from 'lucide-react';
-import { classifyMedia } from '@/lib/upload';
 import { useAuth } from '@/lib/auth-context';
 import { useLocalLibrary } from '@/lib/unlocks';
 import {
   fetchLibrary,
   syncLibrary,
+  type LibraryProduct,
   type LibraryResponse,
+  type LibrarySubscription,
   type SyncResultItem,
 } from '@/lib/library-client';
 import EmptyState from '@/components/ui/EmptyState';
+import RedeemClient from '@/components/redeem/RedeemClient';
+import NotificationBell from '@/components/library/NotificationBell';
+import ContentsView from '@/components/library/ContentsView';
 
 /** 到期时间 → YYYY-MM-DD（仅日期；非法值返回空串） */
 function formatExpiry(iso: string | null | undefined): string {
@@ -95,6 +96,11 @@ export default function LibraryClient() {
     setSyncPromptDismissed(false);
   };
 
+  const handleRedeemed = useCallback(() => {
+    // 已登录兑换：服务端已落库，重新拉取权威权益以刷新「我的库」
+    if (user) void loadLibrary();
+  }, [user, loadLibrary]);
+
   if (loading) {
     return (
       <div className="px-4 sm:px-5">
@@ -127,6 +133,14 @@ export default function LibraryClient() {
           </Link>
         ) : null}
 
+        {/* 兑换卡密（内嵌顶部） */}
+        <section>
+          <h2 className="mb-3 text-[17px] font-bold text-apple-text">兑换卡密</h2>
+          <div className="rounded-card-lg border border-apple-border bg-apple-card p-4 shadow-card">
+            <RedeemClient onRedeemed={handleRedeemed} />
+          </div>
+        </section>
+
         {local.hasAny ? (
           <>
             {local.dailyPlan && (
@@ -135,16 +149,14 @@ export default function LibraryClient() {
             {local.contents.length > 0 && (
               <section className={local.dailyPlan ? 'mt-6' : ''}>
                 <SectionTitle title="我的内容" count={local.contents.length} />
-                <div className="space-y-3">
-                  {local.contents.map((c) => (
-                    <ContentCard
-                      key={c.code}
-                      name={c.name}
-                      description={c.description}
-                      mediaUrl={c.media_url}
-                    />
-                  ))}
-                </div>
+                <ContentsView
+                  contents={local.contents.map((c) => ({
+                    id: c.code,
+                    name: c.name,
+                    description: c.description,
+                    media_url: c.media_url,
+                  }))}
+                />
               </section>
             )}
           </>
@@ -152,7 +164,7 @@ export default function LibraryClient() {
           <EmptyState
             icon={LibraryBig}
             title="我的库还是空的"
-            description="在「兑换」页输入卡密解锁每日计划或兑换内容后，这里会显示你的全部权益。"
+            description="在上方「兑换卡密」输入卡密解锁订阅或兑换内容后，这里会显示你的全部权益。"
           />
         )}
       </div>
@@ -164,7 +176,9 @@ export default function LibraryClient() {
   const dailyPlan = data?.daily_plan ?? null;
   const dailyStatus = data?.daily_status ?? null;
   const contents = data?.contents ?? [];
-  const hasServerData = Boolean(dailyPlan) || contents.length > 0;
+  const subscriptions = data?.subscriptions ?? [];
+  const hasServerData =
+    Boolean(dailyPlan) || contents.length > 0 || subscriptions.length > 0;
 
   return (
     <div className="px-4 pb-4 sm:px-5">
@@ -174,15 +188,26 @@ export default function LibraryClient() {
           <p className="text-[11px] text-apple-text-3">已登录</p>
           <p className="truncate text-[14px] font-medium text-apple-text">{email}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void handleSignOut()}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-apple-border bg-white px-3 py-1.5 text-[13px] font-medium text-apple-text-2 transition hover:bg-apple-bg hover:text-apple-text"
-        >
-          <LogOut className="h-3.5 w-3.5" aria-hidden />
-          退出
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <NotificationBell />
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className="inline-flex items-center gap-1.5 rounded-btn border border-apple-border bg-white px-3 py-1.5 text-[13px] font-medium text-apple-text-2 transition hover:bg-apple-bg hover:text-apple-text"
+          >
+            <LogOut className="h-3.5 w-3.5" aria-hidden />
+            退出
+          </button>
+        </div>
       </div>
+
+      {/* 兑换卡密（内嵌顶部） */}
+      <section className="mb-5">
+        <h2 className="mb-3 text-[17px] font-bold text-apple-text">兑换卡密</h2>
+        <div className="rounded-card-lg border border-apple-border bg-apple-card p-4 shadow-card">
+          <RedeemClient onRedeemed={handleRedeemed} />
+        </div>
+      </section>
 
       {/* 本机未同步记录提示 */}
       {pendingLocal && !syncPromptDismissed && (
@@ -261,20 +286,23 @@ export default function LibraryClient() {
           {/* 每日计划卡 */}
           <DailyPlanCard dailyStatus={dailyStatus} />
 
+          {/* 订阅仓库 */}
+          {subscriptions.length > 0 && (
+            <section className="mt-6">
+              <SectionTitle title="我的订阅" count={subscriptions.length} />
+              <div className="space-y-4">
+                {subscriptions.map((sub) => (
+                  <SubscriptionRepoSection key={sub.entitlement.id} data={sub} />
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* 我的内容 */}
           {contents.length > 0 && (
             <section className="mt-6">
               <SectionTitle title="我的内容" count={contents.length} />
-              <div className="space-y-3">
-                {contents.map((c) => (
-                  <ContentCard
-                    key={c.id}
-                    name={c.name ?? '兑换内容'}
-                    description={c.description}
-                    mediaUrl={c.media_url}
-                  />
-                ))}
-              </div>
+              <ContentsView contents={contents} />
             </section>
           )}
 
@@ -282,7 +310,7 @@ export default function LibraryClient() {
             <EmptyState
               icon={LibraryBig}
               title="我的库还是空的"
-              description="在「兑换」页输入卡密解锁每日计划或兑换内容后，这里会显示你的全部权益。"
+              description="在上方「兑换卡密」输入卡密解锁订阅或兑换内容后，这里会显示你的全部权益。"
             />
           )}
         </>
@@ -386,63 +414,93 @@ function DailyPlanCard({
   );
 }
 
-/** 内容卡：名称 + 描述 + 媒体预览 / 打开链接 */
-function ContentCard({
-  name,
-  description,
-  mediaUrl,
-}: {
-  name: string;
-  description: string | null;
-  mediaUrl: string | null;
-}) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const kind = mediaUrl ? classifyMedia(mediaUrl) : null;
+/** 订阅仓库分组：订阅名 + 状态 + 其下商品卡片 */
+function SubscriptionRepoSection({ data }: { data: LibrarySubscription }) {
+  const permanent = !data.entitlement.expires_at;
+  const expired = !permanent && Date.parse(data.entitlement.expires_at as string) < Date.now();
 
   return (
+    <div className="overflow-hidden rounded-card-lg border border-apple-border bg-apple-card shadow-card">
+      <div className="flex items-center gap-3 p-4">
+        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-apple-blue-soft">
+          <Sparkles className="h-5 w-5 text-apple-blue" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-bold text-apple-text">
+            {data.name ?? '订阅'}
+          </p>
+          <p className="mt-0.5 text-[12.5px] text-apple-text-2">
+            {permanent
+              ? '永久有效'
+              : expired
+                ? '已过期'
+                : `有效期至 ${formatExpiry(data.entitlement.expires_at)}`}
+          </p>
+        </div>
+      </div>
+      <div className="border-t border-apple-hairline p-4">
+        {data.products.length === 0 ? (
+          <p className="text-center text-[13px] text-apple-text-3">
+            {expired ? '订阅已过期，续费后可查看内容' : '当前还没有内容，敬请期待'}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {data.products.map((p) => (
+              <SubscriptionProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 订阅商品卡：封面 teaser + 标题 + 介绍 + 「打开内容 / 打开链接」 */
+function SubscriptionProductCard({ product }: { product: LibraryProduct }) {
+  return (
     <div className="overflow-hidden rounded-card border border-apple-border bg-apple-card shadow-card">
-      {mediaUrl && kind === 'image' && !imgFailed && (
+      {product.cover_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={mediaUrl}
-          alt={`${name} 内容`}
-          className="aspect-[16/9] w-full object-cover"
-          onError={() => setImgFailed(true)}
+          src={product.cover_url}
+          alt={`${product.title} 封面`}
+          loading="lazy"
+          className="aspect-[16/9] w-full bg-apple-bg object-cover"
         />
       )}
       <div className="p-4">
-        <div className="flex items-start gap-3">
-          {mediaUrl && (kind !== 'image' || imgFailed) && (
-            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-card bg-apple-bg">
-              {kind === 'video' ? (
-                <Video className="h-5 w-5 text-apple-text-3" aria-hidden />
-              ) : kind === 'doc' ? (
-                <FileText className="h-5 w-5 text-apple-text-3" aria-hidden />
-              ) : (
-                <ImageIcon className="h-5 w-5 text-apple-text-3" aria-hidden />
-              )}
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="text-[14.5px] font-medium text-apple-text">{name}</p>
-            {description && (
-              <p className="mt-0.5 text-[12.5px] leading-relaxed text-apple-text-2">
-                {description}
-              </p>
-            )}
-            {mediaUrl && (
+        <p className="text-[14.5px] font-medium text-apple-text">{product.title}</p>
+        {product.description && (
+          <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-relaxed text-apple-text-2">
+            {product.description}
+          </p>
+        )}
+        {(product.media_url || product.link_url) && (
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {product.media_url && (
               <a
-                href={mediaUrl}
+                href={product.media_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-[13px] font-medium text-apple-blue transition hover:text-apple-blue-hover"
+                className="inline-flex items-center gap-1 text-[13px] font-medium text-apple-blue transition hover:text-apple-blue-hover"
               >
                 打开内容
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               </a>
             )}
+            {product.link_url && (
+              <a
+                href={product.link_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[13px] font-medium text-apple-blue transition hover:text-apple-blue-hover"
+              >
+                打开链接
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              </a>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

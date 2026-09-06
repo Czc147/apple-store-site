@@ -82,7 +82,7 @@ function RegisterBanner() {
  * - unlock：每日计划解锁成功卡（有效期 / 永久）+「查看今日推荐」
  * 游客兑换成功时强提示注册；兑换记录写入本地库（登录后经「我的库」同步）。
  */
-export default function RedeemClient() {
+export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }) {
   const { getAuthHeaders } = useAuth();
   const { setDailyPlan, addContent } = useLocalLibrary();
 
@@ -141,6 +141,7 @@ export default function RedeemClient() {
       setResult(data);
       setImgFailed(false);
       setStatus('result');
+      onRedeemed?.();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : '兑换失败，请稍后再试');
       setStatus('error');
@@ -158,7 +159,7 @@ export default function RedeemClient() {
   if (status === 'result' && result) {
     if (result.result_type === 'unlock') {
       return (
-        <div className="mx-auto max-w-md px-5">
+        <div className="w-full">
           <div className="rounded-card border border-apple-border bg-apple-card p-5 shadow-card">
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#1B7F3B]/10">
@@ -208,7 +209,7 @@ export default function RedeemClient() {
           ? '在新标签页打开视频'
           : '在新标签页打开文档';
     return (
-      <div className="mx-auto max-w-md px-5">
+      <div className="w-full">
         <div className="rounded-card border border-apple-border bg-apple-card p-5 shadow-card">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#1B7F3B]/10">
@@ -293,7 +294,7 @@ export default function RedeemClient() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-5">
+    <div className="w-full">
       <form onSubmit={handleSubmit} className="space-y-3">
         <label htmlFor="redeem-code" className="sr-only">
           兑换码
@@ -324,7 +325,7 @@ export default function RedeemClient() {
       </form>
 
       <p className="mt-6 text-[12.5px] leading-relaxed text-apple-text-3">
-        在第三方平台付款后会收到一串卡密，把它输入到上面即可完成兑换；
+        在「订阅」页购买、或向客服获取卡密后，把它输入到上面即可完成兑换；
         兑换过的卡密可以重复输入查看内容。登录账号兑换可同步到「我的库」。
       </p>
     </div>

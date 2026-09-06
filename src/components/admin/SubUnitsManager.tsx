@@ -37,7 +37,6 @@ interface FormState {
   name: string;
   sort_order: string;
   price: string;
-  payment_url: string;
   redeem_image_url: string;
 }
 
@@ -46,7 +45,6 @@ const EMPTY_FORM: FormState = {
   name: '',
   sort_order: '0',
   price: '0',
-  payment_url: '',
   redeem_image_url: '',
 };
 
@@ -140,7 +138,6 @@ export default function SubUnitsManager() {
       name: row.name,
       sort_order: String(row.sort_order),
       price: String(row.price),
-      payment_url: row.payment_url ?? '',
       redeem_image_url: row.redeem_image_url ?? '',
     });
     setFormError(null);
@@ -171,7 +168,6 @@ export default function SubUnitsManager() {
             name,
             sort_order: sortOrder,
             price,
-            payment_url: form.payment_url.trim() || null,
             redeem_image_url: form.redeem_image_url.trim() || null,
           }),
         },
@@ -324,7 +320,7 @@ export default function SubUnitsManager() {
     <>
       <PageHeader
         title="小单元管理"
-        description="管理挂在各大单元下的具体商品，付款链接指向酷发卡商品页"
+        description="管理挂在各大单元下的具体商品；前台加购后走「订单确认派发」闭环"
         createLabel="新增小单元"
         onCreate={openCreate}
       />
@@ -369,17 +365,16 @@ export default function SubUnitsManager() {
               <th className={thCls}>名称</th>
               <th className={thCls}>所属大单元</th>
               <th className={thCls}>价格</th>
-              <th className={thCls}>付款链接</th>
               <th className={thCls}>兑换商品</th>
               <th className={thCls}>操作</th>
             </tr>
           </thead>
           <tbody>
             {visible === null ? (
-              <LoadingRows colSpan={7} />
+              <LoadingRows colSpan={6} />
             ) : visible.length === 0 ? (
               <EmptyRow
-                colSpan={7}
+                colSpan={6}
                 text={rows?.length ? '当前筛选条件下没有小单元' : '还没有小单元，新增后前台即可选购'}
                 createLabel="新增小单元"
                 onCreate={openCreate}
@@ -396,9 +391,6 @@ export default function SubUnitsManager() {
                   </td>
                   <td className={`${tdCls} whitespace-nowrap`}>
                     {formatPrice(row.price)}
-                  </td>
-                  <td className={tdCls}>
-                    <LinkCell href={row.payment_url} />
                   </td>
                   <td className={tdCls}>
                     <Thumb src={row.redeem_image_url} alt={`${row.name} 兑换商品`} />
@@ -486,17 +478,6 @@ export default function SubUnitsManager() {
               step="0.01"
               min="0"
               inputMode="decimal"
-            />
-          </Field>
-          <Field label="付款链接" hint="填写酷发卡（kufaka.com）的商品链接，选填">
-            <input
-              className={inputCls}
-              value={form.payment_url}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, payment_url: e.target.value }))
-              }
-              placeholder="https://kufaka.com/…"
-              inputMode="url"
             />
           </Field>
           <Field

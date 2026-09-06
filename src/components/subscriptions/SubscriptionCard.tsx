@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { formatPrice } from '@/lib/format';
 import type { Subscription } from '@/lib/types';
+import type { PaymentMethod } from '@/lib/order-types';
 import ActionSheet, { SheetItem } from '@/components/ui/ActionSheet';
+import PaymentMethodBody from '@/components/checkout/PaymentMethodBody';
 
 interface SubscriptionCardProps {
   subscription: Subscription;
@@ -12,14 +14,26 @@ interface SubscriptionCardProps {
 
 /**
  * 订阅卡片（两列网格版）：时长徽章 + 名称（粗体）+ 价格 + 「查看详情」。
- * 点击整卡打开 iOS 风格弹层：价格 / 时长 + 后台「详细介绍」+ 立即订阅入口。
- * （弹层不展示兑换商品——兑换内容仅在卡密兑换后出现）
+ * 点击整卡打开 iOS 风格弹层：价格 / 时长 + 详细介绍 + 「立即订阅」结算弹窗
+ * （内置微信/支付宝收款码 + 推送订单，走本站订单闭环，不再外跳酷发卡）。
  */
 export default function SubscriptionCard({ subscription }: SubscriptionCardProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { name, price, duration, description, payment_url, link_url } = subscription;
-  const hasUrl = Boolean(payment_url);
+  const [pushedOrder, setPushedOrder] = useState<string | null>(null);
+  const { name, price, duration, description, link_url } = subscription;
   const hasLink = Boolean(link_url);
+
+  const buildBody = (method: PaymentMethod) => ({
+    items: [
+      { ref_type: 'subscription' as const, ref_id: subscription.id, quantity: 1 },
+    ],
+    payment_method: method,
+  });
+
+  const handleOrderCreated = (orderNo: string) => {
+    setSheetOpen(false);
+    setPushedOrder(orderNo);
+  };
 
   return (
     <>
@@ -54,6 +68,16 @@ export default function SubscriptionCard({ subscription }: SubscriptionCardProps
         </span>
       </button>
 
+      {/* 推送成功提示 */}
+      {pushedOrder && (
+        <div className="mt-3 rounded-card border border-[#1B7F3B]/25 bg-[#E8F5E9] p-3.5">
+          <p className="text-[13.5px] font-semibold text-apple-text">订阅已成功推送</p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-apple-text-2">
+            订单号 {pushedOrder}。我们确认收款后会自动解锁订阅，您可在「我的库」查看。
+          </p>
+        </div>
+      )}
+
       <ActionSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={name}>
         {/* 价格 + 时长 */}
         <div className="flex items-center gap-2.5 px-6 pb-1">
@@ -73,24 +97,16 @@ export default function SubscriptionCard({ subscription }: SubscriptionCardProps
             {description}
           </p>
         ) : (
-          <p className="px-6 pb-4 pt-3 text-[13px] text-apple-text-3">
-            暂无详细介绍
-          </p>
+          <p className="px-6 pb-4 pt-3 text-[13px] text-apple-text-3">暂无详细介绍</p>
         )}
 
-        <div className="border-t border-apple-hairline">
-          {hasUrl ? (
-            <SheetItem
-              icon={CreditCard}
-              title="立即订阅"
-              subtitle="在新标签页打开付款链接"
-              href={payment_url!}
-            />
-          ) : (
-            <p className="px-6 py-4 text-center text-[12px] text-apple-text-3">
-              暂未开放订阅
-            </p>
-          )}
+        <div className="border-t border-apple-hairline px-5 pb-3 pt-4">
+          <PaymentMethodBody
+            total={price}
+            buildBody={buildBody}
+            onSuccess={handleOrderCreated}
+            loginFrom="/subscription"
+          />
           {hasLink && (
             <SheetItem
               icon={ExternalLink}

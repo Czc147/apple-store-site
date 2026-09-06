@@ -122,12 +122,14 @@ export interface DailyPickAdminRow extends DailyPick {
   media_preview_url: string | null;
 }
 
-/** 用户权益类型（与迁移 005 的 user_entitlements.kind 一致） */
+/** 用户权益类型（与迁移 005 / 013 的 user_entitlements.kind 一致） */
 export const ENTITLEMENT_KIND = {
   /** 每日计划解锁：每用户单条，重复兑换叠加延期 */
   DAILY_PLAN: 'daily_plan',
   /** 兑换内容：每码一条，带商品快照 */
   CONTENT: 'content',
+  /** 订阅解锁：每用户每订阅单条，重复解锁叠加有效期（迁移 013） */
+  SUBSCRIPTION: 'subscription',
 } as const;
 
 export type EntitlementKind =
@@ -147,11 +149,51 @@ export interface UserEntitlement {
   media_url: string | null;
   target_type: string | null;
   target_id: string | null;
+  /** 订阅权益指向 subscriptions.id；kind='subscription' 时非空 */
+  subscription_id: string | null;
+  /** 内容文件在私有桶的对象路径（订阅仓库商品 media_path 等） */
+  media_path: string | null;
   /** 获得时间 */
   unlocked_at: string;
   /** 到期时间；null = 永久 */
   expires_at: string | null;
-  source: 'redeem' | 'sync' | 'admin';
+  source: 'redeem' | 'sync' | 'admin' | 'order';
+}
+
+/** 订阅仓库·订阅商品（与迁移 011 的 subscription_products 对应） */
+export interface SubscriptionProduct {
+  id: string;
+  /** 所属订阅 id */
+  subscription_id: string;
+  title: string;
+  /** 介绍（解锁后可见） */
+  description: string | null;
+  /** 封面图（公开 images 桶，未解锁也可见的营销 teaser） */
+  cover_url: string | null;
+  /** 内容文件在私有桶 daily 的对象路径；服务端现签 1h 链接 */
+  media_path: string | null;
+  /** 跳转链接（可选） */
+  link_url: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 后台订阅仓库商品列表行：附带现签的内容预览链接（仅后台用） */
+export interface SubscriptionProductAdminRow extends SubscriptionProduct {
+  media_preview_url: string | null;
+}
+
+/** 通知（与迁移 014 的 notifications 对应） */
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string | null;
+  body: string | null;
+  payload: Record<string, unknown> | null;
+  /** 已读时刻；null = 未读 */
+  read_at: string | null;
+  created_at: string;
 }
 
 /** 首页板块（与迁移 006 的 home_sections 对应）：一段「标题 + 卡片流」 */
@@ -177,6 +219,10 @@ export interface AppSettings {
   home_greeting?: string;
   home_subtitle?: string;
   announcement?: string;
+  /** 微信收款码图 URL（结算弹窗展示；个人扫码收款） */
+  payment_wechat_qr_url?: string;
+  /** 支付宝收款码图 URL（结算弹窗展示；个人扫码收款） */
+  payment_alipay_qr_url?: string;
   [key: string]: string | undefined;
 }
 

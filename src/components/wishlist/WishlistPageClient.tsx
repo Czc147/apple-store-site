@@ -63,6 +63,7 @@ export default function WishlistPageClient() {
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [pushedOrder, setPushedOrder] = useState<string | null>(null);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setMounted(true), []);
@@ -89,20 +90,17 @@ export default function WishlistPageClient() {
     clear();
   };
 
-  /**
-   * 结算分发：
-   * - 仅 1 件（1 种 × 数量 1）且有付款链接 → 新标签页直跳
-   * - 其余情况 → 弹窗逐笔引导（避免浏览器拦截多弹窗）
-   */
+  /** 结算分发：打开结算弹窗（内置微信/支付宝收款码 + 推送订单） */
   const handleCheckout = () => {
-    if (items.length === 1 && totalQty === 1) {
-      const url = items[0].payment_url;
-      if (url) {
-        window.open(url, '_blank', 'noopener');
-        return;
-      }
-    }
+    setPushedOrder(null);
     setSheetOpen(true);
+  };
+
+  /** 推送订单成功：清空愿望单 + 提示 */
+  const handleOrderCreated = (orderNo: string) => {
+    setSheetOpen(false);
+    setPushedOrder(orderNo);
+    clear();
   };
 
   if (!mounted) return <MountSkeleton />;
@@ -110,6 +108,16 @@ export default function WishlistPageClient() {
 
   return (
     <>
+      {/* 推送成功提示 */}
+      {pushedOrder && (
+        <div className="mx-5 mb-3 rounded-card-lg border border-[#1B7F3B]/25 bg-[#E8F5E9] p-4 shadow-card">
+          <p className="text-[14px] font-semibold text-apple-text">订单已成功推送</p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-apple-text-2">
+            订单号 {pushedOrder}。我们确认收款后会自动把卡密发送到您的「我的库」。
+          </p>
+        </div>
+      )}
+
       {/* 列表头：统计 + 清空 */}
       <div className="flex items-center justify-between px-6 pb-3">
         <span className="text-[13px] text-apple-text-2">
@@ -152,6 +160,7 @@ export default function WishlistPageClient() {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         items={items}
+        onOrderCreated={handleOrderCreated}
       />
     </>
   );

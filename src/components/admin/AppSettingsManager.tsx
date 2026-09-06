@@ -4,12 +4,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppSettings } from '@/lib/types';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import { Field, PageHeader, Notice, inputCls, textareaCls, btnPrimary } from './ui';
+import ImageUploader from './ImageUploader';
 
 const EMPTY: AppSettings = {
   site_title: '',
   home_greeting: '',
   home_subtitle: '',
   announcement: '',
+  payment_wechat_qr_url: '',
+  payment_alipay_qr_url: '',
 };
 
 /** 首页全局配置：站点标题 / 首页大标题 / 副标题 / 顶部公告条 */
@@ -40,6 +43,8 @@ export default function AppSettingsManager() {
         home_greeting: data.home_greeting ?? '',
         home_subtitle: data.home_subtitle ?? '',
         announcement: data.announcement ?? '',
+        payment_wechat_qr_url: data.payment_wechat_qr_url ?? '',
+        payment_alipay_qr_url: data.payment_alipay_qr_url ?? '',
       });
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : '加载失败');
@@ -68,6 +73,8 @@ export default function AppSettingsManager() {
           home_greeting: form.home_greeting ?? '',
           home_subtitle: form.home_subtitle ?? '',
           announcement: form.announcement ?? '',
+          payment_wechat_qr_url: form.payment_wechat_qr_url ?? '',
+          payment_alipay_qr_url: form.payment_alipay_qr_url ?? '',
         }),
       });
       if (!res.ok) throw new Error(await extractError(res));
@@ -141,6 +148,31 @@ export default function AppSettingsManager() {
                   maxLength={120}
                 />
               </Field>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="微信收款码"
+                  hint="结算弹窗「去微信支付」点开显示；上传收款码图片"
+                >
+                  <ImageUploader
+                    value={form.payment_wechat_qr_url || null}
+                    onChange={(url) =>
+                      setForm((f) => ({ ...f, payment_wechat_qr_url: url ?? '' }))
+                    }
+                  />
+                </Field>
+                <Field
+                  label="支付宝收款码"
+                  hint="结算弹窗「去支付宝支付」点开显示；上传收款码图片"
+                >
+                  <ImageUploader
+                    value={form.payment_alipay_qr_url || null}
+                    onChange={(url) =>
+                      setForm((f) => ({ ...f, payment_alipay_qr_url: url ?? '' }))
+                    }
+                  />
+                </Field>
+              </div>
 
               {saveError && (
                 <p className="text-[13px] text-[#D70015]" role="alert">
