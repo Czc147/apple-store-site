@@ -72,7 +72,7 @@ export default function ServiceButton() {
 
         {/* 卡片（悬浮于 TabBar 上方） */}
         <div
-          className={`absolute inset-x-4 bottom-[calc(72px+env(safe-area-inset-bottom))] mx-auto max-w-[420px] rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
+          className={`absolute inset-x-4 bottom-[calc(72px+env(safe-area-inset-bottom))] mx-auto max-h-[calc(100dvh-88px-env(safe-area-inset-bottom))] max-w-[420px] overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
             open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
           }`}
         >
