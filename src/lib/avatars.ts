@@ -1,7 +1,9 @@
 /**
  * 默认头像库：纯代码生成的几何渐变头像（无需存储桶/生图工具）。
- * key 需与 supabase/migrations/017_profiles.sql 里的预置数组保持一致
- * （注册触发器 / 回填脚本按同一份 key 列表随机取值）。
+ * 本文件是「渲染」的唯一来源（key → 渐变色 + 编辑资料里的选择器）。
+ * 注册时随机指派的默认 key 由 DB 侧 migrate 019 的 public.avatar_presets 表提供，
+ * 两者共享同一批 key：新增预置渐变时，往该表补一行并在本文件加一组对应的 from/to。
+ * 即便一时不同步，getAvatarPreset 对未知 key 也会兜底回第一个渐变，不会渲染坏头像。
  */
 export interface AvatarPreset {
   key: string;

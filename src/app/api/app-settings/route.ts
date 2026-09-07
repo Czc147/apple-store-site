@@ -18,10 +18,15 @@ const SETTING_KEYS = [
   'payment_alipay_qr_url',
 ] as const;
 
-/** 敏感 key：前台可读的 GET 一律剔除，绝不出现在公开响应里 */
-const SECRET_KEYS = new Set(['push_serverchan_sendkey']);
+/**
+ * 前台可读的公开配置键（白名单，默认全拦）。
+ * 只用白名单放行，不走黑名单：任何非公开 key（密钥、内部时间戳等）天然不会出现在
+ * 公开响应里——即便以后往 app_settings 新增敏感项而忘了登记，也只影响「本级故意
+ * 不放行」，绝不会误泄露。改公开项时同步加入 SETTING_KEYS 与 PUBLIC_KEYS 即可。
+ */
+const PUBLIC_KEYS = new Set<string>(SETTING_KEYS);
 
-/** GET /api/app-settings — 全局配置（公开；返回 { key: value } 对象，剔除敏感 key） */
+/** GET /api/app-settings — 全局配置（公开；仅返回白名单内的 key） */
 export async function GET() {
   if (!isSupabaseConfigured()) return fail(UNCONFIGURED_MSG, 503);
   const { data, error } = await supabaseAdmin()
@@ -31,7 +36,7 @@ export async function GET() {
 
   const map: Record<string, string> = {};
   for (const row of (data ?? []) as Array<{ key: string; value: string | null }>) {
-    if (SECRET_KEYS.has(row.key)) continue;
+    if (!PUBLIC_KEYS.has(row.key)) continue;
     map[row.key] = row.value ?? '';
   }
   return ok(map);
