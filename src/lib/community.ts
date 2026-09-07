@@ -67,11 +67,17 @@ export async function createPost(
   }
 }
 
-/** 点赞/取消赞（需登录），返回切换后的状态 */
+/** 点赞/取消赞后返回权威结果：liked 是否已赞 + like_count 后端真实数量 */
+export interface LikeResult {
+  liked: boolean;
+  like_count: number;
+}
+
+/** 点赞/取消赞（需登录），返回切换后的状态；失败返回 null */
 export async function toggleLike(
   getAuthHeaders: Headers,
   postId: string,
-): Promise<boolean | null> {
+): Promise<LikeResult | null> {
   try {
     const headers = await getAuthHeaders();
     const res = await fetch(`/api/community/posts/${postId}/like`, {
@@ -79,8 +85,7 @@ export async function toggleLike(
       headers,
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { liked: boolean };
-    return data.liked;
+    return (await res.json()) as LikeResult;
   } catch {
     return null;
   }
@@ -131,6 +136,24 @@ export async function deletePost(
       method: 'DELETE',
       headers,
     });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** 删除评论（作者本人 / 管理员） */
+export async function deleteComment(
+  getAuthHeaders: Headers,
+  postId: string,
+  commentId: string,
+): Promise<boolean> {
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(
+      `/api/community/posts/${postId}/comments/${commentId}`,
+      { method: 'DELETE', headers },
+    );
     return res.ok;
   } catch {
     return false;

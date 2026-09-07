@@ -138,14 +138,10 @@ export default function ProfileEditSheet({
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-[480px] max-h-full overflow-y-auto rounded-hero border border-white/60 shadow-popover transition-transform duration-[250ms] ease-apple ${
+          className={`relative w-full max-w-[480px] max-h-full overflow-y-auto rounded-hero border border-apple-hairline bg-white shadow-popover transition-transform duration-[250ms] ease-apple ${
             open ? 'translate-y-0' : 'translate-y-8'
           }`}
         >
-          {/* 毛玻璃背景单独一层，避免和上面 transform/opacity 过渡叠在一起绘制，
-              长时间停留（选头像/打字）时才会暴露的 GPU 合成层重绘变灰问题 */}
-          <div className="glass pointer-events-none absolute inset-0 -z-10 rounded-hero" aria-hidden />
-
           <div
             className="absolute left-1/2 top-2.5 h-1 w-9 -translate-x-1/2 rounded-full bg-black/10"
             aria-hidden

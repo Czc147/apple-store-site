@@ -9,22 +9,26 @@ import CommentList from './CommentList';
 interface PostCardProps {
   post: CommunityPost;
   isOwner: boolean;
+  currentUserId: string | null;
   getAuthHeaders: () => Promise<Record<string, string>>;
   isLoggedIn: boolean;
   onLike: (postId: string, next: boolean) => void;
   onDelete: (postId: string) => void;
   onCommentAdded: (postId: string) => void;
+  onCommentDeleted: (postId: string) => void;
 }
 
 /** 社区帖子卡片：正文 + 点赞/评论；评论手风琴展开；作者可删 */
 export default function PostCard({
   post,
   isOwner,
+  currentUserId,
   getAuthHeaders,
   isLoggedIn,
   onLike,
   onDelete,
   onCommentAdded,
+  onCommentDeleted,
 }: PostCardProps) {
   const [openComments, setOpenComments] = useState(false);
 
@@ -96,9 +100,11 @@ export default function PostCard({
         <div className="border-t border-apple-hairline px-4 py-3">
           <CommentList
             postId={post.id}
+            currentUserId={currentUserId}
             getAuthHeaders={getAuthHeaders}
             isLoggedIn={isLoggedIn}
             onAdded={onCommentAdded}
+            onDeleted={onCommentDeleted}
           />
         </div>
       )}

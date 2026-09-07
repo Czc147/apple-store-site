@@ -78,7 +78,7 @@ export default function ServiceButton() {
           {/* 卡片（悬浮于 TabBar 上方） */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`relative w-full max-w-[420px] max-h-full overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-transform duration-[250ms] ease-apple ${
+            className={`relative w-full max-w-[420px] max-h-full overflow-y-auto rounded-hero border border-apple-hairline bg-white p-6 pt-7 shadow-popover transition-transform duration-[250ms] ease-apple ${
               open ? 'translate-y-0' : 'translate-y-8'
             }`}
           >

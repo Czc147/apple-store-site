@@ -47,7 +47,7 @@ export default function CommunityClient() {
   };
 
   const handleLike = async (postId: string, next: boolean) => {
-    // 乐观更新；失败回滚
+    // 乐观更新；成功后以后端返回的真实 like_count 兜底（防止 ±1 与真实值漂移），失败回滚
     setPosts((prev) =>
       (prev ?? []).map((p) =>
         p.id === postId
@@ -72,6 +72,14 @@ export default function CommunityClient() {
             : p,
         ),
       );
+    } else {
+      setPosts((prev) =>
+        (prev ?? []).map((p) =>
+          p.id === postId
+            ? { ...p, liked_by_me: result.liked, like_count: result.like_count }
+            : p,
+        ),
+      );
     }
   };
 
@@ -84,6 +92,16 @@ export default function CommunityClient() {
     setPosts((prev) =>
       (prev ?? []).map((p) =>
         p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p,
+      ),
+    );
+  };
+
+  const handleCommentDeleted = (postId: string) => {
+    setPosts((prev) =>
+      (prev ?? []).map((p) =>
+        p.id === postId
+          ? { ...p, comment_count: Math.max(0, p.comment_count - 1) }
+          : p,
       ),
     );
   };
@@ -113,11 +131,13 @@ export default function CommunityClient() {
           key={post.id}
           post={post}
           isOwner={Boolean(user) && post.user_id === user?.id}
+          currentUserId={user?.id ?? null}
           getAuthHeaders={getAuthHeaders}
           isLoggedIn={isLoggedIn}
           onLike={(id, next) => void handleLike(id, next)}
           onDelete={(id) => void handleDelete(id)}
           onCommentAdded={handleCommentAdded}
+          onCommentDeleted={handleCommentDeleted}
         />
       ))}
     </div>

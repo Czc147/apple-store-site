@@ -19,7 +19,9 @@ interface AvatarProps {
  * （内联 SVG，矢量、零网络请求；渐变圆底 + 两个错位的浅色叠层圆做几何纹样，贴合站内 Apple 风格）。
  */
 export default function Avatar({ avatarKey, avatarUrl, name, size = 40, className = '' }: AvatarProps) {
-  const gradientId = useId();
+  // React useId（形如 :r0:）里含冒号，部分浏览器在 SVG `fill="url(#...)"` 里解析失败，
+  // 渐变会退化为黑色圆（视觉上像灰/黑）。剔除冒号后的唯一 id 可跨浏览器稳定解析。
+  const gradientId = `ag${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const preset = getAvatarPreset(avatarKey);
 
   if (avatarUrl) {
