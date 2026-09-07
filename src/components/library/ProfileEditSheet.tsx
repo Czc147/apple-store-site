@@ -138,8 +138,8 @@ export default function ProfileEditSheet({
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-[480px] max-h-full overflow-y-auto rounded-hero border border-white/60 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
-            open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+          className={`relative w-full max-w-[480px] max-h-full overflow-y-auto rounded-hero border border-white/60 shadow-popover transition-transform duration-[250ms] ease-apple ${
+            open ? 'translate-y-0' : 'translate-y-8'
           }`}
         >
           {/* 毛玻璃背景单独一层，避免和上面 transform/opacity 过渡叠在一起绘制，

@@ -78,8 +78,8 @@ export default function ServiceButton() {
           {/* 卡片（悬浮于 TabBar 上方） */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`relative w-full max-w-[420px] max-h-full overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-[opacity,transform] duration-[250ms] ease-apple ${
-              open ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+            className={`relative w-full max-w-[420px] max-h-full overflow-y-auto rounded-hero border border-white/60 glass p-6 pt-7 shadow-popover transition-transform duration-[250ms] ease-apple ${
+              open ? 'translate-y-0' : 'translate-y-8'
             }`}
           >
             {/* Apple 式顶部抓手 */}
