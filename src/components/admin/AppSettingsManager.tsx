@@ -25,6 +25,13 @@ export default function AppSettingsManager() {
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const noticeTimer = useRef<number | null>(null);
 
+  // Server酱（订单推送 → 微信）——独立于上面的公开配置，key 只经 /api/admin/push-settings 读写
+  const [scConfigured, setScConfigured] = useState(false);
+  const [scMasked, setScMasked] = useState('');
+  const [scInput, setScInput] = useState('');
+  const [scSaving, setScSaving] = useState(false);
+  const [scTesting, setScTesting] = useState(false);
+
   const showNotice = useCallback((okFlag: boolean, text: string) => {
     if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
     setNotice({ ok: okFlag, text });
@@ -46,6 +53,12 @@ export default function AppSettingsManager() {
         payment_wechat_qr_url: data.payment_wechat_qr_url ?? '',
         payment_alipay_qr_url: data.payment_alipay_qr_url ?? '',
       });
+      const pr = await adminFetch('/api/admin/push-settings');
+      if (pr.ok) {
+        const pdata = (await pr.json()) as { configured: boolean; masked: string };
+        setScConfigured(Boolean(pdata.configured));
+        setScMasked(pdata.masked ?? '');
+      }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -83,6 +96,46 @@ export default function AppSettingsManager() {
       setSaveError(e instanceof Error ? e.message : '保存失败');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePushSave = async () => {
+    if (scSaving) return;
+    setScSaving(true);
+    try {
+      const res = await adminFetch('/api/admin/push-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendkey: scInput }),
+      });
+      if (!res.ok) throw new Error(await extractError(res));
+      const data = (await res.json()) as { configured: boolean; masked: string };
+      setScConfigured(Boolean(data.configured));
+      setScMasked(data.masked ?? '');
+      setScInput('');
+      showNotice(true, scInput.trim() ? '已保存推送 SendKey' : '已清除推送 SendKey');
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setScSaving(false);
+    }
+  };
+
+  const handlePushTest = async () => {
+    if (scTesting) return;
+    setScTesting(true);
+    try {
+      const res = await adminFetch('/api/admin/push-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test: true }),
+      });
+      if (!res.ok) throw new Error(await extractError(res));
+      showNotice(true, '测试通知已发送，请到微信查看');
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '测试失败');
+    } finally {
+      setScTesting(false);
     }
   };
 
@@ -172,6 +225,44 @@ export default function AppSettingsManager() {
                     }
                   />
                 </Field>
+              </div>
+
+              <div className="rounded-card border border-apple-hairline bg-apple-surface p-4">
+                <p className="text-[13.5px] font-semibold text-apple-text">订单推送提醒（Server酱 → 微信）</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-apple-text-2">
+                  填入 Server酱 SendKey 后，顾客「推送订单」成功即推微信提醒你核销。可在 sct.ftqq.com 免费注册获取。当前状态：
+                  {scConfigured ? (
+                    <span className="font-medium text-[#1B7F3B]">已配置（{scMasked}）</span>
+                  ) : (
+                    <span className="text-[#B80012]">未配置</span>
+                  )}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    className={`${inputCls} min-w-0 flex-1`}
+                    value={scInput}
+                    onChange={(e) => setScInput(e.target.value)}
+                    placeholder={scConfigured ? '粘贴新 SendKey 以替换，留空则清除' : '粘贴 Server酱 SendKey（SCT 开头）'}
+                    type="password"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handlePushSave()}
+                    disabled={scSaving}
+                    className={btnPrimary}
+                  >
+                    {scSaving ? '保存中…' : scConfigured ? '更新' : '保存'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handlePushTest()}
+                    disabled={scTesting || !scConfigured}
+                    className="rounded-btn border border-apple-border bg-white px-4 py-2 text-[13px] font-medium text-apple-text transition hover:bg-apple-bg disabled:opacity-40"
+                  >
+                    {scTesting ? '发送中…' : '发送测试'}
+                  </button>
+                </div>
               </div>
 
               {saveError && (

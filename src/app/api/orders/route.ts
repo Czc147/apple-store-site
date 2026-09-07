@@ -5,6 +5,7 @@ import { ok, fail, parseBody } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { getRequestUser } from '@/lib/user-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { notifyNewOrder } from '@/lib/serverchan';
 import {
   ORDER_TYPE,
   ORDER_STATUS,
@@ -173,6 +174,13 @@ export async function POST(req: NextRequest) {
       claim_token: claimToken,
     });
     if (delErr) return fail(delErr.message, 500);
+  }
+
+  // 新订单通知（Server酱 → 微信）：后台配置了 SendKey 才发；失败静默，不阻塞下单成功
+  try {
+    await notifyNewOrder(db, orderNo, Number(total), resolved.length, paymentMethod);
+  } catch {
+    /* 推送失败不影响下单结果 */
   }
 
   return ok(

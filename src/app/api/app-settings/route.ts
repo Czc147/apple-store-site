@@ -18,7 +18,10 @@ const SETTING_KEYS = [
   'payment_alipay_qr_url',
 ] as const;
 
-/** GET /api/app-settings — 全局配置（公开；返回 { key: value } 对象） */
+/** 敏感 key：前台可读的 GET 一律剔除，绝不出现在公开响应里 */
+const SECRET_KEYS = new Set(['push_serverchan_sendkey']);
+
+/** GET /api/app-settings — 全局配置（公开；返回 { key: value } 对象，剔除敏感 key） */
 export async function GET() {
   if (!isSupabaseConfigured()) return fail(UNCONFIGURED_MSG, 503);
   const { data, error } = await supabaseAdmin()
@@ -28,6 +31,7 @@ export async function GET() {
 
   const map: Record<string, string> = {};
   for (const row of (data ?? []) as Array<{ key: string; value: string | null }>) {
+    if (SECRET_KEYS.has(row.key)) continue;
     map[row.key] = row.value ?? '';
   }
   return ok(map);
