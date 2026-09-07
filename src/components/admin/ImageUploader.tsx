@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { ImagePlus, RefreshCw, Trash2 } from 'lucide-react';
+import { compressImageFile } from '@/lib/image-resize';
 
 interface ImageUploaderProps {
   /** 当前图片 URL（null 表示未上传） */
@@ -29,7 +30,7 @@ export default function ImageUploader({ value, onChange }: ImageUploaderProps) {
 
   const uploading = progress !== null;
 
-  const startUpload = (file: File) => {
+  const startUpload = async (file: File) => {
     if (!ALLOWED_TYPES.includes(file.type)) {
       setError('仅支持 JPG / PNG / WebP 格式');
       return;
@@ -41,8 +42,15 @@ export default function ImageUploader({ value, onChange }: ImageUploaderProps) {
     setError(null);
     setProgress(0);
 
+    let toUpload = file;
+    try {
+      toUpload = await compressImageFile(file);
+    } catch {
+      toUpload = file;
+    }
+
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', toUpload);
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload');

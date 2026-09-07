@@ -23,6 +23,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Truck,
   Upload,
   Users,
@@ -47,6 +48,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/community', label: '社区管理', icon: Users },
       { href: '/admin/library', label: '用户权益', icon: LibraryBig },
       { href: '/admin/push', label: '推送服务', icon: Send },
+      { href: '/admin/storage-cleanup', label: '存储清理', icon: Trash2 },
     ],
   },
   {

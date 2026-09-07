@@ -60,3 +60,46 @@ export async function resizeImageToJpegFile(
     cleanup();
   }
 }
+
+/** 需要压缩的图片类型（PNG 保留透明通道、SVG/GIF 不转码，均跳过） */
+const COMPRESSIBLE = new Set(['image/jpeg', 'image/webp']);
+
+/**
+ * 通用图片上传前压缩：只处理 jpeg/webp，缩放到不超过 maxWidth（等比），
+ * 统一转码 jpeg；压缩结果更大时回退用原文件（不做负优化）。
+ * 仅浏览器端使用，返回可用于 form.append 的 File。
+ */
+export async function compressImageFile(
+  file: File,
+  maxWidth = 1600,
+  quality = 0.8,
+): Promise<File> {
+  if (!COMPRESSIBLE.has(file.type)) return file;
+
+  const { draw, width, height, cleanup } = await loadImage(file).catch(() => {
+    throw new Error('图片无法识别，请换一张');
+  });
+
+  try {
+    const scale = Math.min(1, maxWidth / width);
+    const outW = Math.max(1, Math.round(width * scale));
+    const outH = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('当前浏览器不支持图片处理');
+    ctx.drawImage(draw, 0, 0, outW, outH);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', quality),
+    );
+    if (!blob || blob.size >= file.size) return file;
+
+    const base = file.name.replace(/\.[^.]+$/, '') || 'image';
+    return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
+  } finally {
+    cleanup();
+  }
+}

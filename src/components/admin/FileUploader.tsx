@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { FileText, RefreshCw, Trash2, Upload, Video } from 'lucide-react';
+import { compressImageFile } from '@/lib/image-resize';
 import {
   UPLOAD_ACCEPT,
   UPLOAD_RULE_BY_MIME,
@@ -36,7 +37,7 @@ export default function FileUploader({ value, onChange, bucket = 'images' }: Fil
 
   const uploading = progress !== null;
 
-  const startUpload = (file: File) => {
+  const startUpload = async (file: File) => {
     const rule = UPLOAD_RULE_BY_MIME[file.type];
     if (!rule) {
       setError(UPLOAD_TYPE_ERROR);
@@ -49,8 +50,15 @@ export default function FileUploader({ value, onChange, bucket = 'images' }: Fil
     setError(null);
     setProgress(0);
 
+    let toUpload = file;
+    try {
+      toUpload = await compressImageFile(file);
+    } catch {
+      toUpload = file;
+    }
+
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', toUpload);
     if (bucket !== 'images') form.append('bucket', bucket);
 
     const xhr = new XMLHttpRequest();
