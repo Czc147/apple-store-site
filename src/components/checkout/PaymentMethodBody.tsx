@@ -119,7 +119,7 @@ export default function PaymentMethodBody({
       <div className="flex items-center justify-between rounded-card border border-apple-border bg-apple-bg px-4 py-3">
         <span className="text-[14px] text-apple-text-2">合计</span>
         <span className="text-[20px] font-semibold tabular-nums tracking-tight text-apple-text">
-          ¥{formatPrice(total)}
+          {formatPrice(total)}
         </span>
       </div>
 

@@ -7,6 +7,7 @@ import {
   ChevronDown,
   CreditCard,
   Gift,
+  LibraryBig,
   Lock,
   Sparkles,
 } from 'lucide-react';
@@ -38,6 +39,7 @@ export default function DailyClient({ teasers, isDemo }: DailyClientProps) {
   const [status, setStatus] = useState<DailyAccessStatus | 'checking'>('checking');
   const [openedDate, setOpenedDate] = useState<string | null>(null);
   const [lockedSheet, setLockedSheet] = useState(false);
+  const [libraryPromptOpen, setLibraryPromptOpen] = useState(false);
 
   const code = dailyPlan?.code ?? null;
   const authKey = user?.id ?? (code ? `code:${code.slice(0, 8)}` : 'none');
@@ -67,6 +69,8 @@ export default function DailyClient({ teasers, isDemo }: DailyClientProps) {
   const history = teasers.slice(1);
   const latestIsToday = latest.pick_date === todayDateCN();
   const unlocked = status !== 'checking' && status.unlocked;
+  // 登录账号解锁：内容改在「我的库→我的订阅」查看；游客凭码解锁仍在本页内联查看
+  const viewInLibrary = Boolean(user) && unlocked;
 
   const handleLockedTap = () => setLockedSheet(true);
 
@@ -102,6 +106,19 @@ export default function DailyClient({ teasers, isDemo }: DailyClientProps) {
               <div className="mt-3 space-y-2">
                 <div className="skeleton h-3.5 w-3/4 rounded-md" />
                 <div className="skeleton h-40 w-full rounded-card" />
+              </div>
+            ) : unlocked && viewInLibrary ? (
+              <div className="mt-3">
+                <p className="flex items-center gap-1.5 text-[13px] leading-relaxed text-apple-text-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#1B7F3B]" aria-hidden />
+                  内容已解锁，请前往「我的库」查看
+                </p>
+                <Link
+                  href="/library"
+                  className="mt-3.5 inline-flex h-10 items-center justify-center rounded-btn bg-apple-blue px-5 text-[14px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active"
+                >
+                  前往我的库
+                </Link>
               </div>
             ) : unlocked ? (
               <div className="mt-3">
@@ -166,6 +183,10 @@ export default function DailyClient({ teasers, isDemo }: DailyClientProps) {
                         handleLockedTap();
                         return;
                       }
+                      if (viewInLibrary) {
+                        setLibraryPromptOpen(true);
+                        return;
+                      }
                       setOpenedDate(isOpen ? null : pick.pick_date);
                     }}
                     className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:bg-apple-bg"
@@ -196,7 +217,7 @@ export default function DailyClient({ teasers, isDemo }: DailyClientProps) {
                     )}
                   </button>
 
-                  {unlocked && isOpen && (
+                  {unlocked && !viewInLibrary && isOpen && (
                     <div className="border-t border-apple-hairline px-4 py-4">
                       <PickContentViewer
                         pickDate={pick.pick_date}
@@ -247,6 +268,25 @@ export default function DailyClient({ teasers, isDemo }: DailyClientProps) {
             当前为演示数据
           </p>
         )}
+      </ActionSheet>
+
+      {/* ---------- 已解锁（登录账号）点击历史时的跳转提示 ---------- */}
+      <ActionSheet
+        open={libraryPromptOpen}
+        onClose={() => setLibraryPromptOpen(false)}
+        title="内容已在我的库"
+      >
+        <p className="px-6 pb-2 pt-3 text-[13px] leading-relaxed text-apple-text-2">
+          每日计划内容现已统一在「我的库 → 我的订阅」中查看，和其他订阅一致。
+        </p>
+        <div className="border-t border-apple-hairline">
+          <SheetItem
+            icon={LibraryBig}
+            title="前往我的库"
+            subtitle="查看已解锁的全部内容"
+            href="/library"
+          />
+        </div>
       </ActionSheet>
     </div>
   );

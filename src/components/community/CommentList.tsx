@@ -7,6 +7,7 @@ import {
   fetchComments,
   type CommunityComment,
 } from '@/lib/community';
+import Avatar from '@/components/ui/Avatar';
 
 interface CommentListProps {
   postId: string;
@@ -59,8 +60,14 @@ export default function CommentList({
         {(comments ?? []).map((c) => (
           <div key={c.id} className="rounded-card bg-apple-bg px-3 py-2">
             <div className="flex items-center gap-1.5 text-[11px] text-apple-text-3">
+              <Avatar
+                avatarKey={c.author?.avatar_key}
+                avatarUrl={c.author?.avatar_url}
+                name={c.author?.display_name ?? c.user_email}
+                size={18}
+              />
               <span className="font-medium text-apple-text-2">
-                {c.user_email ? c.user_email.split('@')[0] : '用户'}
+                {c.author?.display_name ?? (c.user_email ? c.user_email.split('@')[0] : '用户')}
               </span>
               <span>·</span>
               <span>{new Date(c.created_at).toLocaleDateString('zh-CN')}</span>

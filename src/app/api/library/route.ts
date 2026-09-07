@@ -45,14 +45,30 @@ export async function GET(req: NextRequest) {
     const ents = (data ?? []) as UserEntitlement[];
     const dailyPlan = ents.find((e) => e.kind === 'daily_plan') ?? null;
     const contents = ents.filter((e) => e.kind === 'content');
-    const subEnts = ents.filter(
+    const allSubEnts = ents.filter(
       (e) => e.kind === 'subscription' && e.subscription_id,
     );
 
-    // 每日计划实时状态：以 expires_at 现算（过期即 unlocked=false）
-    const dailyStatus: DailyAccessStatus = dailyPlan
-      ? expiryToStatus(dailyPlan.expires_at ? Date.parse(dailyPlan.expires_at) : null)
-      : DAILY_LOCKED;
+    // 「每日计划」类型订阅（全局至多一条）：其订单购买权益与旧 daily_plan 权益
+    // 合并现算解锁状态，且不在下方「我的订阅」通用列表中重复展示
+    const { data: dailySubRow } = await db
+      .from('subscriptions')
+      .select('id')
+      .eq('type', 'daily_plan')
+      .maybeSingle();
+    const dailySubId = (dailySubRow as { id: string } | null)?.id ?? null;
+    const dailySubEnt = dailySubId
+      ? allSubEnts.find((e) => e.subscription_id === dailySubId) ?? null
+      : null;
+
+    const dailyStatus = computeDailyStatus(dailyPlan, dailySubEnt);
+
+    // 每日计划的订阅权益与其他订阅一样进入通用列表，用同一套「我的订阅」卡片展示；
+    // 兼容仅有旧版 daily_plan 腿（无 subscription 腿）的老数据，现场拼一条指向该订阅的权益
+    const subEnts =
+      dailyPlan && dailySubId && !dailySubEnt
+        ? [...allSubEnts, { ...dailyPlan, subscription_id: dailySubId }]
+        : allSubEnts;
 
     const subscriptions = await loadSubscriptions(db, subEnts);
 
@@ -68,6 +84,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/** 合并两条腿的每日计划权益，取永久优先、否则更晚到期的一条 */
+function computeDailyStatus(
+  dailyPlan: UserEntitlement | null,
+  dailySubEnt: UserEntitlement | null,
+): DailyAccessStatus {
+  const candidates = [dailyPlan, dailySubEnt].filter(
+    (e): e is UserEntitlement => e !== null,
+  );
+  if (candidates.length === 0) return DAILY_LOCKED;
+  if (candidates.some((e) => e.expires_at === null)) return expiryToStatus(null);
+  const latestMs = Math.max(...candidates.map((e) => Date.parse(e.expires_at as string)));
+  return expiryToStatus(latestMs);
+}
+
 /** 组装订阅权益组：订阅名 + 商品列表（现签媒体链接） */
 async function loadSubscriptions(
   db: ReturnType<typeof supabaseAdmin>,
@@ -77,23 +107,20 @@ async function loadSubscriptions(
 
   const subIds = subEnts.map((e) => e.subscription_id as string);
 
-  // 订阅名
-  const { data: subs } = await db
-    .from('subscriptions')
-    .select('id, name')
-    .in('id', subIds);
+  // 订阅名 + 该用户所有订阅的商品：两者互不依赖，并发查询省一次往返
+  const [{ data: subs }, { data: products }] = await Promise.all([
+    db.from('subscriptions').select('id, name').in('id', subIds),
+    db
+      .from('subscription_products')
+      .select('*')
+      .in('subscription_id', subIds)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
+  ]);
   const nameById = new Map<string, string | null>();
   for (const s of (subs ?? []) as Array<{ id: string; name: string }>) {
     nameById.set(s.id, s.name);
   }
-
-  // 该用户所有订阅的商品
-  const { data: products } = await db
-    .from('subscription_products')
-    .select('*')
-    .in('subscription_id', subIds)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
 
   // 为有 media_path 的商品现签链接
   const withMedia = await Promise.all(

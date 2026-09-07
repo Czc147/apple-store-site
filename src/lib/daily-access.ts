@@ -61,20 +61,46 @@ export function expiryToStatus(expiresMs: number | null): DailyAccessStatus {
   };
 }
 
-/** 登录用户：查 daily_plan 权益（每用户单条） */
+/**
+ * 登录用户：查每日计划权益。
+ * 两条腿都算数（同用户可能同时持有）：
+ * - kind='daily_plan'（旧：兑换码核销 / 同步）
+ * - kind='subscription' 且指向 type='daily_plan' 的订阅（新：订单购买）
+ * 取两者中「更晚到期」的一条；任一为永久则整体永久。
+ */
 export async function getDailyAccessByUserId(
   userId: string,
 ): Promise<DailyAccessStatus> {
-  const { data, error } = await supabaseAdmin()
-    .from('user_entitlements')
-    .select('expires_at')
-    .eq('user_id', userId)
-    .eq('kind', 'daily_plan')
+  const db = supabaseAdmin();
+
+  const { data: dailySub, error: dailySubErr } = await db
+    .from('subscriptions')
+    .select('id')
+    .eq('type', 'daily_plan')
     .maybeSingle();
+  if (dailySubErr) throw new Error(dailySubErr.message);
+  const dailySubId = (dailySub as { id: string } | null)?.id ?? null;
+
+  const { data, error } = await db
+    .from('user_entitlements')
+    .select('kind, subscription_id, expires_at')
+    .eq('user_id', userId)
+    .in('kind', ['daily_plan', 'subscription']);
   if (error) throw new Error(error.message);
-  if (!data) return DAILY_LOCKED;
-  const expiresAt = (data as { expires_at: string | null }).expires_at;
-  return expiryToStatus(expiresAt ? Date.parse(expiresAt) : null);
+
+  const rows = (data ?? []) as Array<{
+    kind: string;
+    subscription_id: string | null;
+    expires_at: string | null;
+  }>;
+  const relevant = rows.filter(
+    (r) => r.kind === 'daily_plan' || (dailySubId !== null && r.subscription_id === dailySubId),
+  );
+  if (relevant.length === 0) return DAILY_LOCKED;
+  if (relevant.some((r) => r.expires_at === null)) return expiryToStatus(null);
+
+  const latestMs = Math.max(...relevant.map((r) => Date.parse(r.expires_at as string)));
+  return expiryToStatus(latestMs);
 }
 
 /** 游客：以已核销的解锁码为凭证（统一失败语义，调用方负责防枚举文案） */

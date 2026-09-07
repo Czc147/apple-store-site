@@ -240,7 +240,7 @@ export default function OrdersManager() {
                   </td>
                   <td className={tdCls}>
                     <span className="whitespace-nowrap tabular-nums text-[14px] font-medium">
-                      ¥{formatPrice(Number(row.total))}
+                      {formatPrice(Number(row.total))}
                     </span>
                   </td>
                   <td className={tdCls}>

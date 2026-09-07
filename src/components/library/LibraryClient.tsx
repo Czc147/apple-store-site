@@ -27,6 +27,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import RedeemClient from '@/components/redeem/RedeemClient';
 import NotificationBell from '@/components/library/NotificationBell';
 import ContentsView from '@/components/library/ContentsView';
+import ProfileHeader from '@/components/library/ProfileHeader';
 
 /** 到期时间 → YYYY-MM-DD（仅日期；非法值返回空串） */
 function formatExpiry(iso: string | null | undefined): string {
@@ -173,21 +174,15 @@ export default function LibraryClient() {
 
   /* ---------------- 登录视图 ---------------- */
   const email = data?.user.email ?? user.email ?? '';
-  const dailyPlan = data?.daily_plan ?? null;
-  const dailyStatus = data?.daily_status ?? null;
   const contents = data?.contents ?? [];
   const subscriptions = data?.subscriptions ?? [];
-  const hasServerData =
-    Boolean(dailyPlan) || contents.length > 0 || subscriptions.length > 0;
+  const hasServerData = contents.length > 0 || subscriptions.length > 0;
 
   return (
     <div className="px-4 pb-4 sm:px-5">
-      {/* 账号条：邮箱 + 退出 */}
+      {/* 账号条：头像/昵称（点击编辑资料） + 退出 */}
       <div className="mb-5 flex items-center justify-between gap-3 rounded-card-lg border border-apple-border bg-apple-card px-4 py-3 shadow-card">
-        <div className="min-w-0">
-          <p className="text-[11px] text-apple-text-3">已登录</p>
-          <p className="truncate text-[14px] font-medium text-apple-text">{email}</p>
-        </div>
+        <ProfileHeader getAuthHeaders={getAuthHeaders} fallbackEmail={email} />
         <div className="flex shrink-0 items-center gap-1">
           <NotificationBell />
           <button
@@ -283,9 +278,6 @@ export default function LibraryClient() {
         </div>
       ) : (
         <>
-          {/* 每日计划卡 */}
-          <DailyPlanCard dailyStatus={dailyStatus} />
-
           {/* 订阅仓库 */}
           {subscriptions.length > 0 && (
             <section className="mt-6">
@@ -352,63 +344,6 @@ function GuestDailyCard({ expiresAt }: { expiresAt: string | null }) {
         <p className="mt-2 text-center text-[11.5px] text-apple-text-3">
           注册账号后可永久保存，换设备也能找回
         </p>
-      </div>
-    </div>
-  );
-}
-
-/** 登录态每日计划卡：按服务端实时状态渲染（未解锁 / 已解锁 / 已过期） */
-function DailyPlanCard({
-  dailyStatus,
-}: {
-  dailyStatus: LibraryResponse['daily_status'] | null;
-}) {
-  const unlocked = Boolean(dailyStatus?.unlocked);
-  const expired = Boolean(dailyStatus?.expired);
-
-  return (
-    <div className="overflow-hidden rounded-card-lg border border-apple-border bg-apple-card shadow-card">
-      <div className="flex items-center gap-3 p-4">
-        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-apple-blue-soft">
-          <Sparkles className="h-5 w-5 text-apple-blue" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-bold text-apple-text">每日计划</p>
-          {unlocked ? (
-            <p className="mt-0.5 text-[12.5px] text-apple-text-2">
-              {dailyStatus?.permanent
-                ? '永久有效 · 每天更新 1 期精选内容'
-                : `有效期至 ${formatExpiry(dailyStatus?.expires_at)}${
-                    dailyStatus?.remaining_days != null
-                      ? `（剩余 ${dailyStatus.remaining_days} 天）`
-                      : ''
-                  }`}
-            </p>
-          ) : expired ? (
-            <p className="mt-0.5 text-[12.5px] text-[#D70015]">已过期，续费后可继续查看</p>
-          ) : (
-            <p className="mt-0.5 text-[12.5px] text-apple-text-3">尚未解锁</p>
-          )}
-        </div>
-      </div>
-      <div className="border-t border-apple-hairline p-4">
-        {unlocked ? (
-          <Link href="/daily" className={`${btnPrimary} w-full`}>
-            查看今日推荐
-          </Link>
-        ) : (
-          <div className="flex items-center gap-3">
-            <Link href="/subscription" className={`${btnPrimary} flex-1`}>
-              {expired ? '立即续费' : '订阅每日计划'}
-            </Link>
-            <Link
-              href="/redeem"
-              className="whitespace-nowrap text-[13px] font-medium text-apple-blue transition hover:text-apple-blue-hover"
-            >
-              已有兑换码？
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   );

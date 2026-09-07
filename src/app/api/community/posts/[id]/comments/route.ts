@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { getRequestUser } from '@/lib/user-auth';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail, parseBody } from '@/lib/api';
+import { fetchAuthorsByUserIds } from '@/lib/profiles-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +17,24 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   if (!isSupabaseConfigured()) return fail(UNCONFIGURED_MSG, 503);
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin();
+  const { data, error } = await db
     .from('community_comments')
     .select('*')
     .eq('post_id', params.id)
     .order('created_at', { ascending: true });
   if (error) return fail(error.message, 500);
-  return ok(data ?? []);
+
+  const list = data ?? [];
+  const authors = await fetchAuthorsByUserIds(
+    db,
+    list.map((c) => c.user_id as string).filter(Boolean),
+  );
+  const shaped = list.map((c) => ({
+    ...c,
+    author: c.user_id ? authors.get(c.user_id as string) ?? null : null,
+  }));
+  return ok(shaped);
 }
 
 /** POST /api/community/posts/[id]/comments — 发表评论（需登录） */

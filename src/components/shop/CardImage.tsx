@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { ImageOff } from 'lucide-react';
 
 interface CardImageProps {
@@ -36,13 +37,15 @@ export default function CardImage({
       {showImage ? (
         <>
           {!loaded && <div className="skeleton absolute inset-0" aria-hidden />}
-          <img
+          <Image
             src={src!}
             alt={alt}
+            fill
+            sizes="(min-width: 768px) 33vw, 50vw"
             loading="lazy"
             onLoad={() => setLoaded(true)}
             onError={() => setFailed(true)}
-            className={`h-full w-full object-cover transition-opacity duration-300 ${
+            className={`object-cover transition-opacity duration-300 ${
               loaded ? 'opacity-100' : 'opacity-0'
             }`}
           />

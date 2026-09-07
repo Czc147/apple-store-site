@@ -3,10 +3,17 @@
  * 只依赖 auth-context 的 getAuthHeaders 调用本站 /api/community。
  */
 
+export interface CommunityAuthor {
+  display_name: string;
+  avatar_key: string;
+  avatar_url: string | null;
+}
+
 export interface CommunityPost {
   id: string;
   user_id: string;
   user_email: string | null;
+  author: CommunityAuthor | null;
   content: string;
   is_pinned: boolean;
   created_at: string;
@@ -20,6 +27,7 @@ export interface CommunityComment {
   post_id: string;
   user_id: string;
   user_email: string | null;
+  author: CommunityAuthor | null;
   content: string;
   created_at: string;
 }

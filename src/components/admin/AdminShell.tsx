@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import PageFade from '@/components/ui/PageFade';
 import {
+  BarChart3,
   Boxes,
   CalendarDays,
   CreditCard,
@@ -18,6 +19,7 @@ import {
   LogOut,
   Package,
   Receipt,
+  Send,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -34,6 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: null,
     items: [
+      { href: '/admin/stats', label: '统计', icon: BarChart3 },
       { href: '/admin/major-units', label: '大单元管理', icon: Boxes },
       { href: '/admin/sub-units', label: '小单元管理', icon: Package },
       { href: '/admin/bulk-import', label: '文件夹导入', icon: FolderUp },
@@ -43,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/subscription-repos', label: '订阅仓库', icon: Sparkles },
       { href: '/admin/community', label: '社区管理', icon: Users },
       { href: '/admin/library', label: '用户权益', icon: LibraryBig },
+      { href: '/admin/push', label: '推送服务', icon: Send },
     ],
   },
   {

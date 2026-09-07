@@ -3,6 +3,8 @@ import { getRequestUser } from '@/lib/user-auth';
 import { checkAdmin } from '@/lib/auth';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail, parseBody } from '@/lib/api';
+import { fetchAuthorsByUserIds } from '@/lib/profiles-server';
+import { OFFICIAL_AUTHOR } from '@/lib/official-author';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +19,13 @@ const LIST_LIMIT = 100;
 const MAX_POST_LEN = 2000;
 const MAX_COMMENT_LEN = 1000;
 
+/** 进程内快速跳过：同一热实例短期内重复 GET 不必每次都查 app_settings 判断 */
+let lastCleanupCheckAt = 0;
+
 /** 社区 posts 懒清理：删除 7 天前且非置顶的帖子（评论/点赞随外键级联删除） */
 async function maybeCleanup() {
+  if (Date.now() - lastCleanupCheckAt < CLEANUP_INTERVAL_MS) return;
+
   const supabase = supabaseAdmin();
   const { data: row } = await supabase
     .from('app_settings')
@@ -27,7 +34,11 @@ async function maybeCleanup() {
     .maybeSingle();
 
   const last = Number(row?.value ?? 0);
-  if (Number.isFinite(last) && Date.now() - last < CLEANUP_INTERVAL_MS) return;
+  if (Number.isFinite(last) && Date.now() - last < CLEANUP_INTERVAL_MS) {
+    lastCleanupCheckAt = Date.now();
+    return;
+  }
+  lastCleanupCheckAt = Date.now();
 
   const cutoff = new Date(Date.now() - POST_TTL_DAYS * 24 * 3600 * 1000).toISOString();
   await supabase
@@ -75,10 +86,20 @@ export async function GET(req: NextRequest) {
     likedIds = new Set((liked ?? []).map((l) => l.post_id as string));
   }
 
+  const authors = await fetchAuthorsByUserIds(
+    supabase,
+    list.map((p) => p.user_id as string).filter(Boolean),
+  );
+
   const shaped = list.map((p) => ({
     id: p.id,
     user_id: p.user_id,
     user_email: p.user_email,
+    author: p.user_id
+      ? authors.get(p.user_id as string) ?? null
+      : p.is_pinned
+        ? OFFICIAL_AUTHOR
+        : null,
     content: p.content,
     is_pinned: Boolean(p.is_pinned),
     created_at: p.created_at,

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, Heart, MessageCircle, Pin, Trash2 } from 'lucide-react';
 import type { CommunityPost } from '@/lib/community';
+import Avatar from '@/components/ui/Avatar';
 import CommentList from './CommentList';
 
 interface PostCardProps {
@@ -31,23 +32,17 @@ export default function PostCard({
     <article className="overflow-hidden rounded-card border border-apple-border bg-apple-card shadow-card">
       <div className="p-4">
         <div className="flex items-center gap-2">
-          <span
-            className={`flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold text-white ${
-              post.is_pinned ? 'bg-apple-blue' : 'bg-gradient-to-br from-apple-text-2 to-apple-text-3'
-            }`}
-            aria-hidden
-          >
-            {(post.user_email ?? 'Z').slice(0, 1).toUpperCase()}
-          </span>
-          <span className="min-w-0 flex-1 text-[13px] font-medium text-apple-text">
-            {post.is_pinned ? (
-              <span className="inline-flex items-center gap-1 text-apple-blue">
-                <Pin className="h-3.5 w-3.5" aria-hidden />
-                置顶通知
-              </span>
-            ) : (
-              post.user_email?.split('@')[0] ?? '用户'
-            )}
+          <Avatar
+            avatarKey={post.author?.avatar_key}
+            avatarUrl={post.author?.avatar_url}
+            name={post.author?.display_name ?? post.user_email}
+            size={32}
+          />
+          <span className="inline-flex min-w-0 flex-1 items-center gap-1 text-[13px] font-medium text-apple-text">
+            <span className="truncate">
+              {post.author?.display_name ?? post.user_email?.split('@')[0] ?? '用户'}
+            </span>
+            {post.is_pinned && <Pin className="h-3 w-3 shrink-0 text-apple-blue" aria-hidden />}
           </span>
           <span className="text-[11.5px] text-apple-text-3">
             {new Date(post.created_at).toLocaleDateString('zh-CN')}
