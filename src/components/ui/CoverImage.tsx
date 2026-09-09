@@ -4,13 +4,15 @@ import Image from 'next/image';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-export type CoverRatio = 'video' | 'wide' | 'photo' | 'square';
+export type CoverRatio = 'video' | 'wide' | 'photo' | 'square' | 'hero';
 
 const RATIOS: Record<CoverRatio, string> = {
   video: 'aspect-video',
   wide: 'aspect-[21/9]',
   photo: 'aspect-[4/3]',
   square: 'aspect-square',
+  // Hero 专用：移动 16:9，桌面升 21:9 横幅（原 DailyPickBlock 的响应式比例）
+  hero: 'aspect-[16/9] sm:aspect-[21/9]',
 };
 
 interface CoverImageProps {

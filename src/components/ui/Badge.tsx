@@ -1,7 +1,14 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-export type BadgeTone = 'blue' | 'neutral' | 'success' | 'danger' | 'on-image';
+export type BadgeTone =
+  | 'blue'
+  | 'neutral'
+  | 'success'
+  | 'danger'
+  | 'on-image'
+  | 'blue-on-image'
+  | 'success-solid';
 
 interface BadgeProps {
   tone?: BadgeTone;
@@ -22,6 +29,10 @@ const TONES: Record<BadgeTone, string> = {
   success: 'bg-apple-success-soft text-apple-success',
   danger: 'bg-apple-danger-soft text-apple-danger',
   'on-image': 'bg-apple-scrim text-white backdrop-blur-sm',
+  // 图片上实心蓝（精选标记）：浅底 soft 系在图上不可读，专用实底档
+  'blue-on-image': 'bg-apple-blue/90 text-white backdrop-blur-sm',
+  // 图片上实心绿（已解锁状态）：同上
+  'success-solid': 'bg-apple-success text-white',
 };
 
 const SIZES = {

@@ -2,7 +2,7 @@ import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase/admin';
 import { getDemoDailyPicks } from '@/lib/demo-data';
 import { todayDateCN } from '@/lib/daily';
 import type { DailyPickTeaser } from '@/lib/types';
-import DailyPickBlock from './DailyPickBlock';
+import DailyPickHero from './DailyPickHero';
 
 /**
  * 选购页「每日推荐」区块的服务端取数：
@@ -23,6 +23,9 @@ export default async function DailyPickServer() {
           pick_date: picks[0].pick_date,
           title: picks[0].title,
           cover_url: picks[0].cover_url,
+          // audit 修复：demo 分支曾丢 subtitle/accent_color，与真实库分支不一致
+          subtitle: picks[0].subtitle ?? null,
+          accent_color: picks[0].accent_color ?? null,
           has_content: Boolean(picks[0].media_path || picks[0].link_url),
         }
       : null;
@@ -69,7 +72,7 @@ export default async function DailyPickServer() {
   if (!teaser) return null;
 
   return (
-    <DailyPickBlock
+    <DailyPickHero
       teaser={teaser}
       isToday={teaser.pick_date === todayDateCN()}
       isDemo={isDemo}

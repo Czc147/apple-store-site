@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps {
@@ -38,6 +38,8 @@ const VARIANTS: Record<ButtonVariant, string> = {
     'border border-apple-border bg-apple-card text-apple-text hover:bg-apple-bg active:bg-apple-surface disabled:opacity-40',
   ghost: 'text-apple-blue hover:bg-apple-blue-soft disabled:opacity-40',
   danger: 'text-apple-danger hover:bg-apple-danger-soft disabled:opacity-40',
+  // 成功反馈态（如「已复制」）：浅绿底绿字，非可点击语义时配合 disabled 使用
+  success: 'border border-transparent bg-apple-success-soft text-apple-success disabled:opacity-100',
 };
 
 const SIZES: Record<ButtonSize, string> = {

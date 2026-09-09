@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { MajorUnit, SubUnit } from '@/lib/types';
 import ActionSheet, { SheetItem } from '@/components/ui/ActionSheet';
-import CardImage from './CardImage';
+import Surface from '@/components/ui/Surface';
+import Badge from '@/components/ui/Badge';
+import CoverImage from '@/components/ui/CoverImage';
 import SubUnitRow from './SubUnitRow';
 
 interface MajorUnitCardProps {
@@ -13,9 +15,10 @@ interface MajorUnitCardProps {
 }
 
 /**
- * 大单元卡片（两列网格版，对标 Apple Store 卡片）：
- * - 20px 圆角 · 轻阴影 · hover 上浮 · active 微缩
- * - 1:1 方图 + 粗体单元名 + 可选小单元数量
+ * 大单元卡片（对标 Apple Store 卡片）：
+ * - Surface 卡壳（20px 圆角 · 轻阴影 · hover 上浮 · active 微缩，全走 token）
+ * - 1:1 封面（CoverImage：shimmer 骨架 + 失败回退 cover_color/浅渐变）
+ * - 图标芯片 + 精选角标（blue-on-image 实心档）
  * - 点击整卡打开 iOS 风格弹层：后台跳转链接 + 小单元列表
  *   （弹层不展示兑换商品——兑换内容仅在卡密兑换后出现）
  */
@@ -24,22 +27,23 @@ export default function MajorUnitCard({ major, subs }: MajorUnitCardProps) {
 
   return (
     <>
-      <button
-        type="button"
+      <Surface
+        as="button"
+        interactive
         onClick={() => setSheetOpen(true)}
-        aria-haspopup="dialog"
         aria-label={`查看「${major.name}」详情`}
-        className="w-full overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card hover:-translate-y-0.5 hover:shadow-card-hover active:scale-[0.97] [transition:transform_100ms_cubic-bezier(0.4,0,0.2,1),box-shadow_200ms_cubic-bezier(0.4,0,0.2,1)]"
+        className="w-full overflow-hidden text-left"
       >
         <div className="relative">
-          <CardImage
+          <CoverImage
             src={major.image_url}
             alt={major.name}
-            square
-            fallbackColor={major.cover_color ?? null}
+            ratio="square"
+            fallbackStyle={major.cover_color ? { background: major.cover_color } : undefined}
+            sizes="(min-width: 768px) 33vw, 50vw"
           />
           {major.app_icon && (
-            <span className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-white/80 text-[15px] leading-none shadow-sm backdrop-blur-sm">
+            <span className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center overflow-hidden rounded-chip bg-white/80 text-md leading-none shadow-card backdrop-blur-sm">
               {/^https?:\/\//i.test(major.app_icon) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -53,21 +57,23 @@ export default function MajorUnitCard({ major, subs }: MajorUnitCardProps) {
             </span>
           )}
           {major.featured && (
-            <span className="absolute right-2 top-2 rounded-full bg-apple-blue/90 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-              精选
+            <span className="absolute right-2 top-2">
+              <Badge tone="blue-on-image" size="sm">
+                精选
+              </Badge>
             </span>
           )}
         </div>
         <div className="px-3.5 pb-4 pt-3">
-          <h2 className="truncate text-[14px] font-semibold tracking-tight text-apple-text sm:text-[15px]">
+          <h2 className="truncate text-base font-semibold tracking-tight text-apple-text sm:text-md">
             {major.name}
           </h2>
-          <p className="mt-0.5 truncate text-[12px] text-apple-text-3">
+          <p className="mt-0.5 truncate text-xs text-apple-text-3">
             {major.subtitle ||
               (subs.length > 0 ? `${subs.length} 个可选内容` : '点击查看')}
           </p>
         </div>
-      </button>
+      </Surface>
 
       <ActionSheet
         open={sheetOpen}
@@ -91,7 +97,7 @@ export default function MajorUnitCard({ major, subs }: MajorUnitCardProps) {
             ))}
           </ul>
         ) : (
-          <p className="px-5 py-6 text-center text-[13px] text-apple-text-3">
+          <p className="px-5 py-6 text-center text-sm text-apple-text-3">
             该单元下暂无可选小单元
           </p>
         )}

@@ -44,6 +44,7 @@ const config: Config = {
           'pay-alipay': '#1677FF', // 支付宝品牌色（仅支付按钮）
           scrim: 'rgba(0,0,0,0.4)', // 统一遮罩浓度（弹层）
           'scrim-deep': 'rgba(0,0,0,0.8)', // 深遮罩（仅 lightbox）
+          'scrim-image': 'rgba(0,0,0,0.6)', // 图片上文字可读性渐变（Hero 底部叠层）
           // ---- CCC 身份色：premium 渐变（indigo→violet），仅限 Hero/订阅主卡/玻璃材质区 ----
           premium: '#4F46E5',
           'premium-2': '#A855F7',
