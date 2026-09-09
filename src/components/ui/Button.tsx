@@ -20,6 +20,7 @@ interface ButtonProps {
   onClick?: () => void;
   className?: string;
   'aria-label'?: string;
+  'aria-haspopup'?: 'dialog' | 'menu' | 'listbox' | 'tree' | 'grid';
   children: ReactNode;
 }
 
@@ -57,6 +58,7 @@ export default function Button({
   onClick,
   className,
   'aria-label': ariaLabel,
+  'aria-haspopup': ariaHaspopup,
   children,
 }: ButtonProps) {
   const cls = cn(
@@ -106,6 +108,7 @@ export default function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       aria-label={ariaLabel}
+      aria-haspopup={ariaHaspopup}
       className={cls}
     >
       {content}

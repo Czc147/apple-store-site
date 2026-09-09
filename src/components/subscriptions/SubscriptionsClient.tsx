@@ -2,7 +2,10 @@
 
 import { CreditCard } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
+import Message from '@/components/ui/Message';
+import SectionHeader from '@/components/ui/SectionHeader';
 import type { Subscription } from '@/lib/types';
+import PremiumPlanCard from './PremiumPlanCard';
 import SubscriptionCard from './SubscriptionCard';
 
 interface SubscriptionsClientProps {
@@ -11,8 +14,10 @@ interface SubscriptionsClientProps {
 }
 
 /**
- * 订阅页主体：Apple 式套餐对比卡片布局。
- * 两列网格，从左到右、先上后下；点击卡片弹层查看详细介绍。
+ * 订阅页主体（Brief §13.4 转化结构）：
+ * 主套餐（现有排序第一个 = premium 玻璃主卡，用户拍板不动业务数据）
+ * → 更多套餐（常规两列网格）。
+ * 只有一个订阅时只显示主卡；空列表显示 Intentional Empty State。
  */
 export default function SubscriptionsClient({
   subscriptions,
@@ -28,18 +33,28 @@ export default function SubscriptionsClient({
     );
   }
 
+  const [primary, ...rest] = subscriptions;
+
   return (
-    <div className="px-5">
+    <div className="px-page">
       {isDemo && (
-        <div className="mb-5 rounded-card bg-apple-blue-soft px-4 py-3 text-[12.5px] leading-relaxed text-apple-blue">
+        <Message tone="info" className="mb-5">
           当前为演示数据 · 配置 SUPABASE 环境变量后将自动显示真实订阅方案
-        </div>
+        </Message>
       )}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {subscriptions.map((subscription) => (
-          <SubscriptionCard key={subscription.id} subscription={subscription} />
-        ))}
-      </div>
+
+      <PremiumPlanCard subscription={primary} />
+
+      {rest.length > 0 && (
+        <section className="mt-8">
+          <SectionHeader title="更多套餐" count={rest.length} />
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {rest.map((subscription) => (
+              <SubscriptionCard key={subscription.id} subscription={subscription} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -1,9 +1,13 @@
-/** 订阅页骨架屏：模拟两列套餐卡片布局（徽章 + 名称 + 价格） */
+/** 订阅页骨架屏：主卡（premium 大卡占位）+ 两列常规卡占位，与真实布局同构避免跳变 */
 export default function SubscriptionsSkeleton() {
   return (
-    <div className="px-4 sm:px-5" aria-busy="true" aria-live="polite" aria-label="订阅加载中">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {[0, 1, 2, 3].map((i) => (
+    <div className="px-page" aria-busy="true" aria-live="polite" aria-label="订阅加载中">
+      {/* 主套餐大卡占位 */}
+      <div className="skeleton h-72 rounded-hero" />
+
+      {/* 更多套餐网格占位 */}
+      <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4">
+        {[0, 1].map((i) => (
           <div
             key={i}
             className="flex flex-col rounded-card border border-apple-border bg-apple-card p-4 shadow-card"
