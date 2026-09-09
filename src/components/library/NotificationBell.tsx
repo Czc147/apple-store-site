@@ -5,19 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Bell, Check, Inbox, X } from 'lucide-react';
 import type { Notification } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
-
-/** 相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前） */
-function ago(iso: string): string {
-  const diff = Date.now() - Date.parse(iso);
-  if (!Number.isFinite(diff) || diff < 0) return '刚刚';
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return `${m} 分钟前`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} 小时前`;
-  const d = Math.floor(h / 24);
-  return `${d} 天前`;
-}
+import { timeAgo } from '@/lib/format';
+import EmptyState from '@/components/ui/EmptyState';
+import IconButton from '@/components/ui/IconButton';
 
 function panelBody(item: Notification): string {
   return item.body ?? item.title ?? '新通知';
@@ -133,7 +123,8 @@ export default function NotificationBell() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={unread > 0 ? `通知（${unread} 条未读）` : '通知'}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-apple-text-2 transition hover:bg-apple-bg hover:text-apple-text"
+        aria-expanded={open}
+        className="relative -my-1 inline-flex h-11 w-11 items-center justify-center rounded-full text-apple-text-2 transition-colors duration-fast ease-apple hover:bg-apple-bg hover:text-apple-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
       >
         <Bell className="h-[18px] w-[18px]" aria-hidden />
         {unread > 0 && (
@@ -147,43 +138,42 @@ export default function NotificationBell() {
         <div
           ref={panelRef}
           // audit 修复：原 w-[320px] 固定宽在 320-360px 视口横向溢出；
-          // 阴影改走 shadow-popover token（原 shadow-lg shadow-black/10 自成一套）
-          className="absolute right-0 top-11 z-panel w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-card-lg border border-apple-border bg-white shadow-popover"
+          // 阴影改走 shadow-popover token（原 shadow-lg shadow-black/10 自成一套）；
+          // 面板开合从零动画 → pop-in（fade+scale，锚点右上）
+          className="animate-pop-in absolute right-0 top-12 z-panel w-[min(320px,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-card-lg border border-apple-border bg-white shadow-popover"
         >
-          <div className="flex items-center justify-between border-b border-apple-hairline bg-apple-bg/50 px-4 py-2.5">
+          <div className="flex items-center justify-between border-b border-apple-hairline bg-apple-bg/50 px-4 py-1.5">
             <p className="text-sm font-semibold text-apple-text">通知</p>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center">
               {unread > 0 && (
                 <button
                   type="button"
                   onClick={() => void markAll()}
                   disabled={loading}
-                  className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-2xs font-medium text-apple-blue transition hover:bg-apple-blue-soft"
+                  className="-my-1.5 inline-flex min-h-11 items-center gap-1 rounded-btn px-2 text-2xs font-medium text-apple-blue transition-colors duration-fast ease-apple hover:bg-apple-blue-soft active:scale-[0.97] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
                 >
                   <Check className="h-3 w-3" aria-hidden />
                   全部已读
                 </button>
               )}
-              <button
-                type="button"
+              <IconButton
+                icon={X}
+                label="关闭"
                 onClick={() => setOpen(false)}
-                aria-label="关闭"
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full text-apple-text-3 transition hover:bg-apple-bg hover:text-apple-text"
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
+                className="-mr-2.5 -my-1.5"
+              />
             </div>
           </div>
 
           <div className="max-h-[320px] overflow-y-auto">
             {items.length === 0 ? (
-              <div className="flex flex-col items-center px-4 py-10 text-center">
-                <Inbox className="h-7 w-7 text-apple-text-3" strokeWidth={1.6} aria-hidden />
-                <p className="mt-3 text-base font-semibold text-apple-text">暂无通知</p>
-                <p className="mt-1 text-xs leading-relaxed text-apple-text-2">
-                  订阅内容更新、解锁成功会第一时间通知你
-                </p>
-              </div>
+              <EmptyState
+                icon={Inbox}
+                size="panel"
+                title="暂无通知"
+                description="订阅内容更新、解锁成功会第一时间通知你"
+                className="pb-8 pt-6"
+              />
             ) : (
               <ul className="divide-y divide-apple-hairline">
                 {items.map((n) => {
@@ -193,7 +183,7 @@ export default function NotificationBell() {
                       <button
                         type="button"
                         onClick={() => handleOpen(n)}
-                        className={`w-full px-4 py-3 text-left transition hover:bg-apple-bg/60 ${
+                        className={`w-full px-4 py-3 text-left transition-colors duration-fast ease-apple hover:bg-apple-bg/60 active:bg-apple-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-apple-blue/40 ${
                           isRead ? 'opacity-70' : ''
                         }`}
                       >
@@ -209,7 +199,7 @@ export default function NotificationBell() {
                               {panelBody(n)}
                             </p>
                             <p className="mt-1 text-2xs text-apple-text-3">
-                              {ago(n.created_at)}
+                              {timeAgo(n.created_at)}
                             </p>
                           </div>
                         </div>

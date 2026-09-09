@@ -70,10 +70,12 @@ export default function ListRow({
     </>
   );
 
+  const interactive = Boolean(href || onClick);
   const cls = cn(
     'flex min-h-[52px] w-full items-center gap-3.5 text-left',
-    'transition-colors duration-fast ease-apple hover:bg-apple-bg/60 active:bg-apple-bg',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-apple-blue/40',
+    // 交互反馈只在可点行出现（静态行 hover 高亮会误导可点性）
+    interactive &&
+      'transition-colors duration-fast ease-apple hover:bg-apple-bg/60 active:bg-apple-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-apple-blue/40',
     padding === 'card' ? 'px-4 py-3' : 'px-6 py-3.5',
     selected && 'bg-apple-blue-soft/60',
     className,

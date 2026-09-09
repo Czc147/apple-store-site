@@ -1,14 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ExternalLink,
   FileText,
   Image as ImageIcon,
+  Inbox,
   Video,
   X,
 } from 'lucide-react';
 import { classifyMedia } from '@/lib/upload';
+import EmptyState from '@/components/ui/EmptyState';
+import IconButton from '@/components/ui/IconButton';
+import ListRow from '@/components/ui/ListRow';
+import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
+import { cn } from '@/lib/cn';
 
 /** 「我的内容」卡片所需的最小字段（服务端权益行与本机记录皆满足） */
 export interface ContentItem {
@@ -34,18 +39,26 @@ function kindOf(item: ContentItem): Kind {
   return classifyMedia(item.media_url);
 }
 
-const TAB_ACTIVE =
-  'flex-none rounded-full bg-apple-blue px-3.5 py-1.5 text-[13px] font-medium text-white transition';
-const TAB_NORMAL =
-  'flex-none rounded-full border border-apple-border bg-white px-3.5 py-1.5 text-[13px] font-medium text-apple-text-2 transition hover:bg-apple-bg';
-
 /**
  * 「我的内容」：类型 Tab（全部/图片/视频/文档）+ 混合排版。
- * 图片走 2 列网格（object-contain 不裁剪，点击全屏预览）；视频/文档走行卡。
+ * 图片走 2 列网格（object-contain 不裁剪，点击全屏预览）；视频/文档走 ListRow。
+ * audit 收敛：Tab 命中 33px → 44pt；lightbox 遮罩/z/关闭钮走 token +
+ * IconButton(on-dark) + 补 Esc 关闭；行卡 → ListRow primitive；
+ * 分类空态裸文字 → EmptyState(inline)。
  */
 export default function ContentsView({ contents }: { contents: ContentItem[] }) {
   const [tab, setTab] = useState<Tab>('all');
   const [lightbox, setLightbox] = useState<string | null>(null);
+
+  // lightbox 打开时支持 Esc 关闭（原本只能点击关闭）
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
 
   const filtered = useMemo(
     () =>
@@ -63,14 +76,23 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
 
   return (
     <div>
-      {/* 类型 Tab */}
-      <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar">
+      {/* 类型 Tab：命中 44pt（负边距补偿，行高视觉不变） */}
+      <div className="no-scrollbar -my-1.5 mb-1.5 flex gap-2 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={tab === t.key ? TAB_ACTIVE : TAB_NORMAL}
+            aria-pressed={tab === t.key}
+            className={cn(
+              'flex-none rounded-btn px-4 text-sm font-medium',
+              'inline-flex min-h-11 items-center',
+              'transition-colors duration-fast ease-apple active:scale-[0.97]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
+              tab === t.key
+                ? 'bg-apple-blue text-white'
+                : 'border border-apple-border bg-white text-apple-text-2 hover:bg-apple-bg',
+            )}
           >
             {t.label}
           </button>
@@ -78,20 +100,24 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-8 text-center text-[13px] text-apple-text-3">
-          该分类下暂无内容
-        </p>
+        <EmptyState
+          icon={Inbox}
+          size="inline"
+          title="该分类下暂无内容"
+          description="切换到「全部」看看其他类型的内容。"
+        />
       ) : (
         <>
-          {/* 图片：2 列网格 */}
+          {/* 图片：2 列网格（object-contain 完整展示，不走 CoverImage 的 cover 裁剪） */}
           {images.length > 0 && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-3">
               {images.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => setLightbox(c.media_url)}
-                  className="group overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card transition hover:border-apple-blue/40"
+                  aria-label={`全屏预览「${c.name ?? '图片'}」`}
+                  className="group overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card transition-[transform,box-shadow,border-color] duration-base ease-apple hover:border-apple-blue/40 hover:shadow-card-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -100,7 +126,7 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
                     loading="lazy"
                     className="aspect-square w-full bg-apple-bg object-contain"
                   />
-                  <p className="truncate px-2.5 py-2 text-center text-[12px] text-apple-text-2">
+                  <p className="truncate px-2.5 py-2 text-center text-xs text-apple-text-2">
                     {c.name ?? '图片'}
                   </p>
                 </button>
@@ -108,9 +134,9 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
             </div>
           )}
 
-          {/* 视频 / 文档 / 内容：行卡 */}
+          {/* 视频 / 文档 / 内容：ListRow 行卡 */}
           {rows.length > 0 && (
-            <div className={images.length > 0 ? 'mt-3 space-y-2.5' : 'space-y-2.5'}>
+            <div className={cn('space-y-2.5', images.length > 0 && 'mt-3')}>
               {rows.map((c) => (
                 <RowCard key={c.id} item={c} />
               ))}
@@ -119,27 +145,28 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
         </>
       )}
 
-      {/* 图片全屏预览 */}
+      {/* 图片全屏预览：z-lightbox + scrim-lightbox token + on-dark 关闭钮(44pt) */}
       {lightbox && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+          aria-label="图片全屏预览"
+          className="scrim-lightbox animate-fade-in fixed inset-0 z-lightbox flex items-center justify-center p-4"
           onClick={() => setLightbox(null)}
         >
-          <button
-            type="button"
-            aria-label="关闭预览"
+          <IconButton
+            icon={X}
+            label="关闭预览"
+            variant="on-dark"
+            iconSize="md"
             onClick={() => setLightbox(null)}
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
-          >
-            <X className="h-5 w-5" aria-hidden />
-          </button>
+            className="absolute right-2 top-2"
+          />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightbox}
             alt="预览大图"
-            className="max-h-[85dvh] max-w-full rounded-lg object-contain"
+            className="max-h-[85dvh] max-w-full rounded-input object-contain"
           />
         </div>
       )}
@@ -147,38 +174,29 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
   );
 }
 
-/** 视频 / 文档 / 纯内容 行卡 */
+/** 视频 / 文档 / 纯内容 行卡（ListRow：图标芯片 + 标题/描述 + 外链动作） */
 function RowCard({ item }: { item: ContentItem }) {
   const kind = kindOf(item);
   const Icon = kind === 'video' ? Video : kind === 'doc' ? FileText : ImageIcon;
   const label = kind === 'video' ? '视频' : kind === 'doc' ? '文档' : '内容';
 
   return (
-    <div className="flex items-center gap-3 rounded-card border border-apple-border bg-apple-card px-3.5 py-3 shadow-card">
-      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-card bg-apple-bg">
-        <Icon className="h-5 w-5 text-apple-text-3" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-medium text-apple-text">
-          {item.name ?? label}
-        </p>
-        {item.description && (
-          <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-relaxed text-apple-text-2">
-            {item.description}
-          </p>
-        )}
-      </div>
-      {item.media_url && kind !== 'image' && (
-        <a
-          href={item.media_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex shrink-0 items-center gap-1 text-[13px] font-medium text-apple-blue transition hover:text-apple-blue-hover"
-        >
-          打开
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-        </a>
-      )}
+    <div className="overflow-hidden rounded-card border border-apple-border bg-apple-card shadow-card">
+      <ListRow
+        padding="card"
+        leading={
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-chip bg-apple-bg">
+            <Icon className="h-5 w-5 text-apple-text-3" aria-hidden />
+          </span>
+        }
+        title={item.name ?? label}
+        subtitle={item.description ?? undefined}
+        trailing={
+          item.media_url && kind !== 'image' ? (
+            <ExternalLinkAction href={item.media_url}>打开</ExternalLinkAction>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

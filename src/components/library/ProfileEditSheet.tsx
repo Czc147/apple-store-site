@@ -1,10 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
+import BottomSheet from '@/components/ui/BottomSheet';
+import Button from '@/components/ui/Button';
+import Message from '@/components/ui/Message';
+import TextField from '@/components/ui/TextField';
 import { AVATAR_PRESETS } from '@/lib/avatars';
 import { resizeImageToJpegFile } from '@/lib/image-resize';
+import { cn } from '@/lib/cn';
 import type { Profile } from './ProfileHeader';
 
 interface ProfileEditSheetProps {
@@ -15,7 +19,13 @@ interface ProfileEditSheetProps {
   onSaved: (next: Profile) => void;
 }
 
-/** 「我的库」资料编辑弹窗：选头像 + 改昵称 → PATCH /api/profile */
+/**
+ * 「我的库」资料编辑弹层：选头像 + 改昵称 → PATCH /api/profile。
+ * audit 收敛：原平行手搓弹层（非 Portal / 手写 250ms / 遮罩 black/45 /
+ * 32px 关闭钮 / ~18px「从相册选择」命中 / 裸 #D70015 错误文字）整体替换为
+ * BottomSheet + Button + TextField + Message primitives；
+ * 业务逻辑（上传压缩 resizeImageToJpegFile / PATCH / 校验规则）原样保留。
+ */
 export default function ProfileEditSheet({
   open,
   onClose,
@@ -38,19 +48,6 @@ export default function ProfileEditSheet({
     setAvatarUrl(profile?.avatar_url ?? null);
     setError('');
   }, [open, profile]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [open, onClose]);
 
   const handlePickFile = () => fileInputRef.current?.click();
 
@@ -115,129 +112,89 @@ export default function ProfileEditSheet({
   };
 
   return (
-    <div
-      className={`fixed inset-0 z-[60] ${
-        open
-          ? 'visible'
-          : 'invisible pointer-events-none [transition:visibility_0s_linear_250ms]'
-      }`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="profile-edit-sheet-title"
-    >
-      <div
-        aria-hidden
-        className={`absolute inset-0 bg-black/45 transition-opacity duration-[250ms] ${
-          open ? 'opacity-100' : 'opacity-0'
-        }`}
-      />
-
-      <div
-        onClick={onClose}
-        className="absolute inset-0 flex flex-col items-center justify-end px-4 pb-[calc(72px+env(safe-area-inset-bottom))] pt-4"
-      >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-[480px] max-h-full overflow-y-auto rounded-hero border border-apple-hairline bg-white shadow-popover transition-transform duration-[250ms] ease-apple ${
-            open ? 'translate-y-0' : 'translate-y-8'
-          }`}
-        >
-          <div
-            className="absolute left-1/2 top-2.5 h-1 w-9 -translate-x-1/2 rounded-full bg-black/10"
-            aria-hidden
-          />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/5 text-apple-text-2 transition-colors duration-200 hover:bg-black/10 active:scale-95"
-          >
-            <X className="h-4 w-4" strokeWidth={2} aria-hidden />
-          </button>
-
-          <div className="p-6 pt-7">
-            <h3
-              id="profile-edit-sheet-title"
-              className="text-center text-[17px] font-semibold tracking-tight"
-            >
-              编辑资料
-            </h3>
-
-            <div className="mt-5 flex flex-col items-center gap-2">
-              <Avatar avatarKey={avatarKey} avatarUrl={avatarUrl} name={name} size={64} />
-              <div className="flex items-center gap-3 text-[12.5px] font-medium">
-                <button
-                  type="button"
-                  onClick={handlePickFile}
-                  disabled={uploading}
-                  className="text-apple-blue transition disabled:opacity-50"
-                >
-                  {uploading ? '上传中…' : '从相册选择'}
-                </button>
-                {avatarUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setAvatarUrl(null)}
-                    className="text-apple-text-3 transition hover:text-apple-text-2"
-                  >
-                    移除自定义头像
-                  </button>
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => void handleFileChange(e)}
-              />
-            </div>
-
-            <p className="mt-5 text-[12.5px] font-medium text-apple-text-2">选择头像</p>
-            <div className="mt-2 grid grid-cols-6 gap-2.5">
-              {AVATAR_PRESETS.map((preset) => (
-                <button
-                  key={preset.key}
-                  type="button"
-                  onClick={() => {
-                    setAvatarKey(preset.key);
-                    setAvatarUrl(null);
-                  }}
-                  aria-label={`选择头像 ${preset.key}`}
-                  aria-pressed={avatarKey === preset.key && !avatarUrl}
-                  className={`flex items-center justify-center rounded-full p-0.5 transition ${
-                    avatarKey === preset.key && !avatarUrl
-                      ? 'ring-2 ring-apple-blue'
-                      : 'ring-1 ring-transparent hover:ring-apple-border'
-                  }`}
-                >
-                  <Avatar avatarKey={preset.key} size={40} />
-                </button>
-              ))}
-            </div>
-
-            <p className="mt-5 text-[12.5px] font-medium text-apple-text-2">昵称</p>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={20}
-              placeholder="输入昵称"
-              className="mt-2 h-10 w-full rounded-btn border border-apple-hairline bg-apple-card px-3 text-[14px] text-apple-text outline-none transition focus:border-apple-blue"
-            />
-
-            {error && <p className="mt-2 text-[12.5px] text-[#D70015]">{error}</p>}
-
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="mt-5 w-full rounded-btn bg-apple-blue py-2.5 text-[14px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active disabled:opacity-50"
-            >
-              {saving ? '保存中…' : '保存'}
-            </button>
+    <BottomSheet open={open} onClose={onClose} title="编辑资料">
+      <div className="px-6 pb-4 pt-2">
+        {/* 当前头像预览 + 上传/移除 */}
+        <div className="flex flex-col items-center gap-1">
+          <Avatar avatarKey={avatarKey} avatarUrl={avatarUrl} name={name} size={64} />
+          <div className="flex items-center">
+            <Button variant="ghost" size="sm" onClick={handlePickFile} disabled={uploading}>
+              {uploading ? '上传中…' : '从相册选择'}
+            </Button>
+            {avatarUrl && (
+              <button
+                type="button"
+                onClick={() => setAvatarUrl(null)}
+                className="-my-1.5 inline-flex min-h-11 items-center rounded-btn px-2 text-xs font-medium text-apple-text-3 transition-colors duration-fast ease-apple hover:text-apple-text-2 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
+              >
+                移除自定义头像
+              </button>
+            )}
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void handleFileChange(e)}
+          />
         </div>
+
+        {/* 预置渐变头像 */}
+        <p className="mt-4 text-xs font-medium text-apple-text-2">选择头像</p>
+        <div className="mt-2 grid grid-cols-6 gap-2.5">
+          {AVATAR_PRESETS.map((preset) => (
+            <button
+              key={preset.key}
+              type="button"
+              onClick={() => {
+                setAvatarKey(preset.key);
+                setAvatarUrl(null);
+              }}
+              aria-label={`选择头像 ${preset.key}`}
+              aria-pressed={avatarKey === preset.key && !avatarUrl}
+              className={cn(
+                'flex items-center justify-center rounded-full p-0.5 transition duration-fast ease-apple',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
+                avatarKey === preset.key && !avatarUrl
+                  ? 'ring-2 ring-apple-blue'
+                  : 'ring-1 ring-transparent hover:ring-apple-border',
+              )}
+            >
+              <Avatar avatarKey={preset.key} size={40} />
+            </button>
+          ))}
+        </div>
+
+        {/* 昵称 */}
+        <TextField
+          label="昵称"
+          id="profile-nickname"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={20}
+          placeholder="输入昵称"
+          radius="btn"
+          wrapperClassName="mt-5"
+        />
+
+        {error && (
+          <Message tone="error" className="mt-3">
+            {error}
+          </Message>
+        )}
+
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          className="mt-5"
+          loading={saving}
+          onClick={() => void handleSave()}
+        >
+          保存
+        </Button>
       </div>
-    </div>
+    </BottomSheet>
   );
 }

@@ -17,7 +17,10 @@ interface ProfileHeaderProps {
   fallbackEmail: string;
 }
 
-/** 「我的库」顶部账号资料条：头像 + 昵称，点击「编辑」改头像/改名 */
+/**
+ * 「我的库」顶部账号资料条：头像 + 昵称，点击「编辑」改头像/改名。
+ * audit 收敛：命中区保底 44pt（min-h-11）、focus ring、字号 token、按压缩放统一。
+ */
 export default function ProfileHeader({ getAuthHeaders, fallbackEmail }: ProfileHeaderProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -43,7 +46,7 @@ export default function ProfileHeader({ getAuthHeaders, fallbackEmail }: Profile
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
-        className="flex min-w-0 items-center gap-2.5 text-left"
+        className="flex min-h-11 min-w-0 items-center gap-2.5 rounded-btn text-left transition-transform duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
         aria-haspopup="dialog"
       >
         <Avatar
@@ -53,10 +56,10 @@ export default function ProfileHeader({ getAuthHeaders, fallbackEmail }: Profile
           size={40}
         />
         <span className="min-w-0">
-          <span className="block truncate text-[14px] font-semibold text-apple-text">
+          <span className="block truncate text-base font-semibold text-apple-text">
             {profile?.display_name ?? fallbackEmail}
           </span>
-          <span className="mt-0.5 inline-flex items-center gap-1 text-[11.5px] text-apple-text-3">
+          <span className="mt-0.5 inline-flex items-center gap-1 text-2xs text-apple-text-3">
             <Pencil className="h-3 w-3" aria-hidden />
             编辑资料
           </span>
