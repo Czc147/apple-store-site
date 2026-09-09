@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* TabBar 避让高度（导航实体约 55px + 呼吸余量，不含 safe-area）——全站唯一出处。
+       原 68/72/76/140px 魔数散落 6 处，凡需要避开 TabBar 的
+       padding/bottom 偏移一律引用此变量：
+       calc(var(--tabbar-h) + env(safe-area-inset-bottom)) */
+    --tabbar-h: 72px;
+  }
+
   html {
     /* 移动端点击无灰色高亮 */
     -webkit-tap-highlight-color: transparent;
@@ -13,6 +21,14 @@
   body {
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
+  }
+
+  /* 键盘可达性兜底：tap-highlight 已全局关闭，鼠标操作不显示，
+     仅键盘 Tab 导航时出现品牌蓝轮廓。输入框类除外（自带 focus ring 方案，
+     Phase 2 TextField 统一）；组件级细化 focus-visible 在 primitives 内做 */
+  :focus-visible:not(input, textarea, select) {
+    outline: 2px solid rgba(0, 113, 227, 0.55);
+    outline-offset: 2px;
   }
 
   /* Apple 式平滑滚动（尊重系统减弱动效设置） */
@@ -31,11 +47,55 @@
   .pt-safe {
     padding-top: env(safe-area-inset-top);
   }
-  /* 毛玻璃（TabBar / 悬浮栏通用） */
+  /* 全站统一横向留白（原页头 px-5 / 内容 px-4 sm:px-5 / 愿望单 px-6 三轨收敛）：
+     移动端 16px，sm 起 20px。页面级容器一律用它 */
+  .px-page {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  @media (min-width: 640px) {
+    .px-page {
+      padding-left: 1.25rem;
+      padding-right: 1.25rem;
+    }
+  }
+  /* 毛玻璃（TabBar / 悬浮栏通用）。
+     防护：不支持 backdrop-filter 的环境回退到近实底白，绝不变透明 */
   .glass {
     background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(20px) saturate(1.8);
     -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: rgba(255, 255, 255, 0.94);
+    }
+  }
+  /* premium 玻璃材质（GlassSurface 专用，配方提炼自素材库 frosted-glass-card）：
+     半透明白 + 强模糊 + 白色高亮描边，必须叠在色彩环境层（色斑/渐变）之上使用。
+     防护：无 backdrop-filter 环境回退近实底白 —— 线上曾发生 Chromium 合成变灰事故
+     （a7863fa），半透明面板永不允许低于 0.4 白底 */
+  .glass-premium {
+    background: rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(24px) saturate(1.7) brightness(1.04);
+    -webkit-backdrop-filter: blur(24px) saturate(1.7) brightness(1.04);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-premium {
+      background: rgba(255, 255, 255, 0.94);
+      border-color: rgba(0, 0, 0, 0.06);
+    }
+  }
+  /* 弹层遮罩两档（原 black/25、/40、/45、/80 四档收敛）。
+     sheet 档带 2px 轻模糊制造纵深；lightbox 档纯深遮罩突出内容 */
+  .scrim-sheet {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .scrim-lightbox {
+    background: rgba(0, 0, 0, 0.8);
   }
   /* 横向卡片流隐藏滚动条（保留可滚动手势） */
   .no-scrollbar {
@@ -46,9 +106,9 @@
     display: none;
   }
 
-  /* 页面切换淡入（200ms） */
+  /* 页面切换淡入（200ms，改用 apple 缓动而非 CSS ease） */
   .animate-page-enter {
-    animation: page-enter 200ms ease both;
+    animation: page-enter 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
   }
   /* 遮罩淡入 */
   .animate-fade-in {

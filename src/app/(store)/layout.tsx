@@ -13,7 +13,7 @@ export default function StoreLayout({
 }) {
   return (
     <AuthProvider>
-      <main className="mx-auto min-h-dvh max-w-page pb-[calc(72px+env(safe-area-inset-bottom))] pt-safe">
+      <main className="mx-auto min-h-dvh max-w-page pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] pt-safe">
         <PageFade>{children}</PageFade>
       </main>
       <TabBar />

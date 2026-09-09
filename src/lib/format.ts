@@ -24,6 +24,16 @@ export function formatDateTime(value: string | null): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** 到期时间 → YYYY-MM-DD（仅日期；空值 / 非法值返回空串）。
+    原 LibraryClient / RedeemClient 各有一份逐字重复，2026-09-09 收敛至此 */
+export function formatExpiry(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /**
  * 敏感内容遮罩：仅保留末尾若干位（卡密 / 取卡码后台默认展示用）。
  * 内容长度不足时全部遮罩，避免短内容被直接猜出。
