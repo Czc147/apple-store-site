@@ -91,7 +91,7 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
               tab === t.key
                 ? 'bg-apple-blue text-white'
-                : 'border border-apple-border bg-white text-apple-text-2 hover:bg-apple-bg',
+                : 'border border-apple-border bg-apple-card text-apple-text-2 hover:bg-apple-bg',
             )}
           >
             {t.label}

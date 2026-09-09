@@ -140,7 +140,7 @@ export default function NotificationBell() {
           // audit 修复：原 w-[320px] 固定宽在 320-360px 视口横向溢出；
           // 阴影改走 shadow-popover token（原 shadow-lg shadow-black/10 自成一套）；
           // 面板开合从零动画 → pop-in（fade+scale，锚点右上）
-          className="animate-pop-in absolute right-0 top-12 z-panel w-[min(320px,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-card-lg border border-apple-border bg-white shadow-popover"
+          className="animate-pop-in absolute right-0 top-12 z-panel w-[min(320px,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-card-lg border border-apple-border bg-apple-card shadow-popover"
         >
           <div className="flex items-center justify-between border-b border-apple-hairline bg-apple-bg/50 px-4 py-1.5">
             <p className="text-sm font-semibold text-apple-text">通知</p>

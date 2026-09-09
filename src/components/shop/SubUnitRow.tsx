@@ -47,7 +47,7 @@ export default function SubUnitRow({ sub }: { sub: SubUnit }) {
             'transition-colors duration-base ease-apple',
             added
               ? 'border-transparent bg-apple-blue-soft text-apple-blue'
-              : 'border-apple-border bg-white text-apple-text group-hover:border-apple-text-3',
+              : 'border-apple-border bg-apple-card text-apple-text group-hover:border-apple-text-3',
           ].join(' ')}
         >
           {added ? (

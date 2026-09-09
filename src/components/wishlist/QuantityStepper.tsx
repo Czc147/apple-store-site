@@ -29,7 +29,7 @@ export default function QuantityStepper({
 
   return (
     <div
-      className="flex items-center rounded-btn border border-apple-border bg-white"
+      className="flex items-center rounded-btn border border-apple-border bg-apple-card"
       onClick={(e) => e.stopPropagation()}
     >
       <button
