@@ -15,12 +15,13 @@ import DataError from '@/components/ui/DataError';
 import NewPostComposer from './NewPostComposer';
 import PostCard from './PostCard';
 
+/** 骨架与真实布局同构（发帖框 + 帖子卡），避免加载完成跳变 */
 function CommunitySkeleton() {
   return (
-    <div className="space-y-3">
-      <div className="skeleton h-20 rounded-card" />
-      <div className="skeleton h-24 rounded-card" />
-      <div className="skeleton h-24 rounded-card" />
+    <div className="space-y-3" aria-busy="true" aria-live="polite" aria-label="社区加载中">
+      <div className="skeleton h-[108px] rounded-card" />
+      <div className="skeleton h-36 rounded-card" />
+      <div className="skeleton h-36 rounded-card" />
     </div>
   );
 }

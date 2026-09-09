@@ -34,6 +34,20 @@ export function formatExpiry(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** 相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）；未来/非法值回退「刚刚」。
+    原 NotificationBell 私有函数，Phase 6 提为公共（社区帖/评论时间戳用） */
+export function timeAgo(iso: string): string {
+  const diff = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(diff) || diff < 0) return '刚刚';
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return '刚刚';
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} 小时前`;
+  const d = Math.floor(h / 24);
+  return `${d} 天前`;
+}
+
 /**
  * 敏感内容遮罩：仅保留末尾若干位（卡密 / 取卡码后台默认展示用）。
  * 内容长度不足时全部遮罩，避免短内容被直接猜出。
