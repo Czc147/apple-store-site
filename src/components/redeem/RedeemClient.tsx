@@ -1,20 +1,17 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import Link from 'next/link';
-import {
-  CheckCircle2,
-  ExternalLink,
-  FileText,
-  Image as ImageIcon,
-  Sparkles,
-  UserPlus,
-  Video,
-} from 'lucide-react';
+import { CheckCircle2, FileText, Image as ImageIcon, Sparkles, Video } from 'lucide-react';
 import { classifyMedia } from '@/lib/upload';
 import { useAuth } from '@/lib/auth-context';
 import { useLocalLibrary } from '@/lib/unlocks';
 import { formatExpiry } from '@/lib/format';
+import Button from '@/components/ui/Button';
+import Message from '@/components/ui/Message';
+import Surface from '@/components/ui/Surface';
+import TextField from '@/components/ui/TextField';
+import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
+import RegisterBanner from '@/components/ui/RegisterBanner';
 
 /** POST /api/redeem 成功响应（迁移 005 起区分兑换类型） */
 interface RedeemResultBase {
@@ -45,34 +42,17 @@ type RedeemResult = ContentResult | UnlockResult;
 
 type Status = 'idle' | 'loading' | 'error' | 'result';
 
-/** 未登录时的注册引导横幅（游客兑换成功结果下方展示） */
-function RegisterBanner() {
-  return (
-    <Link
-      href="/login"
-      className="mt-4 flex items-start gap-3 rounded-card border border-apple-blue/25 bg-apple-blue-soft/60 p-4 transition hover:bg-apple-blue-soft"
-    >
-      <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-blue/10">
-        <UserPlus className="h-4 w-4 text-apple-blue" aria-hidden />
-      </span>
-      <span>
-        <span className="block text-[14px] font-semibold text-apple-text">
-          注册账号，永久保存你的权益
-        </span>
-        <span className="mt-0.5 block text-[12.5px] leading-relaxed text-apple-text-2">
-          当前为游客兑换，换设备可能丢失。注册 / 登录后可同步到「我的库」，随时找回。
-        </span>
-      </span>
-    </Link>
-  );
-}
-
 /**
- * 兑换交互：输入卡密 → 调 /api/redeem（登录时携带 Bearer 顺带绑定账号）→
- * 按结果类型展示：
+ * 兑换交互（内嵌于「我的库」）：输入卡密 → 调 /api/redeem（登录时携带
+ * Bearer 顺带绑定账号）→ 按结果类型展示：
  * - content：兑换内容（图片 / 视频 / 文档）
  * - unlock：每日计划解锁成功卡（有效期 / 永久）+「查看今日推荐」
- * 游客兑换成功时强提示注册；兑换记录写入本地库（登录后经「我的库」同步）。
+ * 游客兑换成功时强提示注册（RegisterBanner 共享组件）；
+ * 兑换记录写入本地库（登录后经「我的库」同步）。
+ *
+ * Phase 10 收敛：私有绿 #1B7F3B → success token；CTA/次级钮手抄类串 → Button；
+ * 裸红错误文字 → Message(error)；输入框 → TextField；外链 → ExternalLinkAction；
+ * RegisterBanner 与 LibraryClient 游客横幅合并为共享组件。兑换逻辑逐行保留。
  */
 export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }) {
   const { getAuthHeaders } = useAuth();
@@ -152,44 +132,37 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
     if (result.result_type === 'unlock') {
       return (
         <div className="w-full">
-          <div className="rounded-card border border-apple-border bg-apple-card p-5 shadow-card">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#1B7F3B]/10">
-                <CheckCircle2 className="h-5 w-5 text-[#1B7F3B]" aria-hidden />
+          <Surface radius="card" className="p-5">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-success-soft">
+                <CheckCircle2 className="h-5 w-5 text-apple-success" aria-hidden />
               </span>
-              <p className="text-[15px] font-semibold text-apple-text">
+              <p className="text-md font-semibold text-apple-text">
                 {result.redeemed_now ? '每日计划解锁成功' : '每日计划已解锁'}
               </p>
             </div>
 
-            <p className="mt-4 text-[17px] font-bold leading-snug text-apple-text">
+            <p className="mt-4 text-lg font-bold leading-snug text-apple-text">
               {result.product_name}
             </p>
-            <p className="mt-1.5 flex items-center gap-1.5 text-[13.5px] leading-relaxed text-apple-text-2">
+            <p className="mt-1.5 flex items-center gap-1.5 text-sm leading-relaxed text-apple-text-2">
               <Sparkles className="h-4 w-4 shrink-0 text-apple-blue" aria-hidden />
               {result.permanent
                 ? '永久有效 · 每天更新 1 期精选内容，可看全部历史仓库'
                 : `有效期至 ${formatExpiry(result.expires_at)} · 每天更新 1 期精选内容`}
             </p>
 
-            {/* audit 修复死循环链接：/daily 已重定向回 /library，今日推荐在首页区块 */}
-            <Link
-              href="/"
-              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-btn bg-apple-blue px-5 text-[15px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active"
-            >
+            {/* 死循环链接已修：/daily 重定向回 /library，今日推荐在首页 Hero 区 */}
+            <Button variant="primary" size="lg" fullWidth className="mt-5" href="/">
               查看今日推荐
-            </Link>
-          </div>
+            </Button>
+          </Surface>
 
-          {!result.bound && <RegisterBanner />}
+          {!result.bound && <RegisterBanner className="mt-4" />}
 
-          <button
-            type="button"
-            onClick={reset}
-            className="mt-4 w-full rounded-btn border border-apple-border bg-white py-3 text-[15px] font-medium text-apple-text transition-colors duration-200 ease-apple hover:bg-apple-bg active:bg-apple-surface"
-          >
+          <Button variant="secondary" size="lg" fullWidth className="mt-4" onClick={reset}>
             兑换其他卡密
-          </button>
+          </Button>
         </div>
       );
     }
@@ -203,21 +176,21 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
           : '在新标签页打开文档';
     return (
       <div className="w-full">
-        <div className="rounded-card border border-apple-border bg-apple-card p-5 shadow-card">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#1B7F3B]/10">
-              <CheckCircle2 className="h-5 w-5 text-[#1B7F3B]" aria-hidden />
+        <Surface radius="card" className="p-5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-success-soft">
+              <CheckCircle2 className="h-5 w-5 text-apple-success" aria-hidden />
             </span>
-            <p className="text-[15px] font-semibold text-apple-text">
+            <p className="text-md font-semibold text-apple-text">
               {result.redeemed_now ? '兑换成功' : '该卡密已兑换过，以下为兑换内容'}
             </p>
           </div>
 
-          <p className="mt-4 text-[17px] font-bold leading-snug text-apple-text">
+          <p className="mt-4 text-lg font-bold leading-snug text-apple-text">
             {result.product_name}
           </p>
           {result.product_description && (
-            <p className="mt-1 text-[13px] leading-relaxed text-apple-text-2">
+            <p className="mt-1 text-sm leading-relaxed text-apple-text-2">
               {result.product_description}
             </p>
           )}
@@ -232,7 +205,7 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
                 ) : (
                   <ImageIcon className="h-8 w-8" aria-hidden />
                 )}
-                <p className="text-[13px]">加载失败，请点下方链接在新标签页打开</p>
+                <p className="text-sm">加载失败，请点下方链接在新标签页打开</p>
               </div>
             ) : kind === 'video' ? (
               // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -246,8 +219,8 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
             ) : kind === 'doc' ? (
               <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 text-apple-text-2">
                 <FileText className="h-10 w-10" aria-hidden />
-                <p className="text-[13px] font-medium">文档类兑换内容</p>
-                <p className="px-6 text-center text-[12px] text-apple-text-3">
+                <p className="text-sm font-medium">文档类兑换内容</p>
+                <p className="px-6 text-center text-xs text-apple-text-3">
                   请点下方链接在新标签页打开查看
                 </p>
               </div>
@@ -262,26 +235,16 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
             )}
           </div>
 
-          <a
-            href={result.image_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-apple-blue transition hover:text-apple-blue-hover"
-          >
+          <ExternalLinkAction href={result.image_url} className="mt-3">
             {openLabel}
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-          </a>
-        </div>
+          </ExternalLinkAction>
+        </Surface>
 
-        {!result.bound && <RegisterBanner />}
+        {!result.bound && <RegisterBanner className="mt-4" />}
 
-        <button
-          type="button"
-          onClick={reset}
-          className="mt-4 w-full rounded-btn border border-apple-border bg-white py-3 text-[15px] font-medium text-apple-text transition-colors duration-200 ease-apple hover:bg-apple-bg active:bg-apple-surface"
-        >
+        <Button variant="secondary" size="lg" fullWidth className="mt-4" onClick={reset}>
           兑换其他卡密
-        </button>
+        </Button>
       </div>
     );
   }
@@ -289,12 +252,10 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
   return (
     <div className="w-full">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <label htmlFor="redeem-code" className="sr-only">
-          兑换码
-        </label>
-        <input
+        <TextField
           id="redeem-code"
-          className="w-full rounded-xl border border-apple-border bg-white px-4 py-3 font-mono text-[15px] text-apple-text placeholder:text-apple-text-3 focus:border-apple-blue focus:outline-none focus:ring-2 focus:ring-apple-blue/20"
+          label="兑换码"
+          srLabel
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="请输入兑换码"
@@ -302,22 +263,21 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
           autoComplete="off"
           spellCheck={false}
           disabled={status === 'loading'}
+          className="font-mono"
         />
-        {status === 'error' && errorMsg && (
-          <p className="text-[13px] text-[#D70015]" role="alert">
-            {errorMsg}
-          </p>
-        )}
-        <button
+        {status === 'error' && errorMsg && <Message tone="error">{errorMsg}</Message>}
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
           type="submit"
-          className="w-full rounded-btn bg-apple-blue py-3 text-[15px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active disabled:cursor-not-allowed disabled:bg-apple-border disabled:text-apple-text-3"
-          disabled={status === 'loading'}
+          loading={status === 'loading'}
         >
-          {status === 'loading' ? '兑换中…' : '兑换'}
-        </button>
+          兑换
+        </Button>
       </form>
 
-      <p className="mt-6 text-[12.5px] leading-relaxed text-apple-text-3">
+      <p className="mt-6 text-xs leading-relaxed text-apple-text-3">
         在「订阅」页购买、或向客服获取卡密后，把它输入到上面即可完成兑换；
         兑换过的卡密可以重复输入查看内容。登录账号兑换可同步到「我的库」。
       </p>

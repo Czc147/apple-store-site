@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import PageHeader from '@/components/ui/PageHeader';
 import AuthClient from '@/components/auth/AuthClient';
 
 export const metadata = {
@@ -12,12 +13,12 @@ export const dynamic = 'force-dynamic';
 /** 登录页骨架（AuthClient 内部含 useSearchParams，需 Suspense 包裹） */
 function AuthSkeleton() {
   return (
-    <div className="mx-auto max-w-md px-5">
+    <div className="mx-auto max-w-md px-page">
       <div className="rounded-card border border-apple-border bg-apple-card p-6 shadow-card">
         <div className="skeleton mb-5 h-10 w-10 rounded-full" />
         <div className="space-y-3">
-          <div className="skeleton h-11 w-full rounded-xl" />
-          <div className="skeleton h-11 w-full rounded-xl" />
+          <div className="skeleton h-11 w-full rounded-input" />
+          <div className="skeleton h-11 w-full rounded-input" />
           <div className="skeleton h-11 w-full rounded-btn" />
         </div>
       </div>
@@ -29,14 +30,10 @@ function AuthSkeleton() {
 export default function LoginPage() {
   return (
     <>
-      <header className="px-5 pb-6 pt-14">
-        <h1 className="text-[28px] font-bold leading-tight tracking-tight text-apple-text">
-          账号
-        </h1>
-        <p className="mt-1.5 text-[14px] leading-relaxed text-apple-text-2">
-          登录后即可在「我的库」永久保存兑换内容与每日计划
-        </p>
-      </header>
+      <PageHeader
+        title="账号"
+        subtitle="登录后即可在「我的库」永久保存兑换内容与每日计划"
+      />
 
       <Suspense fallback={<AuthSkeleton />}>
         <AuthClient />

@@ -5,6 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, KeyRound, LogIn, Mail, UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import Button from '@/components/ui/Button';
+import Message from '@/components/ui/Message';
+import Surface from '@/components/ui/Surface';
+import TextField from '@/components/ui/TextField';
 
 /** 登录页四种模式 */
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
@@ -16,15 +20,16 @@ const MODE_TITLE: Record<Mode, string> = {
   reset: '设置新密码',
 };
 
-const inputCls =
-  'w-full rounded-xl border border-apple-border bg-white px-4 py-3 text-[15px] text-apple-text placeholder:text-apple-text-3 focus:border-apple-blue focus:outline-none focus:ring-2 focus:ring-apple-blue/20';
-
 /**
  * 登录 / 注册 / 找回密码 / 重置密码（Supabase Auth · 邮箱+密码）。
  * - 未配置 NEXT_PUBLIC_SUPABASE_* 时整体提示不可用（演示模式）。
  * - 已登录自动跳回 from（或 /library）。
  * - 「忘记密码」走 Supabase 恢复邮件；恢复链接打开站点后 supabase-js
  *   触发 PASSWORD_RECOVERY，自动切到「设置新密码」。
+ *
+ * Phase 10 收敛：输入框 → TextField（focus 方案 A 唯一标准）；裸 hex
+ * 错误/成功文字 → Message；提交钮手抄类串 → Button；模式切换钮命中扩到 44pt。
+ * 认证逻辑（四模式状态机 / friendlyAuthError / PASSWORD_RECOVERY）逐行保留。
  */
 export default function AuthClient() {
   const router = useRouter();
@@ -68,14 +73,14 @@ export default function AuthClient() {
 
   if (!configured) {
     return (
-      <div className="mx-auto max-w-md px-5">
-        <div className="rounded-card border border-apple-border bg-apple-card p-6 text-center shadow-card">
-          <p className="text-[15px] font-semibold text-apple-text">登录暂不可用</p>
-          <p className="mt-2 text-[13px] leading-relaxed text-apple-text-2">
+      <div className="mx-auto max-w-md px-page">
+        <Surface radius="card" className="p-6 text-center">
+          <p className="text-md font-semibold text-apple-text">登录暂不可用</p>
+          <p className="mt-2 text-sm leading-relaxed text-apple-text-2">
             当前未配置 Supabase（NEXT_PUBLIC_SUPABASE_URL / ANON_KEY），
             无法注册或登录。你仍可先以游客身份浏览与兑换。
           </p>
-        </div>
+        </Surface>
       </div>
     );
   }
@@ -152,10 +157,16 @@ export default function AuthClient() {
   };
 
   const isEmailMode = mode !== 'reset';
+  const submitLabel =
+    mode === 'login' ? '登录' : mode === 'register' ? '注册' : mode === 'forgot' ? '发送重置邮件' : '保存新密码';
+
+  /** 模式切换文字钮：44pt 命中（负边距不撑高行） */
+  const switchBtnCls =
+    '-my-1.5 inline-flex min-h-11 items-center gap-1 rounded-btn px-1 text-sm font-medium transition-colors duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40';
 
   return (
-    <div className="mx-auto max-w-md px-5">
-      <div className="rounded-card border border-apple-border bg-apple-card p-6 shadow-card">
+    <div className="mx-auto max-w-md px-page">
+      <Surface radius="card" className="p-6">
         <div className="mb-5 flex items-center gap-2.5">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-apple-blue-soft">
             {mode === 'login' ? (
@@ -166,105 +177,75 @@ export default function AuthClient() {
               <KeyRound className="h-5 w-5 text-apple-blue" aria-hidden />
             )}
           </span>
-          <h2 className="text-[18px] font-bold text-apple-text">{MODE_TITLE[mode]}</h2>
+          <h2 className="text-lg font-bold text-apple-text">{MODE_TITLE[mode]}</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           {isEmailMode && (
-            <div>
-              <label htmlFor="auth-email" className="sr-only">
-                邮箱
-              </label>
-              <input
-                id="auth-email"
-                type="email"
-                className={inputCls}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="邮箱"
-                autoComplete="email"
-                disabled={busy}
-              />
-            </div>
+            <TextField
+              id="auth-email"
+              label="邮箱"
+              srLabel
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="邮箱"
+              autoComplete="email"
+              disabled={busy}
+            />
           )}
 
           {mode !== 'forgot' && (
-            <div>
-              <label htmlFor="auth-password" className="sr-only">
-                {mode === 'reset' ? '新密码' : '密码'}
-              </label>
-              <input
-                id="auth-password"
-                type="password"
-                className={inputCls}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === 'reset' ? '新密码（至少 6 位）' : '密码（至少 6 位）'}
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                disabled={busy}
-              />
-            </div>
+            <TextField
+              id="auth-password"
+              label={mode === 'reset' ? '新密码' : '密码'}
+              srLabel
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === 'reset' ? '新密码（至少 6 位）' : '密码（至少 6 位）'}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              disabled={busy}
+            />
           )}
 
           {(mode === 'register' || mode === 'reset') && (
-            <div>
-              <label htmlFor="auth-password2" className="sr-only">
-                确认密码
-              </label>
-              <input
-                id="auth-password2"
-                type="password"
-                className={inputCls}
-                value={password2}
-                onChange={(e) => setPassword2(e.target.value)}
-                placeholder="确认密码"
-                autoComplete="new-password"
-                disabled={busy}
-              />
-            </div>
+            <TextField
+              id="auth-password2"
+              label="确认密码"
+              srLabel
+              type="password"
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value)}
+              placeholder="确认密码"
+              autoComplete="new-password"
+              disabled={busy}
+            />
           )}
 
-          {error && (
-            <p className="text-[13px] text-[#D70015]" role="alert">
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p className="text-[13px] text-[#1B7F3B]">{notice}</p>
-          )}
+          {error && <Message tone="error">{error}</Message>}
+          {notice && <Message tone="success">{notice}</Message>}
 
-          <button
-            type="submit"
-            className="w-full rounded-btn bg-apple-blue py-3 text-[15px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active disabled:cursor-not-allowed disabled:bg-apple-border disabled:text-apple-text-3"
-            disabled={busy}
-          >
-            {busy
-              ? '处理中…'
-              : mode === 'login'
-                ? '登录'
-                : mode === 'register'
-                  ? '注册'
-                  : mode === 'forgot'
-                    ? '发送重置邮件'
-                    : '保存新密码'}
-          </button>
+          <Button variant="primary" size="lg" fullWidth type="submit" loading={busy}>
+            {submitLabel}
+          </Button>
         </form>
 
         {/* 模式切换 */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-apple-hairline pt-4 text-[13px]">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-2 border-t border-apple-hairline pt-2.5">
           {mode === 'login' && (
             <>
               <button
                 type="button"
                 onClick={() => switchMode('register')}
-                className="font-medium text-apple-blue transition hover:text-apple-blue-hover"
+                className={`${switchBtnCls} text-apple-blue hover:text-apple-blue-hover`}
               >
                 没有账号？注册
               </button>
               <button
                 type="button"
                 onClick={() => switchMode('forgot')}
-                className="text-apple-text-2 transition hover:text-apple-text"
+                className={`${switchBtnCls} text-apple-text-2 hover:text-apple-text`}
               >
                 忘记密码？
               </button>
@@ -274,7 +255,7 @@ export default function AuthClient() {
             <button
               type="button"
               onClick={() => switchMode('login')}
-              className="inline-flex items-center gap-1 font-medium text-apple-blue transition hover:text-apple-blue-hover"
+              className={`${switchBtnCls} text-apple-blue hover:text-apple-blue-hover`}
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
               已有账号？返回登录
@@ -284,17 +265,17 @@ export default function AuthClient() {
             <button
               type="button"
               onClick={() => switchMode('login')}
-              className="inline-flex items-center gap-1 font-medium text-apple-blue transition hover:text-apple-blue-hover"
+              className={`${switchBtnCls} text-apple-blue hover:text-apple-blue-hover`}
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
               返回登录
             </button>
           )}
         </div>
-      </div>
+      </Surface>
 
       {mode === 'login' && (
-        <p className="mt-5 flex items-start gap-1.5 px-1 text-[12.5px] leading-relaxed text-apple-text-3">
+        <p className="mt-5 flex items-start gap-1.5 px-1 text-xs leading-relaxed text-apple-text-3">
           <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           登录后可把兑换的每日计划与内容同步到「我的库」，换设备也能找回。
         </p>

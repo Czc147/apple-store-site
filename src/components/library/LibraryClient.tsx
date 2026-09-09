@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,7 +9,6 @@ import {
   LogOut,
   RefreshCw,
   Sparkles,
-  UserPlus,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -32,6 +30,7 @@ import SectionHeader from '@/components/ui/SectionHeader';
 import Surface from '@/components/ui/Surface';
 import CoverImage from '@/components/ui/CoverImage';
 import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
+import RegisterBanner from '@/components/ui/RegisterBanner';
 import RedeemClient from '@/components/redeem/RedeemClient';
 import NotificationBell from '@/components/library/NotificationBell';
 import ContentsView from '@/components/library/ContentsView';
@@ -126,22 +125,7 @@ export default function LibraryClient() {
     return (
       <div className="px-page pb-4">
         {configured ? (
-          <Link
-            href="/login?from=/library"
-            className="mb-5 flex items-start gap-3 rounded-card-lg border border-apple-blue/25 bg-apple-blue-soft/60 p-4 transition-colors duration-fast ease-apple hover:bg-apple-blue-soft active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
-          >
-            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-apple-blue/10">
-              <UserPlus className="h-5 w-5 text-apple-blue" aria-hidden />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-md font-semibold text-apple-text">
-                注册账号，永久保存你的权益
-              </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-apple-text-2">
-                当前为游客，兑换记录只存在本机，换设备会丢失。注册 / 登录后即可同步到「我的库」。
-              </span>
-            </span>
-          </Link>
+          <RegisterBanner href="/login?from=/library" className="mb-5" />
         ) : null}
 
         {/* 兑换卡密（内嵌顶部） */}
