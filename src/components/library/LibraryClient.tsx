@@ -24,19 +24,12 @@ import {
   type SyncResultItem,
 } from '@/lib/library-client';
 import EmptyState from '@/components/ui/EmptyState';
+import DataError from '@/components/ui/DataError';
 import RedeemClient from '@/components/redeem/RedeemClient';
 import NotificationBell from '@/components/library/NotificationBell';
 import ContentsView from '@/components/library/ContentsView';
 import ProfileHeader from '@/components/library/ProfileHeader';
-
-/** 到期时间 → YYYY-MM-DD（仅日期；非法值返回空串） */
-function formatExpiry(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
+import { formatExpiry } from '@/lib/format';
 
 const btnPrimary =
   'inline-flex h-10 items-center justify-center rounded-btn bg-apple-blue px-5 text-[14px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active';
@@ -56,6 +49,8 @@ export default function LibraryClient() {
 
   const [data, setData] = useState<LibraryResponse | null>(null);
   const [fetching, setFetching] = useState(false);
+  // audit 修复：取数失败曾静默变「我的库还是空的」，错误伪装成空态且无从重试
+  const [loadFailed, setLoadFailed] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResults, setSyncResults] = useState<SyncResultItem[] | null>(null);
   const [syncPromptDismissed, setSyncPromptDismissed] = useState(false);
@@ -63,7 +58,12 @@ export default function LibraryClient() {
   const loadLibrary = useCallback(async () => {
     setFetching(true);
     const d = await fetchLibrary(getAuthHeaders);
-    setData(d);
+    if (d) {
+      setData(d);
+      setLoadFailed(false);
+    } else {
+      setLoadFailed(true);
+    }
     setFetching(false);
   }, [getAuthHeaders]);
 
@@ -276,6 +276,12 @@ export default function LibraryClient() {
           <div className="skeleton h-28 rounded-card-lg" />
           <div className="skeleton h-20 rounded-card" />
         </div>
+      ) : loadFailed && !data ? (
+        <DataError
+          message="加载我的库失败，请检查网络后重试"
+          onRetry={() => void loadLibrary()}
+          size="inline"
+        />
       ) : (
         <>
           {/* 订阅仓库 */}
@@ -338,7 +344,8 @@ function GuestDailyCard({ expiresAt }: { expiresAt: string | null }) {
         </div>
       </div>
       <div className="border-t border-apple-hairline p-4">
-        <Link href="/daily" className={`${btnPrimary} w-full`}>
+        {/* audit 修复死循环链接：/daily 已重定向回 /library，今日推荐在首页区块 */}
+        <Link href="/" className={`${btnPrimary} w-full`}>
           查看今日推荐
         </Link>
         <p className="mt-2 text-center text-[11.5px] text-apple-text-3">

@@ -14,6 +14,7 @@ import {
 import { classifyMedia } from '@/lib/upload';
 import { useAuth } from '@/lib/auth-context';
 import { useLocalLibrary } from '@/lib/unlocks';
+import { formatExpiry } from '@/lib/format';
 
 /** POST /api/redeem 成功响应（迁移 005 起区分兑换类型） */
 interface RedeemResultBase {
@@ -43,15 +44,6 @@ interface UnlockResult extends RedeemResultBase {
 type RedeemResult = ContentResult | UnlockResult;
 
 type Status = 'idle' | 'loading' | 'error' | 'result';
-
-/** 到期时间 → YYYY-MM-DD（仅日期；非法值返回空串） */
-function formatExpiry(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
 
 /** 未登录时的注册引导横幅（游客兑换成功结果下方展示） */
 function RegisterBanner() {
@@ -180,8 +172,9 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
                 : `有效期至 ${formatExpiry(result.expires_at)} · 每天更新 1 期精选内容`}
             </p>
 
+            {/* audit 修复死循环链接：/daily 已重定向回 /library，今日推荐在首页区块 */}
             <Link
-              href="/daily"
+              href="/"
               className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-btn bg-apple-blue px-5 text-[15px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active"
             >
               查看今日推荐

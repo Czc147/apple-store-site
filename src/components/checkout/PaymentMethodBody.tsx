@@ -4,20 +4,38 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { PAYMENT_METHOD, PAYMENT_METHOD_LABEL, type PaymentMethod } from '@/lib/order-types';
 import { formatPrice } from '@/lib/format';
+import { cn } from '@/lib/cn';
+import Button from '@/components/ui/Button';
 
 /**
  * 结算支付方式区（复用主体）：
- * 显示总金额 → 「去微信支付 / 去支付宝支付」两键 → 点开显示后台配置的收款码图 →
+ * 显示总金额 → 「微信支付 / 支付宝支付」两键 → 点开显示后台配置的收款码图 →
  * 提示文案 → 「推送订单」（未登录跳登录；登录后 POST /api/orders）。
  *
  * 收款码为空（未配置 / Phase 3 占位）时展示「暂未开放」，禁止推送。
  * 由 CheckoutSheet（愿望单）与 SubscriptionCard（订阅）作为容器复用。
+ *
+ * audit 修复（🐛选中态白字白底）：旧版基类带 text-white 但选中分支只加
+ * ring 不加底色 → 选中后文字不可见。现改为明确的双态语义：
+ * 未选中 = 白底描边 + 品牌色文字；选中 = 品牌色实底 + 白字 + 同色 ring。
  */
 
-const WEIXIN_BTN =
-  'flex h-11 flex-1 items-center justify-center rounded-btn text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-apple hover:opacity-95 active:scale-[0.98] disabled:opacity-60';
-const ALIPAY_BTN =
-  'flex h-11 flex-1 items-center justify-center rounded-btn text-[14px] font-medium text-white transition-[background-color,transform] duration-200 ease-apple hover:opacity-95 active:scale-[0.98] disabled:opacity-60';
+const PAY_BASE = cn(
+  'flex h-11 flex-1 items-center justify-center rounded-btn text-base font-medium',
+  'transition-[background-color,color,transform,box-shadow] duration-base ease-apple',
+  'active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+);
+
+const PAY_SKINS = {
+  wechat: {
+    on: 'bg-apple-pay-wechat text-white shadow-card focus-visible:ring-apple-pay-wechat/40',
+    off: 'border border-apple-border bg-apple-card text-apple-pay-wechat hover:bg-apple-bg focus-visible:ring-apple-pay-wechat/30',
+  },
+  alipay: {
+    on: 'bg-apple-pay-alipay text-white shadow-card focus-visible:ring-apple-pay-alipay/40',
+    off: 'border border-apple-border bg-apple-card text-apple-pay-alipay hover:bg-apple-bg focus-visible:ring-apple-pay-alipay/30',
+  },
+} as const;
 
 interface PaymentMethodBodyProps {
   total: number;
@@ -117,8 +135,8 @@ export default function PaymentMethodBody({
     <div className="space-y-4">
       {/* 总金额 */}
       <div className="flex items-center justify-between rounded-card border border-apple-border bg-apple-bg px-4 py-3">
-        <span className="text-[14px] text-apple-text-2">合计</span>
-        <span className="text-[20px] font-semibold tabular-nums tracking-tight text-apple-text">
+        <span className="text-base text-apple-text-2">合计</span>
+        <span className="text-xl font-semibold tabular-nums tracking-tight text-apple-text">
           {formatPrice(total)}
         </span>
       </div>
@@ -127,7 +145,10 @@ export default function PaymentMethodBody({
       <div className="flex gap-3">
         <button
           type="button"
-          className={`${WEIXIN_BTN} ${method === PAYMENT_METHOD.WECHAT ? 'ring-2 ring-[#07C160]' : 'bg-[#07C160]'}`}
+          className={cn(
+            PAY_BASE,
+            method === PAYMENT_METHOD.WECHAT ? PAY_SKINS.wechat.on : PAY_SKINS.wechat.off,
+          )}
           onClick={() => selectMethod(PAYMENT_METHOD.WECHAT)}
           aria-pressed={method === PAYMENT_METHOD.WECHAT}
         >
@@ -135,7 +156,10 @@ export default function PaymentMethodBody({
         </button>
         <button
           type="button"
-          className={`${ALIPAY_BTN} ${method === PAYMENT_METHOD.ALIPAY ? 'ring-2 ring-[#1677FF]' : 'bg-[#1677FF]'}`}
+          className={cn(
+            PAY_BASE,
+            method === PAYMENT_METHOD.ALIPAY ? PAY_SKINS.alipay.on : PAY_SKINS.alipay.off,
+          )}
           onClick={() => selectMethod(PAYMENT_METHOD.ALIPAY)}
           aria-pressed={method === PAYMENT_METHOD.ALIPAY}
         >
@@ -146,47 +170,49 @@ export default function PaymentMethodBody({
       {/* 收款码 */}
       {method && (
         <div className="flex flex-col items-center rounded-card border border-apple-border bg-apple-bg px-4 py-4">
-          <p className="mb-3 text-[13px] text-apple-text-2">
+          <p className="mb-3 text-sm text-apple-text-2">
             请使用{PAYMENT_METHOD_LABEL[method]}扫码支付
           </p>
           {qrLoading ? (
-            <div className="skeleton h-40 w-40 rounded-lg" />
+            <div className="skeleton h-40 w-40 rounded-input" />
           ) : qrAvailable ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrUrl}
               alt={`${PAYMENT_METHOD_LABEL[method]}收款码`}
-              className="h-40 w-40 rounded-lg border border-apple-hairline object-contain"
+              className="h-40 w-40 rounded-input border border-apple-hairline object-contain"
               loading="lazy"
             />
           ) : (
-            <div className="flex h-40 w-40 flex-col items-center justify-center rounded-lg border border-dashed border-apple-border text-apple-text-3">
-              <span className="text-[13px]">收款码暂未开放</span>
-              <span className="mt-1 text-[11px]">请稍后再试</span>
+            <div className="flex h-40 w-40 flex-col items-center justify-center rounded-input border border-dashed border-apple-border text-apple-text-3">
+              <span className="text-sm">收款码暂未开放</span>
+              <span className="mt-1 text-2xs">请稍后再试</span>
             </div>
           )}
         </div>
       )}
 
       {/* 提示 + 推送 */}
-      <p className="text-center text-[12px] leading-relaxed text-apple-text-3">
+      <p className="text-center text-xs leading-relaxed text-apple-text-3">
         付款后请点击「推送订单」至我们验证，我们稍后将卡密发往您的仓库
       </p>
 
       {error && (
-        <p className="text-center text-[13px] text-[#D70015]" role="alert">
+        <p className="text-center text-sm text-apple-danger" role="alert">
           {error}
         </p>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        loading={pushing}
+        disabled={!method}
         onClick={() => void handlePush()}
-        disabled={!method || pushing}
-        className="w-full rounded-btn bg-apple-blue py-3 text-[15px] font-medium text-white transition-colors duration-200 ease-apple hover:bg-apple-blue-hover active:bg-apple-blue-active disabled:cursor-not-allowed disabled:bg-apple-border disabled:text-apple-text-3"
       >
-        {pushing ? '推送中…' : '推送订单'}
-      </button>
+        推送订单
+      </Button>
     </div>
   );
 }

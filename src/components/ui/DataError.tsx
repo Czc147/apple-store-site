@@ -2,26 +2,35 @@
 
 import { useRouter } from 'next/navigation';
 import { WifiOff } from 'lucide-react';
+import EmptyState from './EmptyState';
+import Button from './Button';
 
-/** 通用数据加载失败态：提示 + 重试（router.refresh 重新执行服务端取数） */
-export default function DataError({ message }: { message: string }) {
+interface DataErrorProps {
+  message: string;
+  /** 客户端自取数的场景传入自己的重载函数；缺省 router.refresh()（服务端取数） */
+  onRetry?: () => void;
+  size?: 'page' | 'inline' | 'panel';
+}
+
+/**
+ * 数据加载失败态：EmptyState(error 语义) + 重试按钮。
+ * audit 修复：社区/我的库取数失败曾静默伪装成空态（用户无从重试），
+ * 此组件开放 onRetry 供客户端 fetch 场景使用。
+ */
+export default function DataError({ message, onRetry, size = 'page' }: DataErrorProps) {
   const router = useRouter();
   return (
-    <div className="flex flex-col items-center px-8 pb-16 pt-20 text-center">
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-apple-card shadow-card">
-        <WifiOff className="h-7 w-7 text-apple-text-3" strokeWidth={1.6} aria-hidden />
-      </div>
-      <h2 className="text-[19px] font-semibold tracking-tight">加载失败</h2>
-      <p className="mt-2 max-w-[300px] break-all text-[13px] leading-relaxed text-apple-text-2">
-        {message}
-      </p>
-      <button
-        type="button"
-        onClick={() => router.refresh()}
-        className="mt-6 rounded-btn bg-apple-blue px-6 py-2.5 text-[14px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-colors duration-200 ease-apple hover:bg-apple-blue-hover active:bg-apple-blue-active"
-      >
-        重试
-      </button>
-    </div>
+    <EmptyState
+      icon={WifiOff}
+      title="加载失败"
+      description={message}
+      descriptionClassName="break-all"
+      size={size}
+      action={
+        <Button variant="primary" size="md" onClick={onRetry ?? (() => router.refresh())}>
+          重试
+        </Button>
+      }
+    />
   );
 }

@@ -137,7 +137,7 @@ export default function NotificationBell() {
       >
         <Bell className="h-[18px] w-[18px]" aria-hidden />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#D70015] px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-apple-danger px-1 text-micro font-semibold leading-none text-white">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
@@ -146,17 +146,19 @@ export default function NotificationBell() {
       {open && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-11 z-40 w-[320px] overflow-hidden rounded-card-lg border border-apple-border bg-white shadow-lg shadow-black/10"
+          // audit 修复：原 w-[320px] 固定宽在 320-360px 视口横向溢出；
+          // 阴影改走 shadow-popover token（原 shadow-lg shadow-black/10 自成一套）
+          className="absolute right-0 top-11 z-panel w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-card-lg border border-apple-border bg-white shadow-popover"
         >
           <div className="flex items-center justify-between border-b border-apple-hairline bg-apple-bg/50 px-4 py-2.5">
-            <p className="text-[13px] font-semibold text-apple-text">通知</p>
+            <p className="text-sm font-semibold text-apple-text">通知</p>
             <div className="flex items-center gap-1">
               {unread > 0 && (
                 <button
                   type="button"
                   onClick={() => void markAll()}
                   disabled={loading}
-                  className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11.5px] font-medium text-apple-blue transition hover:bg-apple-blue-soft"
+                  className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-2xs font-medium text-apple-blue transition hover:bg-apple-blue-soft"
                 >
                   <Check className="h-3 w-3" aria-hidden />
                   全部已读
@@ -177,8 +179,8 @@ export default function NotificationBell() {
             {items.length === 0 ? (
               <div className="flex flex-col items-center px-4 py-10 text-center">
                 <Inbox className="h-7 w-7 text-apple-text-3" strokeWidth={1.6} aria-hidden />
-                <p className="mt-3 text-[14px] font-semibold text-apple-text">暂无通知</p>
-                <p className="mt-1 text-[12.5px] leading-relaxed text-apple-text-2">
+                <p className="mt-3 text-base font-semibold text-apple-text">暂无通知</p>
+                <p className="mt-1 text-xs leading-relaxed text-apple-text-2">
                   订阅内容更新、解锁成功会第一时间通知你
                 </p>
               </div>
@@ -200,13 +202,13 @@ export default function NotificationBell() {
                             <span className="mt-1.5 h-2 w-2 flex-none rounded-full bg-apple-blue" aria-hidden />
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-apple-text">
+                            <p className="text-sm font-semibold text-apple-text">
                               {n.title ?? '通知'}
                             </p>
-                            <p className="mt-0.5 text-[12px] leading-relaxed text-apple-text-2">
+                            <p className="mt-0.5 text-xs leading-relaxed text-apple-text-2">
                               {panelBody(n)}
                             </p>
-                            <p className="mt-1 text-[11px] text-apple-text-3">
+                            <p className="mt-1 text-2xs text-apple-text-3">
                               {ago(n.created_at)}
                             </p>
                           </div>

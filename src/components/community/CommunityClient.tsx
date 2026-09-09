@@ -11,6 +11,7 @@ import {
   type CommunityPost,
 } from '@/lib/community';
 import EmptyState from '@/components/ui/EmptyState';
+import DataError from '@/components/ui/DataError';
 import NewPostComposer from './NewPostComposer';
 import PostCard from './PostCard';
 
@@ -28,12 +29,19 @@ function CommunitySkeleton() {
 export default function CommunityClient() {
   const { user, getAuthHeaders } = useAuth();
   const [posts, setPosts] = useState<CommunityPost[] | null>(null);
+  // audit 修复：取数失败曾静默变「还没有帖子」，错误伪装成空态且无从重试
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const isLoggedIn = Boolean(user);
 
   const load = useCallback(async () => {
     const list = await fetchCommunity(getAuthHeaders);
-    setPosts(list ?? []);
+    if (list === null) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
+    setPosts(list);
   }, [getAuthHeaders]);
 
   useEffect(() => {
@@ -105,6 +113,21 @@ export default function CommunityClient() {
       ),
     );
   };
+
+  if (loadFailed && posts === null) {
+    return (
+      <>
+        <NewPostComposer isLoggedIn={isLoggedIn} onSubmit={handlePost} />
+        <div className="mt-4">
+          <DataError
+            message="帖子加载失败，请检查网络后重试"
+            onRetry={() => void load()}
+            size="inline"
+          />
+        </div>
+      </>
+    );
+  }
 
   if (posts === null) return <CommunitySkeleton />;
 
