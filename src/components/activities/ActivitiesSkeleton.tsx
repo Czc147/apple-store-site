@@ -1,9 +1,9 @@
-/** 活动页骨架屏：模拟两列卡片布局（shimmer 1.4s，见 globals.css） */
+/** 活动页骨架屏：与真实布局同构（移动单列大卡 / sm 两列），shimmer 1.4s */
 export default function ActivitiesSkeleton() {
   return (
-    <div className="px-4 sm:px-5" aria-busy="true" aria-live="polite" aria-label="活动加载中">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {[0, 1, 2, 3].map((i) => (
+    <div className="px-page" aria-busy="true" aria-live="polite" aria-label="活动加载中">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {[0, 1].map((i) => (
           <div
             key={i}
             className="overflow-hidden rounded-card border border-apple-border bg-apple-card shadow-card"

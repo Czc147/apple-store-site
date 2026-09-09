@@ -2,6 +2,7 @@
 
 import { CalendarDays } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
+import Message from '@/components/ui/Message';
 import type { Activity } from '@/lib/types';
 import ActivityCard from './ActivityCard';
 
@@ -10,7 +11,12 @@ interface ActivitiesClientProps {
   isDemo: boolean;
 }
 
-/** 活动页主体：卡片两列网格，从左到右、先上后下（含演示数据提示条与空态） */
+/**
+ * 活动页主体（Brief §13.3：Intentional Empty State + 统一 Featured Content Card，
+ * 不另建 Banner 体系）。
+ * audit 收敛：移动端两列每卡仅 ~140px 过挤 → 单列 editorial 大卡流，
+ * sm 起两列；演示提示条 → Message。
+ */
 export default function ActivitiesClient({
   activities,
   isDemo,
@@ -26,13 +32,13 @@ export default function ActivitiesClient({
   }
 
   return (
-    <div className="px-4 sm:px-5">
+    <div className="px-page">
       {isDemo && (
-        <div className="mb-4 rounded-card bg-apple-blue-soft px-4 py-3 text-[12.5px] leading-relaxed text-apple-blue">
+        <Message tone="info" className="mb-4">
           当前为演示数据 · 配置 SUPABASE 环境变量后将自动显示真实活动
-        </div>
+        </Message>
       )}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {activities.map((activity) => (
           <ActivityCard key={activity.id} activity={activity} />
         ))}
