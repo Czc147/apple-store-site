@@ -1,6 +1,7 @@
 'use client';
 
 import { formatPrice } from '@/lib/format';
+import Button from '@/components/ui/Button';
 
 interface CheckoutBarProps {
   totalQty: number;
@@ -9,8 +10,10 @@ interface CheckoutBarProps {
 }
 
 /**
- * 底部悬浮结算栏（毛玻璃，位于 TabBar 上方）：
- * 共 X 件商品 · 合计 ¥xx.xx + 全宽「去结算」主按钮
+ * 底部悬浮结算栏（毛玻璃，位于 TabBar 上方，属 Navigation/Floating 层）：
+ * 共 X 件商品 · 合计 ¥xx.xx + 全宽「去结算」主按钮。
+ * audit 收敛：bottom 68px 魔数 → --tabbar-h 变量（与 TabBar/客服 FAB 同一契约）；
+ * z-40 → z-panel；560px → max-w-bar token；去结算 → Button primitive。
  */
 export default function CheckoutBar({
   totalQty,
@@ -18,26 +21,28 @@ export default function CheckoutBar({
   onCheckout,
 }: CheckoutBarProps) {
   return (
-    <div className="fixed inset-x-5 bottom-[calc(68px+env(safe-area-inset-bottom))] z-40 mx-auto max-w-[560px]">
-      <div className="rounded-hero border border-white/60 glass p-4 shadow-popover">
+    <div className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] z-panel mx-auto max-w-bar sm:inset-x-5">
+      <div className="glass rounded-hero border border-white/60 p-4 shadow-popover">
         <div className="flex items-baseline justify-between px-1">
-          <span className="text-[13px] text-apple-text-2">
+          <span className="text-sm text-apple-text-2">
             共 <b className="font-semibold text-apple-text">{totalQty}</b> 件商品
           </span>
-          <span className="text-[13px] text-apple-text-2">
+          <span className="text-sm text-apple-text-2">
             合计
-            <b className="ml-1.5 text-[19px] font-semibold tabular-nums tracking-tight text-apple-text">
+            <b className="ml-1.5 text-xl font-semibold tabular-nums tracking-tight text-apple-text">
               {formatPrice(totalAmount)}
             </b>
           </span>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          className="mt-3"
           onClick={onCheckout}
-          className="mt-3 w-full rounded-btn bg-apple-blue py-3 text-[15px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-[background-color,transform] duration-200 ease-apple hover:bg-apple-blue-hover active:scale-[0.99] active:bg-apple-blue-active"
         >
           去结算
-        </button>
+        </Button>
       </div>
     </div>
   );

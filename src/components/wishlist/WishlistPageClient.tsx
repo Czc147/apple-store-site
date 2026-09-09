@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { Heart } from 'lucide-react';
 import { useWishlist } from '@/lib/wishlist';
+import EmptyState from '@/components/ui/EmptyState';
+import Message from '@/components/ui/Message';
+import Button from '@/components/ui/Button';
 import WishlistRow from './WishlistRow';
 import CheckoutBar from './CheckoutBar';
 import CheckoutSheet from './CheckoutSheet';
@@ -11,7 +13,7 @@ import CheckoutSheet from './CheckoutSheet';
 /** 挂载前骨架（localStorage 仅在浏览器可读，避免 SSR 水合不一致） */
 function MountSkeleton() {
   return (
-    <div className="space-y-3 px-5" aria-busy="true" aria-label="愿望单加载中">
+    <div className="space-y-3 px-page" aria-busy="true" aria-label="愿望单加载中">
       {[0, 1].map((i) => (
         <div
           key={i}
@@ -28,32 +30,13 @@ function MountSkeleton() {
   );
 }
 
-/** 空状态：插图 + 文案 + 跳转选购 */
-function EmptyWishlist() {
-  return (
-    <div className="flex flex-col items-center px-8 pb-16 pt-20 text-center">
-      <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-apple-card shadow-card">
-        <Heart className="h-8 w-8 text-apple-text-3" strokeWidth={1.4} aria-hidden />
-      </div>
-      <h2 className="text-[22px] font-semibold tracking-tight text-apple-text">
-        愿望单还是空的
-      </h2>
-      <p className="mt-2 text-[13px] text-apple-text-2">快去选购心仪的商品吧</p>
-      <Link
-        href="/"
-        className="mt-7 rounded-btn bg-apple-blue px-8 py-2.5 text-[14px] font-medium text-white shadow-[0_1px_2px_rgba(0,113,227,0.3)] transition-colors duration-200 ease-apple hover:bg-apple-blue-hover active:bg-apple-blue-active"
-      >
-        去选购
-      </Link>
-    </div>
-  );
-}
-
 /**
  * 愿望单页主体：
+ * - 空态 = Intentional Empty State（Brief §13.2：图标 + 标题 + 辅助文案 + 主操作，
+ *   复用 EmptyState primitive 的 action 槽——旧版因 EmptyState 无槽而自造变体）
  * - 列表（数量步进 / 小计 / 左滑删除 / 垃圾桶删除）
- * - 「清空愿望单」二次确认（3 秒未确认自动还原）
- * - 底部悬浮结算栏 + 结算弹窗
+ * - 「清空愿望单」二次确认（3 秒未确认自动还原，确认态 danger 红提示）
+ * - 底部悬浮结算栏 + 结算弹窗（订单闭环）
  * - 数据持久化在 localStorage（wishlist store），刷新不丢失
  */
 export default function WishlistPageClient() {
@@ -77,7 +60,7 @@ export default function WishlistPageClient() {
   const totalQty = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalAmount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-  /** 清空两步确认：第一次点击变为「确认清空？」，3 秒内再点才真正清空 */
+  /** 清空两步确认：第一次点击变为「确认清空？」（danger 红），3 秒内再点才真正清空 */
   const handleClearClick = () => {
     if (!confirmClear) {
       setConfirmClear(true);
@@ -104,38 +87,55 @@ export default function WishlistPageClient() {
   };
 
   if (!mounted) return <MountSkeleton />;
-  if (items.length === 0) return <EmptyWishlist />;
+
+  if (items.length === 0) {
+    return (
+      <div className="px-page">
+        <EmptyState
+          icon={Heart}
+          title="愿望单还是空的"
+          description="在选购页轻点卡片，把心仪的内容收藏到这里，结算时一次推送。"
+          action={
+            <Button variant="primary" size="md" href="/">
+              去选购
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <>
       {/* 推送成功提示 */}
       {pushedOrder && (
-        <div className="mx-5 mb-3 rounded-card-lg border border-[#1B7F3B]/25 bg-[#E8F5E9] p-4 shadow-card">
-          <p className="text-[14px] font-semibold text-apple-text">订单已成功推送</p>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-apple-text-2">
+        <div className="px-page pb-3">
+          <Message tone="success" title="订单已成功推送">
             订单号 {pushedOrder}。我们确认收款后会自动把卡密发送到您的「我的库」。
-          </p>
+          </Message>
         </div>
       )}
 
-      {/* 列表头：统计 + 清空 */}
-      <div className="flex items-center justify-between px-6 pb-3">
-        <span className="text-[13px] text-apple-text-2">
+      {/* 列表头：统计 + 清空（命中 44pt，负边距不撑高行） */}
+      <div className="flex items-center justify-between px-page pb-1.5">
+        <span className="text-sm text-apple-text-2">
           {items.length} 种商品 · 共 {totalQty} 件
         </span>
         <button
           type="button"
           onClick={handleClearClick}
-          className={`text-[13px] font-medium transition-colors duration-200 ease-apple ${
-            confirmClear ? 'text-[#FF3B30]' : 'text-apple-text-3 hover:text-apple-text-2'
+          className={`-my-2 inline-flex min-h-11 items-center rounded-btn px-2 text-sm font-medium transition-colors duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40 ${
+            confirmClear
+              ? 'text-apple-danger'
+              : 'text-apple-text-3 hover:text-apple-text-2'
           }`}
         >
           {confirmClear ? '确认清空？' : '清空愿望单'}
         </button>
       </div>
 
-      {/* 商品列表（底部预留结算栏 + TabBar 高度） */}
-      <ul className="space-y-3 px-5 pb-[calc(140px+env(safe-area-inset-bottom))]">
+      {/* 商品列表（底部预留：结算栏高约 107px + TabBar 避让变量 + 呼吸余量） */}
+      <ul className="space-y-3 px-page pb-[calc(var(--tabbar-h)+120px+env(safe-area-inset-bottom))]">
         {items.map((item) => (
           <WishlistRow
             key={item.sub_unit_id}

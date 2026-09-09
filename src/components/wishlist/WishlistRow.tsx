@@ -25,8 +25,10 @@ function clamp(value: number, min: number, max: number) {
 /**
  * 愿望单行：
  * - 名称 / 单价 / 数量步进器 / 小计 / 垃圾桶按钮
- * - 左滑露出红色删除区（iOS 式），滑动超过一半自动吸附
- * - touch-action: pan-y 保证纵向滚动不受影响
+ * - 左滑露出删除区（iOS 式，danger token 红），滑动超过一半自动吸附
+ * - touch-action: pan-y 保证纵向滚动不受影响（拖拽物理原样保留）
+ * audit 收敛：删除区宽度走 REVEAL_WIDTH 常量（原 class 里又写死一份）；
+ * #FF3B30 → danger token；垃圾桶钮 32px → 44pt 命中；按压 0.90 → 0.97。
  */
 export default function WishlistRow({
   item,
@@ -94,12 +96,13 @@ export default function WishlistRow({
 
   return (
     <li className="relative overflow-hidden rounded-card shadow-card">
-      {/* 左滑露出的删除区 */}
+      {/* 左滑露出的删除区（宽度与吸附阈值同用 REVEAL_WIDTH） */}
       <button
         type="button"
         onClick={onDelete}
         aria-label={`删除「${item.name}」`}
-        className="absolute inset-y-0 right-0 flex w-[76px] items-center justify-center bg-[#FF3B30] text-white"
+        style={{ width: REVEAL_WIDTH }}
+        className="absolute inset-y-0 right-0 flex items-center justify-center bg-apple-danger text-white transition-colors duration-fast ease-apple hover:bg-apple-danger/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70"
       >
         <Trash2 className="h-5 w-5" strokeWidth={1.8} aria-hidden />
       </button>
@@ -116,16 +119,16 @@ export default function WishlistRow({
           touchAction: 'pan-y',
         }}
         className={`relative border border-apple-border bg-apple-card px-4 py-3.5 ${
-          dragging ? '' : 'transition-transform duration-200 ease-apple'
+          dragging ? '' : 'transition-transform duration-base ease-apple'
         }`}
       >
-        {/* 第一行：名称 + 删除按钮（桌面端无滑动，提供显式入口） */}
+        {/* 第一行：名称 + 删除按钮（桌面端无滑动，提供显式入口；44pt 命中） */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-medium leading-snug text-apple-text">
+            <div className="truncate text-md font-medium leading-snug text-apple-text">
               {item.name}
             </div>
-            <div className="mt-0.5 text-[12px] tabular-nums text-apple-text-3">
+            <div className="mt-0.5 text-xs tabular-nums text-apple-text-3">
               单价 {formatPrice(item.price)}
             </div>
           </div>
@@ -137,9 +140,11 @@ export default function WishlistRow({
             }}
             aria-label={`删除「${item.name}」`}
             title="删除"
-            className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-apple-text-3 transition-colors duration-200 ease-apple hover:bg-apple-bg hover:text-[#FF3B30] active:scale-90"
+            className="group -my-1.5 flex h-11 w-11 flex-none items-center justify-center rounded-full transition-transform duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40"
           >
-            <Trash2 className="h-[17px] w-[17px]" strokeWidth={1.7} aria-hidden />
+            <span className="flex h-8 w-8 items-center justify-center rounded-full text-apple-text-3 transition-colors duration-fast ease-apple group-hover:bg-apple-danger-soft group-hover:text-apple-danger">
+              <Trash2 className="h-[17px] w-[17px]" strokeWidth={1.7} aria-hidden />
+            </span>
           </button>
         </div>
 
@@ -147,8 +152,8 @@ export default function WishlistRow({
         <div className="mt-3 flex items-center justify-between gap-3">
           <QuantityStepper value={item.quantity} onChange={onQuantityChange} />
           <div className="text-right">
-            <div className="text-[11px] text-apple-text-3">小计</div>
-            <div className="text-[15px] font-semibold tabular-nums text-apple-text">
+            <div className="text-2xs text-apple-text-3">小计</div>
+            <div className="text-md font-semibold tabular-nums text-apple-text">
               {formatPrice(subtotal)}
             </div>
           </div>
