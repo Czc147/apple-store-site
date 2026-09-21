@@ -3,32 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Ticket } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import type { Coupon, CouponClaim, CouponWithState } from '@/lib/coupon-types';
 import CopyButton from '@/components/admin/CopyButton';
 import SectionHeader from '@/components/ui/SectionHeader';
 import CouponRowCard, { claimStateBadge } from './CouponRowCard';
-
-/** GET /api/coupons/mine 的单项（与路由里的 MyCoupon 对应） */
-interface MyCouponItem {
-  claim: Pick<CouponClaim, 'id' | 'code' | 'claimed_at' | 'used_at' | 'order_id'>;
-  coupon: Pick<Coupon, 'id' | 'name' | 'type' | 'value' | 'min_amount' | 'valid_from' | 'valid_to' | 'activity_id'>;
-  status: 'available' | 'locked' | 'used' | 'expired' | 'disabled';
-}
-
-/** 我的券 → 共用券行卡所需的形状 */
-function toRow(item: MyCouponItem): CouponWithState {
-  return {
-    ...item.coupon,
-    enabled: true,
-    total_qty: null,
-    per_user_limit: 1,
-    created_at: item.claim.claimed_at,
-    claimed_count: 0,
-    remaining: null,
-    // used_at / order_id 已带全，徽章状态由 claimStateBadge 判定
-    my_claim: item.claim,
-  };
-}
+import { toCouponRow, type MyCouponItem } from './coupon-row-adapter';
 
 /**
  * 「我的优惠券」（活动页底部，登录后显示）：
@@ -75,7 +53,7 @@ export default function MyCoupons({ refreshKey = 0 }: { refreshKey?: number }) {
       )}
       <div className="space-y-2.5">
         {items.map((item) => {
-          const row = toRow(item);
+          const row = toCouponRow(item);
           const badge = claimStateBadge(item.claim, item.status === 'expired');
           return (
             <CouponRowCard

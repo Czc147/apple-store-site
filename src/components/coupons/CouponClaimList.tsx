@@ -71,34 +71,57 @@ export default function CouponClaimList({
       </p>
 
       <div className="space-y-2.5">
-        {coupons.map((coupon) => (
-          <CouponRowCard
-            key={coupon.id}
-            coupon={coupon}
-            action={
-              coupon.my_claim ? (
-                <span className="flex items-center gap-1">
-                  <code className="font-mono text-xs text-apple-text-2">{coupon.my_claim.code}</code>
-                  <CopyButton text={coupon.my_claim.code} />
-                </span>
-              ) : user ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  loading={busyId === coupon.id}
-                  disabled={coupon.remaining !== null && coupon.remaining <= 0}
-                  onClick={() => void handleClaim(coupon)}
-                >
-                  领取
-                </Button>
-              ) : (
-                <Button variant="secondary" size="sm" href="/login?from=/activities">
-                  登录后领取
-                </Button>
-              )
-            }
-          />
-        ))}
+        {coupons.map((coupon) => {
+          // 还能不能再领：本人已领数 < 每人限领（后台可设为 >1）
+          const canClaimMore = coupon.my_claim_count < coupon.per_user_limit;
+          const soldOut = coupon.remaining !== null && coupon.remaining <= 0;
+          return (
+            <CouponRowCard
+              key={coupon.id}
+              coupon={coupon}
+              action={
+                !user ? (
+                  <Button variant="secondary" size="sm" href="/login?from=/activities">
+                    登录后领取
+                  </Button>
+                ) : canClaimMore && !soldOut ? (
+                  <span className="flex flex-col items-end gap-1">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={busyId === coupon.id}
+                      onClick={() => void handleClaim(coupon)}
+                    >
+                      {coupon.my_claim_count > 0 ? '再领一张' : '领取'}
+                    </Button>
+                    {coupon.my_claim && (
+                      <span className="flex items-center gap-1">
+                        <code className="font-mono text-2xs text-apple-text-3">
+                          {coupon.my_claim.code}
+                        </code>
+                        <CopyButton text={coupon.my_claim.code} />
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="flex flex-col items-end gap-1">
+                    {coupon.my_claim && (
+                      <span className="flex items-center gap-1">
+                        <code className="font-mono text-xs text-apple-text-2">
+                          {coupon.my_claim.code}
+                        </code>
+                        <CopyButton text={coupon.my_claim.code} />
+                      </span>
+                    )}
+                    <span className="text-2xs text-apple-text-3">
+                      {soldOut ? '已领完' : `每人限领 ${coupon.per_user_limit} 张`}
+                    </span>
+                  </span>
+                )
+              }
+            />
+          );
+        })}
       </div>
 
       {error && (

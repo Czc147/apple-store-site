@@ -53,7 +53,7 @@ export default function ActivityCard({
       (!c.valid_from || now >= Date.parse(c.valid_from)) &&
       (!c.valid_to || now <= Date.parse(c.valid_to)) &&
       (c.remaining === null || c.remaining > 0) &&
-      !c.my_claim,
+      c.my_claim_count < c.per_user_limit,
   );
 
   const handleClaimChange = (couponId: string, myClaim: CouponWithState['my_claim']) => {
@@ -63,6 +63,7 @@ export default function ActivityCard({
           ? {
               ...c,
               my_claim: myClaim,
+              my_claim_count: c.my_claim_count + 1,
               claimed_count: c.claimed_count + 1,
               remaining: c.remaining === null ? null : Math.max(0, c.remaining - 1),
             }

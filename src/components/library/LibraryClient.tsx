@@ -34,6 +34,7 @@ import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
 import RegisterBanner from '@/components/ui/RegisterBanner';
 import RedeemClient from '@/components/redeem/RedeemClient';
 import NotificationBell from '@/components/library/NotificationBell';
+import MyCouponsCard from '@/components/library/MyCouponsCard';
 import ContentsView from '@/components/library/ContentsView';
 import ProfileHeader from '@/components/library/ProfileHeader';
 
@@ -296,6 +297,9 @@ export default function LibraryClient() {
           )}
         </Surface>
       </section>
+
+      {/* 我的券（横放卡片，点击展开；没领过券时组件自身不渲染） */}
+      <MyCouponsCard />
 
       {fetching && !data ? (
         <div className="space-y-4" aria-busy="true" aria-live="polite">

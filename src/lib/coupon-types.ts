@@ -53,6 +53,8 @@ export interface CouponWithState extends Coupon {
   remaining: number | null;
   /** 当前用户的领取记录（未登录 / 未领取 = null） */
   my_claim: Pick<CouponClaim, 'id' | 'code' | 'claimed_at' | 'used_at' | 'order_id'> | null;
+  /** 本人已领张数（后台可把每人限领设为 >1，UI 据此决定还能不能再领） */
+  my_claim_count: number;
 }
 
 /** 券的可用状态（前端展示用） */

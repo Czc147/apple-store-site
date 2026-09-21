@@ -15,6 +15,7 @@ const MAX_BULK = 200;
 /** 允许批量的资源（订单不开放删除：财务痕迹，维持只能取消） */
 const OPS = {
   community_posts: ['delete'],
+  community_comments: ['delete'],
   card_keys: ['delete', 'void'],
   daily_picks: ['delete'],
   subscription_products: ['delete'],
@@ -47,6 +48,7 @@ interface Failure {
  *
  * 级联说明（DB 触发器/外键，批量与单条一致）：
  * - community_posts：评论与点赞一并删除
+ * - community_comments：无级联（删它的父帖会连带删除）
  * - major_units：其下小单元级联删除，并清理首页板块里指向它们的悬空 id
  * - sub_units / activities / subscription 目标：触发器 handle_sellable_deleted 自动禁用关联卡密商品
  * - entitlements：先作废关联卡密（防旧码重放复活）再删权益行

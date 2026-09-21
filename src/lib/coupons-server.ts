@@ -199,9 +199,13 @@ export async function loadCouponsForActivities(
 
   const countByCoupon = new Map<string, number>();
   const mineByCoupon = new Map<string, (typeof rows)[number]>();
+  const mineCountByCoupon = new Map<string, number>();
   for (const r of rows) {
     countByCoupon.set(r.coupon_id, (countByCoupon.get(r.coupon_id) ?? 0) + 1);
-    if (userId && r.user_id === userId) mineByCoupon.set(r.coupon_id, r);
+    if (userId && r.user_id === userId) {
+      mineByCoupon.set(r.coupon_id, r);
+      mineCountByCoupon.set(r.coupon_id, (mineCountByCoupon.get(r.coupon_id) ?? 0) + 1);
+    }
   }
 
   for (const c of list) {
@@ -220,6 +224,7 @@ export async function loadCouponsForActivities(
             order_id: mine.order_id,
           }
         : null,
+      my_claim_count: mineCountByCoupon.get(c.id) ?? 0,
     };
     const arr = map.get(c.activity_id) ?? [];
     arr.push(item);

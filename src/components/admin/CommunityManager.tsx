@@ -28,12 +28,36 @@ import {
   LoadingRows,
   EmptyRow,
   Notice,
+  Pagination,
   textareaCls,
   btnPrimary,
   btnGhost,
   thCls,
   tdCls,
 } from './ui';
+
+/** GET /api/admin/comments 行 */
+interface AdminComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  user_email: string | null;
+  content: string;
+  created_at: string;
+  /** 所属帖子正文摘要（服务端截前 40 字） */
+  post_excerpt: string;
+}
+
+/** GET /api/admin/comments 响应 */
+interface CommentsResponse {
+  items: AdminComment[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+/** 评论列表每页条数（请求与 Pagination 共用同一常量） */
+const COMMENT_PAGE_SIZE = 20;
 
 export default function CommunityManager() {
   const [rows, setRows] = useState<CommunityPost[] | null>(null);
@@ -51,6 +75,16 @@ export default function CommunityManager() {
   const bulk = useBulkSelect((rows ?? []).map((r) => r.id));
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  // 评论区块（独立分页 + 独立批量状态，与帖子的 bulk 互不影响）
+  const [comments, setComments] = useState<AdminComment[] | null>(null);
+  const [commentLoadError, setCommentLoadError] = useState<string | null>(null);
+  const [commentPage, setCommentPage] = useState(1);
+  const [commentTotal, setCommentTotal] = useState(0);
+  const [commentDeletingId, setCommentDeletingId] = useState<string | null>(null);
+  const commentBulk = useBulkSelect((comments ?? []).map((c) => c.id));
+  const [commentBulkConfirm, setCommentBulkConfirm] = useState(false);
+  const [commentBulkBusy, setCommentBulkBusy] = useState(false);
 
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const noticeTimer = useRef<number | null>(null);
@@ -74,12 +108,35 @@ export default function CommunityManager() {
     }
   }, []);
 
+  /** 评论列表（服务端分页，按时间倒序） */
+  const loadComments = useCallback(async () => {
+    setCommentLoadError(null);
+    try {
+      const sp = new URLSearchParams();
+      sp.set('page', String(commentPage));
+      sp.set('page_size', String(COMMENT_PAGE_SIZE));
+      const res = await adminFetch(`/api/admin/comments?${sp.toString()}`);
+      if (!res.ok) throw new Error(await extractError(res));
+      const data = (await res.json()) as CommentsResponse;
+      setComments(data.items ?? []);
+      setCommentTotal(data.total ?? 0);
+    } catch (e) {
+      setCommentLoadError(e instanceof Error ? e.message : '加载失败');
+      setComments(null);
+      setCommentTotal(0);
+    }
+  }, [commentPage]);
+
   useEffect(() => {
     void load();
     return () => {
       if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
     };
   }, [load]);
+
+  useEffect(() => {
+    void loadComments();
+  }, [loadComments]);
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -156,6 +213,42 @@ export default function CommunityManager() {
       showNotice(false, err instanceof Error ? err.message : '批量删除失败');
     } finally {
       setBulkBusy(false);
+    }
+  };
+
+  /** 单条删除评论（走既有评论删除路由，管理员身份放行） */
+  const handleDeleteComment = async (row: AdminComment) => {
+    if (commentDeletingId) return;
+    setCommentDeletingId(row.id);
+    try {
+      const res = await adminFetch(
+        `/api/community/posts/${row.post_id}/comments/${row.id}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) throw new Error(await extractError(res));
+      showNotice(true, '已删除');
+      await loadComments();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '删除失败');
+    } finally {
+      setCommentDeletingId(null);
+    }
+  };
+
+  /** 批量删除选中评论 */
+  const handleCommentBulkDelete = async () => {
+    if (commentBulkBusy) return;
+    setCommentBulkBusy(true);
+    try {
+      const r = await bulkDelete('community_comments', [...commentBulk.selected]);
+      showNotice(r.failed.length === 0, bulkResultText(r, '删除'));
+      setCommentBulkConfirm(false);
+      commentBulk.clear();
+      await loadComments();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setCommentBulkBusy(false);
     }
   };
 
@@ -262,6 +355,119 @@ export default function CommunityManager() {
           </tbody>
         </TableShell>
       )}
+
+      {/* 评论区块：全站评论分页浏览，支持单条删除与批量删除 */}
+      <h2 className="mb-3 mt-8 text-[16px] font-semibold text-apple-text">
+        评论
+        {comments !== null && (
+          <span className="ml-2 text-[13px] font-normal text-apple-text-2">
+            共 {commentTotal} 条
+          </span>
+        )}
+      </h2>
+
+      {commentLoadError ? (
+        <div className="rounded-card border border-apple-border bg-apple-card p-6 text-center shadow-card">
+          <p className="text-[14px] leading-relaxed text-apple-text-2">{commentLoadError}</p>
+          <button type="button" onClick={() => void loadComments()} className={`${btnGhost} mt-4`}>
+            重试
+          </button>
+        </div>
+      ) : (
+        <>
+          <TableShell>
+            <thead>
+              <tr>
+                <th className={thCls}>
+                  <SelectAllCheckbox
+                    checked={commentBulk.allSelected}
+                    indeterminate={commentBulk.someSelected}
+                    onChange={commentBulk.toggleAll}
+                    label="全选当前页评论"
+                  />
+                </th>
+                <th className={thCls}>评论内容</th>
+                <th className={thCls}>所属帖子</th>
+                <th className={thCls}>作者</th>
+                <th className={thCls}>时间</th>
+                <th className={thCls}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comments === null ? (
+                <LoadingRows colSpan={6} />
+              ) : comments.length === 0 ? (
+                <EmptyRow colSpan={6} text="还没有评论" />
+              ) : (
+                comments.map((row) => (
+                  <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                    <td className={tdCls}>
+                      <RowCheckbox
+                        checked={commentBulk.selected.has(row.id)}
+                        onChange={() => commentBulk.toggle(row.id)}
+                        label={`选择「${row.content.slice(0, 12)}」`}
+                      />
+                    </td>
+                    <td className={tdCls}>
+                      <p className="line-clamp-2 max-w-[280px] text-[13px] leading-relaxed text-apple-text">
+                        {row.content}
+                      </p>
+                    </td>
+                    <td
+                      className={`${tdCls} max-w-[200px] truncate text-[13px] text-apple-text-2`}
+                      title={row.post_excerpt}
+                    >
+                      {row.post_excerpt || '—'}
+                    </td>
+                    <td className={tdCls}>{row.user_email?.split('@')[0] ?? '用户'}</td>
+                    <td className={`${tdCls} whitespace-nowrap text-[13px] text-apple-text-2`}>
+                      {new Date(row.created_at).toLocaleString('zh-CN')}
+                    </td>
+                    <td className={tdCls}>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteComment(row)}
+                        disabled={commentDeletingId === row.id}
+                        className="text-[13px] font-medium text-[#D70015] transition hover:opacity-80 disabled:opacity-40"
+                      >
+                        {commentDeletingId === row.id ? '删除中…' : '删除'}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </TableShell>
+
+          <Pagination
+            page={commentPage}
+            pageSize={COMMENT_PAGE_SIZE}
+            total={commentTotal}
+            onChange={setCommentPage}
+          />
+        </>
+      )}
+
+      <BulkBar
+        count={commentBulk.selected.size}
+        noun="条评论"
+        busy={commentBulkBusy}
+        onClear={commentBulk.clear}
+        actions={[
+          { key: 'delete', text: '批量删除', danger: true, onClick: () => setCommentBulkConfirm(true) },
+        ]}
+      />
+
+      <ConfirmDialog
+        open={commentBulkConfirm}
+        title="批量删除评论"
+        message={`确定要删除选中的 ${commentBulk.selected.size} 条评论吗？此操作不可恢复。`}
+        busy={commentBulkBusy}
+        onConfirm={handleCommentBulkDelete}
+        onClose={() => {
+          if (!commentBulkBusy) setCommentBulkConfirm(false);
+        }}
+      />
 
       <Modal
         open={createOpen}
