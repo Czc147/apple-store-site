@@ -20,6 +20,14 @@ const MODE_TITLE: Record<Mode, string> = {
   reset: '设置新密码',
 };
 
+/** 各模式的一句话说明（表单可读性，不承载任何业务分支） */
+const MODE_HINT: Record<Mode, string> = {
+  login: '用邮箱与密码登录',
+  register: '用邮箱与密码创建账号',
+  forgot: '输入注册邮箱，接收重置链接',
+  reset: '设置新的登录密码',
+};
+
 /**
  * 登录 / 注册 / 找回密码 / 重置密码（Supabase Auth · 邮箱+密码）。
  * - 未配置 NEXT_PUBLIC_SUPABASE_* 时整体提示不可用（演示模式）。
@@ -30,6 +38,11 @@ const MODE_TITLE: Record<Mode, string> = {
  * Phase 10 收敛：输入框 → TextField（focus 方案 A 唯一标准）；裸 hex
  * 错误/成功文字 → Message；提交钮手抄类串 → Button；模式切换钮命中扩到 44pt。
  * 认证逻辑（四模式状态机 / friendlyAuthError / PASSWORD_RECOVERY）逐行保留。
+ *
+ * UI 升级 §8.8（白色/浅灰 + 表单居中 + 交易控件优先，禁用彩色玻璃）：
+ * 白卡 24px 圆角、表单头居中（图标 + 模式标题 + 一句话说明）、
+ * 输入框保持 TextField 44pt 高、提交钮为品牌蓝胶囊、
+ * 错误/通知 Message 紧贴输入区且淡入出现。
  */
 export default function AuthClient() {
   const router = useRouter();
@@ -73,10 +86,15 @@ export default function AuthClient() {
 
   if (!configured) {
     return (
-      <div className="mx-auto max-w-md px-page">
-        <Surface radius="card" className="p-6 text-center">
-          <p className="text-md font-semibold text-apple-text">登录暂不可用</p>
-          <p className="mt-2 text-sm leading-relaxed text-apple-text-2">
+      <div className="mx-auto w-full max-w-md px-page">
+        <Surface radius="card-lg" className="p-6 text-center sm:p-8">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-apple-blue-soft">
+            <KeyRound className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
+          </span>
+          <p className="mt-3.5 text-xl font-semibold tracking-tight text-apple-text">
+            登录暂不可用
+          </p>
+          <p className="mx-auto mt-2 max-w-[320px] text-sm leading-relaxed text-apple-text-2">
             当前未配置 Supabase（NEXT_PUBLIC_SUPABASE_URL / ANON_KEY），
             无法注册或登录。你仍可先以游客身份浏览与兑换。
           </p>
@@ -165,22 +183,26 @@ export default function AuthClient() {
     '-my-1.5 inline-flex min-h-11 items-center gap-1 rounded-btn px-1 text-sm font-medium transition-colors duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40';
 
   return (
-    <div className="mx-auto max-w-md px-page">
-      <Surface radius="card" className="p-6">
-        <div className="mb-5 flex items-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-apple-blue-soft">
+    <div className="mx-auto w-full max-w-md px-page">
+      <Surface radius="card-lg" className="p-6 sm:p-8">
+        {/* 表单头：居中图标 + 模式标题 + 一句话说明（交易控件优先，无彩色玻璃） */}
+        <div className="mb-6 flex flex-col items-center text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-apple-blue-soft">
             {mode === 'login' ? (
-              <LogIn className="h-5 w-5 text-apple-blue" aria-hidden />
+              <LogIn className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
             ) : mode === 'register' ? (
-              <UserPlus className="h-5 w-5 text-apple-blue" aria-hidden />
+              <UserPlus className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
             ) : (
-              <KeyRound className="h-5 w-5 text-apple-blue" aria-hidden />
+              <KeyRound className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
             )}
           </span>
-          <h2 className="text-lg font-bold text-apple-text">{MODE_TITLE[mode]}</h2>
+          <h2 className="mt-3.5 text-xl font-semibold tracking-tight text-apple-text">
+            {MODE_TITLE[mode]}
+          </h2>
+          <p className="mt-1 text-sm text-apple-text-2">{MODE_HINT[mode]}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {isEmailMode && (
             <TextField
               id="auth-email"
@@ -223,16 +245,28 @@ export default function AuthClient() {
             />
           )}
 
-          {error && <Message tone="error">{error}</Message>}
-          {notice && <Message tone="success">{notice}</Message>}
+          {/* 错误 / 通知紧跟输入区、紧贴提交钮：role=alert 由 Message 自身提供 */}
+          {error && (
+            <Message tone="error" className="animate-fade-in">
+              {error}
+            </Message>
+          )}
+          {notice && (
+            <Message tone="success" className="animate-fade-in">
+              {notice}
+            </Message>
+          )}
 
-          <Button variant="primary" size="lg" fullWidth type="submit" loading={busy}>
-            {submitLabel}
-          </Button>
+          {/* 提交钮与输入区多留一档间距（包一层 padding，避免用 space-y 覆盖技巧） */}
+          <div className="pt-1.5">
+            <Button variant="primary" size="lg" fullWidth type="submit" loading={busy}>
+              {submitLabel}
+            </Button>
+          </div>
         </form>
 
         {/* 模式切换 */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-2 border-t border-apple-hairline pt-2.5">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-2 border-t border-apple-hairline pt-3">
           {mode === 'login' && (
             <>
               <button

@@ -10,33 +10,40 @@ import WishlistRow from './WishlistRow';
 import CheckoutBar from './CheckoutBar';
 import CheckoutSheet from './CheckoutSheet';
 
-/** 挂载前骨架（localStorage 仅在浏览器可读，避免 SSR 水合不一致） */
+/** 挂载前骨架（localStorage 仅在浏览器可读，避免 SSR 水合不一致）
+    形状与最终版式同构（§9.5）：统计摘要条 + 80px 封面砖行，避免加载完跳变 */
 function MountSkeleton() {
   return (
-    <div className="space-y-3 px-page" aria-busy="true" aria-label="愿望单加载中">
-      {[0, 1].map((i) => (
-        <div
-          key={i}
-          className="rounded-card border border-apple-border bg-apple-card p-4 shadow-card"
-        >
-          <div className="skeleton h-4 w-3/5 rounded-md" />
-          <div className="mt-3 flex items-center justify-between">
-            <div className="skeleton h-8 w-[112px] rounded-btn" />
-            <div className="skeleton h-5 w-16 rounded-md" />
+    <div className="px-page" aria-busy="true" aria-label="愿望单加载中">
+      <div className="skeleton mb-3.5 h-5 w-40 rounded-chip" />
+      <div className="space-y-3">
+        {[0, 1].map((i) => (
+          <div key={i} className="flex items-center gap-3.5 rounded-card bg-apple-card p-3.5">
+            <div className="skeleton h-20 w-20 flex-none rounded-input" />
+            <div className="min-w-0 flex-1">
+              <div className="skeleton h-4 w-3/5 rounded-chip" />
+              <div className="skeleton mt-2 h-3 w-1/3 rounded-chip" />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="skeleton h-8 w-[92px] rounded-full" />
+                <div className="skeleton h-5 w-16 rounded-chip" />
+              </div>
+            </div>
+            <div className="skeleton h-8 w-8 flex-none rounded-full" />
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 /**
- * 愿望单页主体：
+ * 愿望单页主体（§8.2 收藏画廊 + 清晰结算）：
  * - 空态 = Intentional Empty State（Brief §13.2：图标 + 标题 + 辅助文案 + 主操作，
  *   复用 EmptyState primitive 的 action 槽——旧版因 EmptyState 无槽而自造变体）
- * - 列表（数量步进 / 小计 / 左滑删除 / 垃圾桶删除）
+ * - 统计摘要（种数 / 件数）+ 清空入口
+ * - 列表（大封面行 / 数量步进 / 小计 / 左滑删除 / 垃圾桶删除）
  * - 「清空愿望单」二次确认（3 秒未确认自动还原，确认态 danger 红提示）
- * - 底部悬浮结算栏 + 结算弹窗（订单闭环）
+ * - 底部悬浮结算条 + 结算弹窗（订单闭环）
  * - 数据持久化在 localStorage（wishlist store），刷新不丢失
  */
 export default function WishlistPageClient() {
@@ -123,15 +130,31 @@ export default function WishlistPageClient() {
         </div>
       )}
 
-      {/* 列表头：统计 + 清空（命中 44pt，负边距不撑高行） */}
-      <div className="flex items-center justify-between px-page pb-1.5">
-        <span className="text-sm text-apple-text-2">
-          {items.length} 种商品 · 共 {totalQty} 件
-        </span>
+      {/* 统计摘要（§8.2）：种数 / 件数 + 清空入口。纯排版表达（页面底色已是 mist，
+          再铺浅灰块不可见），数字加重、标签弱化；清空为两步确认，命中区 44pt */}
+      <div className="flex items-center justify-between gap-3 px-page pb-2.5 pt-1">
+        <p className="flex min-w-0 items-baseline gap-2.5 text-sm text-apple-text-2">
+          <span className="truncate">
+            <b className="text-lg font-semibold tabular-nums text-apple-text">
+              {items.length}
+            </b>{' '}
+            种商品
+          </span>
+          <span aria-hidden className="text-apple-border">
+            ·
+          </span>
+          <span className="flex-none">
+            共{' '}
+            <b className="text-lg font-semibold tabular-nums text-apple-text">
+              {totalQty}
+            </b>{' '}
+            件
+          </span>
+        </p>
         <button
           type="button"
           onClick={handleClearClick}
-          className={`-my-2 inline-flex min-h-11 items-center rounded-btn px-2 text-sm font-medium transition-colors duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40 ${
+          className={`-my-1 inline-flex min-h-11 flex-none items-center rounded-btn px-1 text-sm font-medium transition-colors duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40 ${
             confirmClear
               ? 'text-apple-danger'
               : 'text-apple-text-3 hover:text-apple-text-2'
@@ -141,8 +164,8 @@ export default function WishlistPageClient() {
         </button>
       </div>
 
-      {/* 商品列表（底部预留：结算栏高约 107px + TabBar 避让变量 + 呼吸余量） */}
-      <ul className="space-y-3 px-page pb-[calc(var(--tabbar-h)+120px+env(safe-area-inset-bottom))]">
+      {/* 商品列表：底部避让 = TabBar(--tabbar-h + 安全区) + 结算条 56px + 间距 12px + 呼吸 32px */}
+      <ul className="space-y-3 px-page pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+100px)]">
         {items.map((item) => (
           <WishlistRow
             key={item.sub_unit_id}

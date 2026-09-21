@@ -7,8 +7,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useLocalLibrary } from '@/lib/unlocks';
 import { formatExpiry } from '@/lib/format';
 import Button from '@/components/ui/Button';
+import GlassSurface from '@/components/ui/GlassSurface';
 import Message from '@/components/ui/Message';
-import Surface from '@/components/ui/Surface';
 import TextField from '@/components/ui/TextField';
 import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
 import RegisterBanner from '@/components/ui/RegisterBanner';
@@ -50,7 +50,33 @@ type RedeemResult = ContentResult | UnlockResult | SubscriptionResult;
 type Status = 'idle' | 'loading' | 'error' | 'result';
 
 /**
- * 权益类兑换结果卡外壳（每日计划解锁 / 订阅解锁共用）：
+ * 兑换成功卡外壳（§8.7：成功态可用极轻的彩色玻璃，失败态一律走 Message error）。
+ * - Premium Glass（tint=prism）只出现在兑换成功这一处，属规范允许的「兑换成功强展示」；
+ * - 入场动画 animate-pop-in（200ms）——短反馈，远低于 500ms 上限，不引入新 keyframe；
+ * - 文字保持深色（§3.3 可读性：正文 #1d1d1f，色斑不承载文字、不覆盖操作按钮）。
+ */
+function SuccessCard({ children }: { children: ReactNode }) {
+  return (
+    <GlassSurface tint="prism" radius="hero" className="animate-pop-in">
+      <div className="p-5">{children}</div>
+    </GlassSurface>
+  );
+}
+
+/** 成功卡首行：成功图标 + 标题（三种兑换结果共用） */
+function SuccessHead({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white/70">
+        <CheckCircle2 className="h-5 w-5 text-apple-success" aria-hidden />
+      </span>
+      <p className="text-md font-semibold text-apple-text">{title}</p>
+    </div>
+  );
+}
+
+/**
+ * 权益类兑换结果卡（每日计划解锁 / 订阅解锁共用）：
  * 成功图标 + 标题 + 权益名 + 一行有效期说明，children 追加 CTA 等。
  */
 function EntitlementResultCard({
@@ -65,13 +91,8 @@ function EntitlementResultCard({
   children?: ReactNode;
 }) {
   return (
-    <Surface radius="card" className="p-5">
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-success-soft">
-          <CheckCircle2 className="h-5 w-5 text-apple-success" aria-hidden />
-        </span>
-        <p className="text-md font-semibold text-apple-text">{title}</p>
-      </div>
+    <SuccessCard>
+      <SuccessHead title={title} />
 
       <p className="mt-4 text-lg font-bold leading-snug text-apple-text">{name}</p>
       <p className="mt-1.5 flex items-center gap-1.5 text-sm leading-relaxed text-apple-text-2">
@@ -80,7 +101,7 @@ function EntitlementResultCard({
       </p>
 
       {children}
-    </Surface>
+    </SuccessCard>
   );
 }
 
@@ -96,6 +117,11 @@ function EntitlementResultCard({
  * Phase 10 收敛：私有绿 #1B7F3B → success token；CTA/次级钮手抄类串 → Button；
  * 裸红错误文字 → Message(error)；输入框 → TextField；外链 → ExternalLinkAction；
  * RegisterBanner 与 LibraryClient 游客横幅合并为共享组件。兑换逻辑逐行保留。
+ *
+ * UI 升级 §8.7（交易场景优先，动效只用于反馈）：
+ * - 输入区保持白底 + TextField（清晰、高对比），错误态 Message(tone=error) 不变；
+ * - 结果卡换 GlassSurface(tint=prism) + 200ms 入场（≤500ms 上限）；
+ * - 重复兑换 / 游客未绑定 / 重置等原有分支与文案语义逐字保留。
  */
 export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }) {
   const { getAuthHeaders } = useAuth();
@@ -241,15 +267,10 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
           : '在新标签页打开文档';
     return (
       <div className="w-full">
-        <Surface radius="card" className="p-5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-success-soft">
-              <CheckCircle2 className="h-5 w-5 text-apple-success" aria-hidden />
-            </span>
-            <p className="text-md font-semibold text-apple-text">
-              {result.redeemed_now ? '兑换成功' : '该卡密已兑换过，以下为兑换内容'}
-            </p>
-          </div>
+        <SuccessCard>
+          <SuccessHead
+            title={result.redeemed_now ? '兑换成功' : '该卡密已兑换过，以下为兑换内容'}
+          />
 
           <p className="mt-4 text-lg font-bold leading-snug text-apple-text">
             {result.product_name}
@@ -303,7 +324,7 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
           <ExternalLinkAction href={result.image_url} className="mt-3">
             {openLabel}
           </ExternalLinkAction>
-        </Surface>
+        </SuccessCard>
 
         {!result.bound && <RegisterBanner className="mt-4" />}
 
@@ -330,7 +351,11 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
           disabled={status === 'loading'}
           className="font-mono"
         />
-        {status === 'error' && errorMsg && <Message tone="error">{errorMsg}</Message>}
+        {status === 'error' && errorMsg && (
+          <Message tone="error" className="animate-fade-in">
+            {errorMsg}
+          </Message>
+        )}
         <Button
           variant="primary"
           size="lg"
