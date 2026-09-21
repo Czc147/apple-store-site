@@ -31,13 +31,10 @@ function resolveTitle(activity: Activity): string | null {
 export default function ActivityCard({
   activity,
   coupons = [],
-  onClaimed,
 }: {
   activity: Activity;
   /** 该活动下的券（服务端带入；领取后本地更新，无需刷新页面） */
   coupons?: CouponWithState[];
-  /** 领取成功回调（父组件用来刷新「我的优惠券」） */
-  onClaimed?: () => void;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [localCoupons, setLocalCoupons] = useState<CouponWithState[]>(coupons);
@@ -70,7 +67,6 @@ export default function ActivityCard({
           : c,
       ),
     );
-    onClaimed?.();
   };
 
   return (

@@ -69,7 +69,7 @@ export default function SubscriptionPurchaseSheet({
       <div className="border-t border-apple-hairline px-5 pb-3 pt-4">
         {/* 优惠码（全场通用）：试算通过后下单带上 coupon_code */}
         <div className="mb-3">
-          <CouponCodeInput items={orderItems} applied={coupon} onChange={setCoupon} />
+          <CouponCodeInput items={orderItems} applied={coupon} onChange={setCoupon} orderTotal={price} />
         </div>
         {coupon && (
           <div className="mb-3 space-y-1 rounded-card border border-apple-border bg-apple-bg px-3.5 py-3 text-sm">

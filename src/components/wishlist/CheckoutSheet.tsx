@@ -71,7 +71,7 @@ export default function CheckoutSheet({
 
         {/* 优惠码（需求 6）：一人一码，服务端试算权威校验 */}
         <div className="mt-4">
-          <CouponCodeInput items={orderItems} applied={coupon} onChange={setCoupon} />
+          <CouponCodeInput items={orderItems} applied={coupon} onChange={setCoupon} orderTotal={total} />
         </div>
 
         {/* 金额明细：原价 / 优惠 / 实付（无券时只显示合计，与既有版式一致） */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Ticket, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { formatPrice } from '@/lib/format';
@@ -8,6 +8,10 @@ import type { OrderCreateItem } from '@/lib/order-types';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 import { inputCls } from '@/components/admin/ui';
+import { couponThresholdText } from '@/lib/coupon-types';
+import { couponFaceText } from '@/components/coupons/CouponRowCard';
+import type { MyCouponItem } from '@/components/coupons/coupon-row-adapter';
+import { cn } from '@/lib/cn';
 
 /** 应用成功的券（父组件据此调 /api/orders 的 coupon_code 与展示实付） */
 export interface AppliedCoupon {
@@ -19,28 +23,54 @@ export interface AppliedCoupon {
 }
 
 /**
- * 优惠码输入框（愿望单结算 / 订阅结算共用）：
- * 输入 → POST /api/coupons/validate（服务端按目标现价重算原价 + 校验券）→
- * 通过后把结果交给父组件（父组件用它显示优惠/实付，并在下单时带上 coupon_code）。
+ * 优惠码输入框 + 「可直接选券」快捷区（愿望单结算 / 订阅结算共用）：
+ * - 手输/粘贴 → POST /api/coupons/validate（服务端按目标现价重算原价 + 校验券）→
+ *   通过后把结果交给父组件（父组件用它显示优惠/实付，并在下单时带上 coupon_code）
+ * - 快捷区列出本人「可使用」的券，点一下等同填入该码并试算；
+ *   未达门槛的券置灰并标注门槛（orderTotal 由父组件传入，用于这个提示）
  * 真正的权威校验在下单时再做一遍，这里只是预览。
  */
 export default function CouponCodeInput({
   items,
   applied,
   onChange,
+  orderTotal,
 }: {
   /** 当前结算的商品行（与下单请求体一致） */
   items: OrderCreateItem[];
   applied: AppliedCoupon | null;
   onChange: (next: AppliedCoupon | null) => void;
+  /** 当前订单原价（仅用于给未达门槛的券加提示；金额以服务端为准） */
+  orderTotal?: number;
 }) {
   const { user, getAuthHeaders } = useAuth();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mine, setMine] = useState<MyCouponItem[] | null>(null);
 
-  const handleApply = async () => {
-    const trimmed = code.trim();
+  // 拉「我领的券」（登录后；已应用时不再需要）
+  const loadMine = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers.Authorization) return;
+      const res = await fetch('/api/coupons/mine', { headers });
+      if (!res.ok) return;
+      const data = (await res.json()) as { items?: MyCouponItem[] };
+      setMine(Array.isArray(data.items) ? data.items : []);
+    } catch {
+      /* 静默：快捷区加载失败不影响手动输码 */
+    }
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    if (!user || applied) return;
+    void loadMine();
+  }, [user, applied, loadMine]);
+
+  /** 用某个码试算（手动输入与点选券共用） */
+  const applyCode = async (raw: string) => {
+    const trimmed = raw.trim();
     if (!trimmed || busy) return;
     if (!user) {
       setError('请先登录后再使用优惠码');
@@ -84,6 +114,8 @@ export default function CouponCodeInput({
     setError(null);
   };
 
+  const available = (mine ?? []).filter((c) => c.status === 'available');
+
   if (applied) {
     return (
       <div className="flex items-center gap-2 rounded-card border border-apple-success/25 bg-apple-success-soft px-3.5 py-2.5">
@@ -106,7 +138,7 @@ export default function CouponCodeInput({
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              void handleApply();
+              void applyCode(code);
             }
           }}
           placeholder="优惠码（选填）"
@@ -121,12 +153,51 @@ export default function CouponCodeInput({
           size="md"
           loading={busy}
           disabled={!code.trim()}
-          onClick={() => void handleApply()}
+          onClick={() => void applyCode(code)}
         >
           <Ticket className="h-4 w-4" aria-hidden />
           应用
         </Button>
       </div>
+
+      {/* 可直接点选的券（本人「可使用」的券；未达门槛的置灰并标注门槛） */}
+      {available.length > 0 && (
+        <div className="mt-2">
+          <p className="text-2xs text-apple-text-3">我领到的券（点一下直接使用）</p>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {available.map((c) => {
+              const minAmount = Number(c.coupon.min_amount);
+              const reached = orderTotal === undefined || orderTotal >= minAmount;
+              return (
+                <button
+                  key={c.claim.id}
+                  type="button"
+                  disabled={busy || !reached}
+                  onClick={() => void applyCode(c.claim.code)}
+                  aria-label={`使用优惠券 ${c.coupon.name}`}
+                  className={cn(
+                    'inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium',
+                    'transition duration-fast ease-apple active:scale-[0.97]',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
+                    reached
+                      ? 'border-apple-danger/30 bg-apple-danger-soft text-apple-danger hover:border-apple-danger/60'
+                      : 'border-apple-border bg-apple-bg text-apple-text-3',
+                  )}
+                >
+                  <span className="truncate">{c.coupon.name}</span>
+                  <span className="flex-none tabular-nums">{couponFaceText(c.coupon)}</span>
+                  {!reached && (
+                    <span className="flex-none text-2xs text-apple-text-3">
+                      （{couponThresholdText(c.coupon)}）
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {error && (
         <p className="mt-1.5 text-xs text-apple-danger" role="alert">
           {error}
@@ -134,4 +205,13 @@ export default function CouponCodeInput({
       )}
     </div>
   );
+}
+
+/** 应用成功的券（父组件据此调 /api/orders 的 coupon_code 与展示实付） */
+export interface AppliedCoupon {
+  code: string;
+  name: string;
+  discount_amount: number;
+  payable: number;
+  original_total: number;
 }

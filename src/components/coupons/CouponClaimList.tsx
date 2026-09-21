@@ -130,7 +130,7 @@ export default function CouponClaimList({
         </Message>
       )}
       <p className="mt-2.5 text-2xs leading-relaxed text-apple-text-3">
-        一人一码：领取后专属码只属于当前账号，结账时填入即可抵扣；票券不可转赠。
+        一人一码：领取后可在「我的库 → 我的券」随时查看，结账时填入专属码即可抵扣；票券不可转赠。
       </p>
     </div>
   );
