@@ -53,11 +53,35 @@ export default function TabBar() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // 彩虹反射（§7.3）：pathname 变化时，仅让「当前激活的那个图标」播一次，
+  // 300ms 后撤下覆盖层（动画本身起止全透明，撤下不会闪）
+  const [sweepHref, setSweepHref] = useState<string | null>(null);
+  useEffect(() => {
+    setSweepHref(pathname);
+    const t = window.setTimeout(() => setSweepHref(null), 300);
+    return () => window.clearTimeout(t);
+  }, [pathname]);
+
   return (
     <nav
       aria-label="主导航"
       className="glass fixed inset-x-0 bottom-0 z-overlay border-t border-apple-hairline shadow-tabbar"
     >
+      {/* 彩虹渐变定义：只给「激活图标反射层」用（§7.4 受限色：prism 只出现在这里 + 玻璃色斑） */}
+      <svg width="0" height="0" aria-hidden className="absolute">
+        <defs>
+          <linearGradient id="tabbar-prism" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#0066CC" />
+            <stop offset="18%" stopColor="#32ADE6" />
+            <stop offset="36%" stopColor="#34C759" />
+            <stop offset="54%" stopColor="#FFCC00" />
+            <stop offset="72%" stopColor="#FF9500" />
+            <stop offset="86%" stopColor="#FF375F" />
+            <stop offset="100%" stopColor="#BF5AF2" />
+          </linearGradient>
+        </defs>
+      </svg>
+
       <div className="mx-auto flex max-w-page items-stretch pb-safe">
         {TABS.map(({ href, label, icon: Icon }) => {
           const active =
@@ -84,6 +108,15 @@ export default function TabBar() {
                   strokeWidth={active ? 2.2 : 1.7}
                   aria-hidden
                 />
+                {/* 彩虹反射覆盖层：同款图标换彩虹渐变笔画 + 左下→右上扫过（只播一次） */}
+                {sweepHref === href && (
+                  <Icon
+                    className="animate-prism-sweep pointer-events-none absolute inset-0 h-[22px] w-[22px]"
+                    stroke="url(#tabbar-prism)"
+                    strokeWidth={2.2}
+                    aria-hidden
+                  />
+                )}
                 {href === '/wishlist' && mounted && count > 0 && (
                   <span
                     key={count}

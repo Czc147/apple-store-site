@@ -4,13 +4,15 @@ import Image from 'next/image';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-export type CoverRatio = 'video' | 'wide' | 'photo' | 'square' | 'hero';
+export type CoverRatio = 'video' | 'wide' | 'photo' | 'square' | 'hero' | 'album';
 
 const RATIOS: Record<CoverRatio, string> = {
   video: 'aspect-video',
   wide: 'aspect-[21/9]',
   photo: 'aspect-[4/3]',
   square: 'aspect-square',
+  // 专辑封面（UI 升级 §5.2：大单元封面按 4:5 陈列，比方形更像专辑）
+  album: 'aspect-[4/5]',
   // Hero 专用：移动 16:9，桌面升 21:9 横幅（原 DailyPickBlock 的响应式比例）
   hero: 'aspect-[16/9] sm:aspect-[21/9]',
 };
@@ -33,7 +35,7 @@ interface CoverImageProps {
  * audit 收敛：图片处理曾双轨——CardImage 有骨架+失败回退，
  * DailyPickBlock/弹层是裸 <img> 无任何状态。
  * 行为：shimmer 骨架 → next/image 淡入（slow/ease-apple）→
- * 失败或无图回退渐变底色；比例四档收敛（16/9、21/9、4/3、1/1）。
+ * 失败或无图回退渐变底色；比例五档收敛（16/9、21/9、4/3、1/1、4/5 专辑）。
  */
 export default function CoverImage({
   src,

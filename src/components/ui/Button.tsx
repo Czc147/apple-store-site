@@ -33,9 +33,10 @@ interface ButtonProps {
  */
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    'bg-apple-blue text-white shadow-btn-blue hover:bg-apple-blue-hover active:bg-apple-blue-active disabled:bg-apple-border disabled:text-apple-text-3 disabled:shadow-none',
+    'bg-apple-blue font-semibold text-white shadow-btn-blue hover:bg-apple-blue-hover active:bg-apple-blue-active disabled:bg-apple-border disabled:text-apple-text-3 disabled:shadow-none',
+  // 次级 = Outlined Pill（§4.1）：透明底 + 1px #86868B 描边 + 黑色 4% hover 底
   secondary:
-    'border border-apple-border bg-apple-card text-apple-text hover:bg-apple-bg active:bg-apple-surface disabled:opacity-40',
+    'border border-apple-text-3 bg-transparent text-apple-text hover:bg-black/5 active:bg-black/[0.07] disabled:opacity-40',
   ghost: 'text-apple-blue hover:bg-apple-blue-soft disabled:opacity-40',
   danger: 'text-apple-danger hover:bg-apple-danger-soft disabled:opacity-40',
   // 成功反馈态（如「已复制」）：浅绿底绿字，非可点击语义时配合 disabled 使用

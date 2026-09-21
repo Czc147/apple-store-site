@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-export type SurfaceRadius = 'card' | 'card-lg' | 'hero';
+export type SurfaceRadius = 'card' | 'card-lg' | 'hero' | 'premium';
 
 interface SurfaceProps {
   as?: 'div' | 'section' | 'article' | 'li' | 'button';
@@ -18,6 +18,7 @@ const RADIUS: Record<SurfaceRadius, string> = {
   card: 'rounded-card',
   'card-lg': 'rounded-card-lg',
   hero: 'rounded-hero',
+  premium: 'rounded-premium',
 };
 
 /**

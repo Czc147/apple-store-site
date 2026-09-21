@@ -4,7 +4,7 @@ import { ShoppingBag } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import Message from '@/components/ui/Message';
 import type { MajorUnit, SubUnit, HomeSection } from '@/lib/types';
-import MajorUnitCard from './MajorUnitCard';
+import AlbumStackCard from './AlbumStackCard';
 import HomeSectionBlock from './HomeSectionBlock';
 
 interface ShopClientProps {
@@ -25,7 +25,7 @@ function MajorGrid({
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4">
       {majors.map((major) => (
-        <MajorUnitCard key={major.id} major={major} subs={subsByMajor[major.id] ?? []} />
+        <AlbumStackCard key={major.id} major={major} subs={subsByMajor[major.id] ?? []} />
       ))}
     </div>
   );

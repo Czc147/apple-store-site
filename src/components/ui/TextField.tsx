@@ -46,10 +46,11 @@ export default function TextField({
           'h-11 w-full border bg-apple-card px-4 text-md text-apple-text',
           'placeholder:text-apple-text-3',
           'transition duration-fast ease-apple',
-          'focus:border-apple-blue focus:outline-none focus:ring-2 focus:ring-apple-blue/20',
+          'focus:border-apple-blue focus:outline-none focus:ring-2 focus:ring-apple-blue/55',
           'disabled:cursor-not-allowed disabled:bg-apple-bg disabled:text-apple-text-3',
           radius === 'input' ? 'rounded-input' : 'rounded-btn',
-          error ? 'border-apple-danger' : 'border-apple-border',
+          // 常态描边走钢灰 #86868B（§4.3：输入框轮廓要比卡片描边更明确）
+          error ? 'border-apple-danger' : 'border-apple-text-3',
           className,
         )}
         {...rest}

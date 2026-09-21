@@ -90,7 +90,7 @@ export default function BottomSheet({
         ref={panelRef}
         tabIndex={-1}
         className={cn(
-          'animate-sheet-in relative flex max-h-[85dvh] w-full max-w-sheet flex-col overflow-hidden',
+          'animate-sheet-in relative flex max-h-[88dvh] w-full max-w-sheet flex-col overflow-hidden',
           'rounded-hero bg-apple-card shadow-popover focus:outline-none',
           className,
         )}

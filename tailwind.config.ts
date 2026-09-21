@@ -10,13 +10,20 @@ import type { Config } from 'tailwindcss';
  * - 按钮为 980px 胶囊圆角；卡片 20px；大画报/弹层 28px
  * - SF Pro 字体栈（macOS/iOS 命中系统字，中文回退苹方/思源）
  *
- * 使用规约（audit 2026-09-09 后确立，新代码必须遵守）：
- * - 字号只用 text-micro/2xs/xs/sm/base/md/lg/xl/2xl 九档，禁止 text-[Npx] 任意值
+ * 使用规约（audit 2026-09-09 后确立；UI 升级 2026-09-21 扩充，新代码必须遵守）：
+ * - 字号：控件用 text-micro/2xs/xs/sm/base/md/lg/xl/2xl 九档；
+ *   商品叙事/首页 Hero 用 text-editorial-sm/editorial/editorial-title/editorial-display/
+ *   editorial-hero 五档。禁止 text-[Npx] 任意值。中文标题不加负字距。
  * - 成功一律 apple-success(#1D8A3E)，危险一律 apple-danger(#D70015)，
  *   禁止 #1B7F3B / #FF3B30 / red-500 等私有色值
  * - 小元素（气泡/pill/芯片）圆角用 rounded-chip 或 rounded-full，禁用 rounded-card
  * - 遮罩一律 scrim-sheet / scrim-lightbox 两档，禁止 black/25、black/45 等散装浓度
- * - 按压反馈统一 active:scale-[0.97]；动效时长只用 duration-fast/base/slow
+ * - 按压反馈统一 active:scale-[0.97]；动效时长只用 duration-fast/base/slow/cover
+ * - prism-*（8 色）与 apple-launch 为受限色：
+ *   prism 只允许出现在 GlassSurface 色斑层与 TabBar 彩虹反射；
+ *   launch 只允许作裸文本标签（新品/上线），不给 pill 底色。
+ * - 层级靠「背景差异 + 圆角」表达，少用投影：叙事卡/Feature Media Card/浮动价格卡
+ *   一律 shadow-none；卡片重阴影、渐变边框、彩色玻璃全站默认禁止。
  */
 const config: Config = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
@@ -49,6 +56,20 @@ const config: Config = {
           premium: '#4F46E5',
           'premium-2': '#A855F7',
           'premium-soft': '#EEF2FF', // premium 浅底（标签/占位渐变起点）
+          launch: '#B64400', // 新品/上线裸文本标签（Apple launch-orange，禁 pill 底色）
+        },
+        // ---- Premium 色斑调色板（UI 升级 §2.1）----
+        // 只允许用于：GlassSurface 色斑层、TabBar 彩虹反射、极少数主视觉点缀。
+        // 禁止用于常态大面积背景 / 普通商品卡 / 表单 / 长文本区 / 后台管理界面。
+        prism: {
+          blue: '#0066CC',
+          cyan: '#32ADE6',
+          green: '#34C759',
+          yellow: '#FFCC00',
+          orange: '#FF9500',
+          red: '#FF375F',
+          purple: '#BF5AF2',
+          indigo: '#4F46E5',
         },
       },
       /**
@@ -66,6 +87,13 @@ const config: Config = {
         lg: ['17px', '24px'], // 区块标题（iOS headline）
         xl: ['22px', '28px'], // 页面二级大标题/价格
         '2xl': ['28px', '34px'], // 页面大标题（iOS large title）
+        // ---- 编辑叙事级（UI 升级 §2.2）：只用于商品叙事区/首页 Hero，
+        //      不用于控件。中文标题不用负字距（英文数字标题可另加 tracking-tight）----
+        'editorial-sm': ['14px', '20px'], // 权益短句
+        editorial: ['17px', '24px'], // 正文叙事
+        'editorial-title': ['32px', '38px'], // 平板标题
+        'editorial-display': ['48px', '52px'], // 桌面大标题
+        'editorial-hero': ['72px', '76px'], // 首页主标题（按视口收缩）
       },
       fontFamily: {
         sans: [
@@ -88,9 +116,11 @@ const config: Config = {
         card: '20px', // 商品卡（大单元卡片）
         'card-lg': '24px', // 活动大卡（Apple Store Today 风格）
         hero: '28px', // 大画报卡 / 弹层容器
+        premium: '32px', // 订阅大卡 / 高级玻璃卡（UI 升级 §2.3）
       },
       maxWidth: {
         page: '1024px', // 页面内容最大宽（移动端优先，桌面收拢）
+        wide: '1120px', // 首页 Hero / 图片叙事专用（交易列表仍走 page）
         dialog: '360px', // 居中弹层（ActionSheet）
         sheet: '480px', // 底部弹层面板统一宽（原 360/420/480/560 四档收敛）
         bar: '560px', // 悬浮结算条
@@ -114,6 +144,7 @@ const config: Config = {
         tabbar: '0 -1px 0 rgba(0,0,0,0.06)',
         'btn-blue': '0 1px 2px rgba(0,113,227,0.3)', // 主按钮投影（原手写 ×12 收敛）
         badge: '0 2px 6px rgba(0,113,227,0.4)', // TabBar 角标投影
+        stack: '0 18px 40px rgba(0,0,0,0.16)', // 专辑堆叠卡后层（UI 升级 §2.4）
         // premium 玻璃卡投影（配方来自素材库 frosted-glass-card：双层扩散+内高光）
         premium:
           '0 44px 88px -32px rgba(67,56,202,0.30), 0 16px 40px -20px rgba(67,56,202,0.16), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(255,255,255,0.18)',
@@ -123,6 +154,7 @@ const config: Config = {
         fast: '150ms',
         base: '200ms',
         slow: '300ms',
+        cover: '380ms', // 专辑封面 FLIP / 展开舞台（UI 升级 §9.1）
       },
       transitionTimingFunction: {
         apple: 'cubic-bezier(0.4, 0, 0.2, 1)', // 克制快速 150–250ms

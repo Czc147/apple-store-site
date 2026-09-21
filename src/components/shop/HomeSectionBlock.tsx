@@ -2,7 +2,7 @@
 
 import type { MajorUnit, SubUnit, HomeSection } from '@/lib/types';
 import SectionHeader from '@/components/ui/SectionHeader';
-import MajorUnitCard from './MajorUnitCard';
+import AlbumStackCard from './AlbumStackCard';
 
 interface HomeSectionBlockProps {
   section: HomeSection;
@@ -47,7 +47,7 @@ export default function HomeSectionBlock({
       {section.layout === 'grid' ? (
         <div className="grid grid-cols-2 gap-3 px-page sm:gap-4">
           {items.map((major) => (
-            <MajorUnitCard
+            <AlbumStackCard
               key={major.id}
               major={major}
               subs={subsByMajor[major.id] ?? []}
@@ -61,7 +61,7 @@ export default function HomeSectionBlock({
               key={major.id}
               className="w-[78%] shrink-0 snap-center sm:w-[42%]"
             >
-              <MajorUnitCard
+              <AlbumStackCard
                 major={major}
                 subs={subsByMajor[major.id] ?? []}
               />
