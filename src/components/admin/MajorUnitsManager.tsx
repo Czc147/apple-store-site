@@ -13,6 +13,14 @@ import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import ImageUploader from './ImageUploader';
 import {
+  BulkBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+  bulkDelete,
+  bulkResultText,
+  useBulkSelect,
+} from './BulkBar';
+import {
   Field,
   PageHeader,
   TableShell,
@@ -65,6 +73,11 @@ export default function MajorUnitsManager() {
 
   const [deleting, setDeleting] = useState<MajorUnit | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  // 批量删除（勾选 + 底部批量条）
+  const bulk = useBulkSelect((rows ?? []).map((r) => r.id));
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const noticeTimer = useRef<number | null>(null);
@@ -175,6 +188,23 @@ export default function MajorUnitsManager() {
     }
   };
 
+  /** 批量删除选中大单元（其下小单元一并删除，首页板块引用会被清理） */
+  const handleBulkDelete = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDelete('major_units', [...bulk.selected]);
+      showNotice(r.failed.length === 0, bulkResultText(r, '删除'));
+      setBulkConfirm(false);
+      bulk.clear();
+      await load();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -195,6 +225,14 @@ export default function MajorUnitsManager() {
         <TableShell>
           <thead>
             <tr>
+              <th className={thCls}>
+                <SelectAllCheckbox
+                  checked={bulk.allSelected}
+                  indeterminate={bulk.someSelected}
+                  onChange={bulk.toggleAll}
+                  label="全选当前列表"
+                />
+              </th>
               <th className={thCls}>排序</th>
               <th className={thCls}>名称</th>
               <th className={thCls}>展示图片</th>
@@ -205,10 +243,10 @@ export default function MajorUnitsManager() {
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={6} />
+              <LoadingRows colSpan={7} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={6}
+                colSpan={7}
                 text="还没有大单元，新增后前台选购页即可展示"
                 createLabel="新增大单元"
                 onCreate={openCreate}
@@ -216,6 +254,13 @@ export default function MajorUnitsManager() {
             ) : (
               rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                  <td className={tdCls}>
+                    <RowCheckbox
+                      checked={bulk.selected.has(row.id)}
+                      onChange={() => bulk.toggle(row.id)}
+                      label={`选择「${row.name}」`}
+                    />
+                  </td>
                   <td className={tdCls}>{row.sort_order}</td>
                   <td className={`${tdCls} max-w-[220px]`}>
                     <div className="font-medium">{row.name}</div>
@@ -358,6 +403,26 @@ export default function MajorUnitsManager() {
           )}
         </form>
       </Modal>
+
+      <BulkBar
+        count={bulk.selected.size}
+        noun="个大单元"
+        busy={bulkBusy}
+        onClear={bulk.clear}
+        actions={[{ key: 'delete', text: '批量删除', danger: true, onClick: () => setBulkConfirm(true) }]}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        title="批量删除大单元"
+        message={`确定要删除选中的 ${bulk.selected.size} 个大单元吗？此操作不可恢复。`}
+        note="注意：大单元下的小单元会一并删除，首页板块里对它们的引用也会被清理。批量删除影响范围大，请确认后再继续。"
+        busy={bulkBusy}
+        onConfirm={handleBulkDelete}
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirm(false);
+        }}
+      />
 
       <ConfirmDialog
         open={Boolean(deleting)}

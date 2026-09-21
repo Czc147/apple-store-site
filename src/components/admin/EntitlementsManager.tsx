@@ -21,6 +21,14 @@ import {
 } from './ui';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
+import {
+  BulkBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+  bulkDelete,
+  bulkResultText,
+  useBulkSelect,
+} from './BulkBar';
 
 /** 后台权益列表行（与 GET /api/entitlements 返回一致） */
 interface EntitlementRow extends UserEntitlement {
@@ -89,6 +97,28 @@ export default function EntitlementsManager() {
       ? null
       : rows.filter((r) => (filterKind === '' ? true : r.kind === filterKind));
 
+  // 批量撤销（勾选 + 底部批量条）：选中集只跟随当前筛选出的可见行
+  const bulk = useBulkSelect((visible ?? []).map((r) => r.id));
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  /** 批量撤销选中权益（先作废关联卡密再删权益行，防用户重输旧码复活） */
+  const handleBulkRevoke = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDelete('entitlements', [...bulk.selected], 'revoke');
+      showNotice(r.failed.length === 0, bulkResultText(r, '撤销'));
+      setBulkConfirm(false);
+      bulk.clear();
+      await load();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '批量撤销失败');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -124,6 +154,14 @@ export default function EntitlementsManager() {
         <TableShell>
           <thead>
             <tr>
+              <th className={thCls}>
+                <SelectAllCheckbox
+                  checked={bulk.allSelected}
+                  indeterminate={bulk.someSelected}
+                  onChange={bulk.toggleAll}
+                  label="全选当前列表"
+                />
+              </th>
               <th className={thCls}>用户邮箱</th>
               <th className={thCls}>类型</th>
               <th className={thCls}>来源码</th>
@@ -135,10 +173,10 @@ export default function EntitlementsManager() {
           </thead>
           <tbody>
             {visible === null ? (
-              <LoadingRows colSpan={7} />
+              <LoadingRows colSpan={8} />
             ) : visible.length === 0 ? (
               <EmptyRow
-                colSpan={7}
+                colSpan={8}
                 text={
                   rows?.length
                     ? '当前筛选条件下没有权益记录'
@@ -148,6 +186,13 @@ export default function EntitlementsManager() {
             ) : (
               visible.map((row) => (
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                  <td className={tdCls}>
+                    <RowCheckbox
+                      checked={bulk.selected.has(row.id)}
+                      onChange={() => bulk.toggle(row.id)}
+                      label={`选择「${row.user_email ?? row.user_id}」的${KIND_LABEL[row.kind] ?? row.kind}权益`}
+                    />
+                  </td>
                   <td className={tdCls}>
                     <span className="block max-w-[200px] truncate font-medium">
                       {row.user_email ?? '（无邮箱快照）'}
@@ -232,6 +277,27 @@ export default function EntitlementsManager() {
           onClose={() => setExtending(null)}
         />
       )}
+
+      <BulkBar
+        count={bulk.selected.size}
+        noun="条权益"
+        busy={bulkBusy}
+        onClear={bulk.clear}
+        actions={[{ key: 'revoke', text: '批量撤销', danger: true, onClick: () => setBulkConfirm(true) }]}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        title="批量撤销用户权益"
+        message={`确定要撤销选中的 ${bulk.selected.size} 条权益吗？撤销后用户的「我的库」会立即失去该权益，此操作不可恢复。`}
+        note="撤销会先作废关联卡密再删除权益行（防旧码重放复活）；被撤销的权益无法恢复，用户重输旧码或重新同步也不会复活。"
+        confirmText="撤销"
+        busy={bulkBusy}
+        onConfirm={handleBulkRevoke}
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirm(false);
+        }}
+      />
 
       <RevokeDialog
         row={revoking}

@@ -13,6 +13,14 @@ import {
 import CopyButton from '../CopyButton';
 import ConfirmDialog from '../ConfirmDialog';
 import {
+  BulkBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+  bulkDelete,
+  bulkResultText,
+  useBulkSelect,
+} from '../BulkBar';
+import {
   PageHeader,
   TableShell,
   LoadingRows,
@@ -132,6 +140,11 @@ export default function CardKeysManager() {
     null,
   );
   const [actionBusy, setActionBusy] = useState(false);
+
+  // 批量操作（勾选当前页 + 底部批量条）：作废 / 删除
+  const bulk = useBulkSelect((data?.items ?? []).map((r) => r.id));
+  const [bulkOp, setBulkOp] = useState<'void' | 'delete' | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   /** 清空卡密弹窗目标（点开时先拉取该商品实时库存统计） */
   const [clearTarget, setClearTarget] = useState<{
@@ -300,6 +313,24 @@ export default function CardKeysManager() {
   const toggleReveal = (id: string) =>
     setRevealed((r) => ({ ...r, [id]: !r[id] }));
 
+  /** 批量作废 / 批量删除选中卡密（后端逐条判状态：已发放不可删，提示改用作废） */
+  const runBulk = async () => {
+    if (!bulkOp || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDelete('card_keys', [...bulk.selected], bulkOp);
+      showNotice(r.failed.length === 0, bulkResultText(r, bulkOp === 'void' ? '作废' : '删除'));
+      setBulkOp(null);
+      bulk.clear();
+      setRevealed({});
+      await loadKeys();
+    } catch (e) {
+      showNotice(false, e instanceof Error ? e.message : '批量操作失败');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const items = data?.items ?? [];
 
   return (
@@ -429,6 +460,14 @@ export default function CardKeysManager() {
           <TableShell>
             <thead>
               <tr>
+                <th className={thCls}>
+                  <SelectAllCheckbox
+                    checked={bulk.allSelected}
+                    indeterminate={bulk.someSelected}
+                    onChange={bulk.toggleAll}
+                    label="全选当前页"
+                  />
+                </th>
                 <th className={thCls}>卡密内容</th>
                 <th className={thCls}>状态</th>
                 <th className={thCls}>所属商品</th>
@@ -440,10 +479,10 @@ export default function CardKeysManager() {
             </thead>
             <tbody>
               {data === null ? (
-                <LoadingRows colSpan={7} />
+                <LoadingRows colSpan={8} />
               ) : items.length === 0 ? (
                 <EmptyRow
-                  colSpan={7}
+                  colSpan={8}
                   text={
                     data.total > 0 || page > 1
                       ? '当前筛选条件下没有卡密'
@@ -459,6 +498,13 @@ export default function CardKeysManager() {
               ) : (
                 items.map((row) => (
                   <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                    <td className={tdCls}>
+                      <RowCheckbox
+                        checked={bulk.selected.has(row.id)}
+                        onChange={() => bulk.toggle(row.id)}
+                        label={`选择卡密 ${maskTail(row.content)}`}
+                      />
+                    </td>
                     <td className={tdCls}>
                       <div className="flex items-center gap-1.5">
                         <code className="whitespace-nowrap font-mono text-[13px] text-apple-text">
@@ -533,6 +579,38 @@ export default function CardKeysManager() {
           )}
         </>
       )}
+
+      <BulkBar
+        count={bulk.selected.size}
+        noun="把卡密"
+        busy={bulkBusy}
+        onClear={bulk.clear}
+        actions={[
+          { key: 'void', text: '批量作废', onClick: () => setBulkOp('void') },
+          { key: 'delete', text: '批量删除', danger: true, onClick: () => setBulkOp('delete') },
+        ]}
+      />
+
+      <ConfirmDialog
+        open={bulkOp !== null}
+        title={bulkOp === 'void' ? '批量作废卡密' : '批量删除卡密'}
+        message={
+          bulkOp === 'void'
+            ? `确定要作废选中的 ${bulk.selected.size} 把卡密吗？`
+            : `确定要永久删除选中的 ${bulk.selected.size} 把卡密吗？`
+        }
+        note={
+          bulkOp === 'void'
+            ? '作废后不再参与发放（未使用 / 已发放均可作废），可随时恢复。'
+            : '「已发放」的卡密不会被删除（买家可能尚未兑换），需要停用请改用「批量作废」。此操作不可恢复。'
+        }
+        confirmText={bulkOp === 'void' ? '作废' : '删除'}
+        busy={bulkBusy}
+        onConfirm={runBulk}
+        onClose={() => {
+          if (!bulkBusy) setBulkOp(null);
+        }}
+      />
 
       <ConfirmDialog
         open={Boolean(confirm)}

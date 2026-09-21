@@ -14,6 +14,14 @@ import ConfirmDialog from './ConfirmDialog';
 import ImageUploader from './ImageUploader';
 import FileUploader from './FileUploader';
 import {
+  BulkBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+  bulkDelete,
+  bulkResultText,
+  useBulkSelect,
+} from './BulkBar';
+import {
   Field,
   PageHeader,
   TableShell,
@@ -62,6 +70,11 @@ export default function ActivitiesManager() {
 
   const [deleting, setDeleting] = useState<Activity | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  // 批量删除（勾选 + 底部批量条）
+  const bulk = useBulkSelect((rows ?? []).map((r) => r.id));
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const noticeTimer = useRef<number | null>(null);
@@ -171,6 +184,23 @@ export default function ActivitiesManager() {
     }
   };
 
+  /** 批量删除选中活动（关联的卡密商品会被自动禁用） */
+  const handleBulkDelete = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDelete('activities', [...bulk.selected]);
+      showNotice(r.failed.length === 0, bulkResultText(r, '删除'));
+      setBulkConfirm(false);
+      bulk.clear();
+      await load();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -191,6 +221,14 @@ export default function ActivitiesManager() {
         <TableShell>
           <thead>
             <tr>
+              <th className={thCls}>
+                <SelectAllCheckbox
+                  checked={bulk.allSelected}
+                  indeterminate={bulk.someSelected}
+                  onChange={bulk.toggleAll}
+                  label="全选当前列表"
+                />
+              </th>
               <th className={thCls}>排序</th>
               <th className={thCls}>图片</th>
               <th className={thCls}>标题</th>
@@ -202,10 +240,10 @@ export default function ActivitiesManager() {
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={7} />
+              <LoadingRows colSpan={8} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={7}
+                colSpan={8}
                 text="还没有活动，新增后前台活动页即可展示"
                 createLabel="新增活动"
                 onCreate={openCreate}
@@ -213,6 +251,13 @@ export default function ActivitiesManager() {
             ) : (
               rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                  <td className={tdCls}>
+                    <RowCheckbox
+                      checked={bulk.selected.has(row.id)}
+                      onChange={() => bulk.toggle(row.id)}
+                      label={`选择「${row.title ?? row.description?.slice(0, 12) ?? '该活动'}」`}
+                    />
+                  </td>
                   <td className={tdCls}>{row.sort_order}</td>
                   <td className={tdCls}>
                     <Thumb src={row.image_url} alt={row.title ?? '活动图片'} />
@@ -343,6 +388,26 @@ export default function ActivitiesManager() {
           )}
         </form>
       </Modal>
+
+      <BulkBar
+        count={bulk.selected.size}
+        noun="个活动"
+        busy={bulkBusy}
+        onClear={bulk.clear}
+        actions={[{ key: 'delete', text: '批量删除', danger: true, onClick: () => setBulkConfirm(true) }]}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        title="批量删除活动"
+        message={`确定要删除选中的 ${bulk.selected.size} 个活动吗？此操作不可恢复。`}
+        note="删除后其关联的卡密商品会被自动禁用（已发卡密不受影响，但商品不再上架）；如需保留请先取消选择。"
+        busy={bulkBusy}
+        onConfirm={handleBulkDelete}
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirm(false);
+        }}
+      />
 
       <ConfirmDialog
         open={Boolean(deleting)}

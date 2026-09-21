@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
-import { CARD_KEY_STATUS, REDEEM_TYPE } from '@/lib/card-types';
+import { collectKeyIdsToVoid, voidKeys } from '@/lib/entitlements-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,13 +44,12 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (!row) return fail('权益不存在', 404);
 
   // 1. 先作废关联卡密（失败即中止，权益保持不动，可重试）
-  const keyIds = await collectKeyIdsToVoid(db, row);
-  if (keyIds.length > 0) {
-    const { error: voidErr } = await db
-      .from('card_keys')
-      .update({ status: CARD_KEY_STATUS.VOID, bound_user_id: null })
-      .in('id', keyIds);
-    if (voidErr) return fail(voidErr.message, 500);
+  let keyIds: string[] = [];
+  try {
+    keyIds = await collectKeyIdsToVoid(db, row);
+    await voidKeys(db, keyIds);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : '作废卡密失败', 500);
   }
 
   // 2. 再删权益行
@@ -61,46 +60,4 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (delErr) return fail(delErr.message, 500);
 
   return ok({ success: true, id: row.id, voided_keys: keyIds.length });
-}
-
-/**
- * 计算需要作废的卡密 id 集合：
- * - content：仅来源码；
- * - daily_plan：该用户绑定的全部「解锁每日计划」商品下的卡密（覆盖叠加兑换的多个码）。
- */
-async function collectKeyIdsToVoid(
-  db: ReturnType<typeof supabaseAdmin>,
-  ent: { user_id: string; kind: string; card_key_id: string | null },
-): Promise<string[]> {
-  if (ent.kind !== 'daily_plan') {
-    return ent.card_key_id ? [ent.card_key_id] : [];
-  }
-
-  const { data: boundKeys, error: keysErr } = await db
-    .from('card_keys')
-    .select('id, card_product_id')
-    .eq('bound_user_id', ent.user_id);
-  if (keysErr || !boundKeys || boundKeys.length === 0) {
-    return ent.card_key_id ? [ent.card_key_id] : [];
-  }
-
-  const rows = boundKeys as Array<{ id: string; card_product_id: string }>;
-  const productIds = Array.from(new Set(rows.map((k) => k.card_product_id)));
-  const { data: products, error: prodErr } = await db
-    .from('card_products')
-    .select('id, redeem_type')
-    .in('id', productIds);
-  if (prodErr || !products) return ent.card_key_id ? [ent.card_key_id] : [];
-
-  const unlockProductIds = new Set(
-    (products as Array<{ id: string; redeem_type: string }>)
-      .filter((p) => p.redeem_type === REDEEM_TYPE.UNLOCK_DAILY)
-      .map((p) => p.id),
-  );
-  const ids = rows
-    .filter((k) => unlockProductIds.has(k.card_product_id))
-    .map((k) => k.id);
-  // 兜底：来源码未在绑定集合中时也一并作废
-  if (ent.card_key_id && !ids.includes(ent.card_key_id)) ids.push(ent.card_key_id);
-  return ids;
 }

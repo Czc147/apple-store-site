@@ -16,6 +16,14 @@ import { classifyMedia, type MediaKind } from '@/lib/upload';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
+import {
+  BulkBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+  bulkDelete,
+  bulkResultText,
+  useBulkSelect,
+} from './BulkBar';
 import FileUploader from './FileUploader';
 import ImageUploader from './ImageUploader';
 import {
@@ -82,6 +90,11 @@ export default function SubscriptionReposManager() {
 
   const [deleting, setDeleting] = useState<SubscriptionProductAdminRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  // 批量删除（勾选 + 底部批量条）
+  const bulk = useBulkSelect((products ?? []).map((r) => r.id));
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [pushBusy, setPushBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -224,6 +237,23 @@ export default function SubscriptionReposManager() {
     }
   };
 
+  /** 批量删除选中订阅商品（仅影响该订阅仓库展示） */
+  const handleBulkDelete = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDelete('subscription_products', [...bulk.selected]);
+      showNotice(r.failed.length === 0, bulkResultText(r, '删除'));
+      setBulkConfirm(false);
+      bulk.clear();
+      await loadProducts();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handlePush = async () => {
     if (!selectedSub || pushBusy) return;
     setPushBusy(true);
@@ -259,6 +289,14 @@ export default function SubscriptionReposManager() {
       <TableShell>
         <thead>
           <tr>
+            <th className={thCls}>
+              <SelectAllCheckbox
+                checked={bulk.allSelected}
+                indeterminate={bulk.someSelected}
+                onChange={bulk.toggleAll}
+                label="全选当前列表"
+              />
+            </th>
             <th className={thCls}>排序</th>
             <th className={thCls}>标题</th>
             <th className={thCls}>封面</th>
@@ -269,10 +307,10 @@ export default function SubscriptionReposManager() {
         </thead>
         <tbody>
           {products === null ? (
-            <LoadingRows colSpan={6} />
+            <LoadingRows colSpan={7} />
           ) : products.length === 0 ? (
             <EmptyRow
-              colSpan={6}
+              colSpan={7}
               text="该订阅下还没有商品，新增后已解锁用户的仓库会自动同步"
               createLabel="新增商品"
               onCreate={openCreate}
@@ -280,6 +318,13 @@ export default function SubscriptionReposManager() {
           ) : (
             products.map((row) => (
               <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                <td className={tdCls}>
+                  <RowCheckbox
+                    checked={bulk.selected.has(row.id)}
+                    onChange={() => bulk.toggle(row.id)}
+                    label={`选择「${row.title}」`}
+                  />
+                </td>
                 <td className={tdCls}>{row.sort_order}</td>
                 <td className={`${tdCls} max-w-[220px] truncate font-medium`}>{row.title}</td>
                 <td className={tdCls}>
@@ -461,6 +506,26 @@ export default function SubscriptionReposManager() {
         onConfirm={handleDelete}
         onClose={() => {
           if (!deleteBusy) setDeleting(null);
+        }}
+      />
+
+      <BulkBar
+        count={bulk.selected.size}
+        noun="个订阅商品"
+        busy={bulkBusy}
+        onClear={bulk.clear}
+        actions={[{ key: 'delete', text: '批量删除', danger: true, onClick: () => setBulkConfirm(true) }]}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        title="批量删除订阅商品"
+        message={`确定要删除选中的 ${bulk.selected.size} 个订阅商品吗？删除后该订阅下不再展示，此操作不可恢复。`}
+        note="删除后不可恢复；如需保留请先取消选择。"
+        busy={bulkBusy}
+        onConfirm={handleBulkDelete}
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirm(false);
         }}
       />
 

@@ -15,6 +15,14 @@ import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import FileUploader from './FileUploader';
 import {
+  BulkBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+  bulkDelete,
+  bulkResultText,
+  useBulkSelect,
+} from './BulkBar';
+import {
   Field,
   PageHeader,
   TableShell,
@@ -124,6 +132,11 @@ export default function SubUnitsManager() {
       ? null
       : rows.filter((r) => !filterMajor || r.major_unit_id === filterMajor);
 
+  // 批量删除（勾选 + 底部批量条）：选中集只跟随当前筛选出的可见行
+  const bulk = useBulkSelect((visible ?? []).map((r) => r.id));
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
   const openCreate = () => {
     setEditing(null);
     setForm({ ...EMPTY_FORM, major_unit_id: majors[0]?.id ?? '' });
@@ -199,6 +212,23 @@ export default function SubUnitsManager() {
       setDeleting(null);
     } finally {
       setDeleteBusy(false);
+    }
+  };
+
+  /** 批量删除选中小单元（删除后其关联卡密商品会被触发器自动禁用） */
+  const handleBulkDelete = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDelete('sub_units', [...bulk.selected]);
+      showNotice(r.failed.length === 0, bulkResultText(r, '删除'));
+      setBulkConfirm(false);
+      bulk.clear();
+      await load();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -361,6 +391,14 @@ export default function SubUnitsManager() {
         <TableShell>
           <thead>
             <tr>
+              <th className={thCls}>
+                <SelectAllCheckbox
+                  checked={bulk.allSelected}
+                  indeterminate={bulk.someSelected}
+                  onChange={bulk.toggleAll}
+                  label="全选当前列表"
+                />
+              </th>
               <th className={thCls}>排序</th>
               <th className={thCls}>名称</th>
               <th className={thCls}>所属大单元</th>
@@ -371,10 +409,10 @@ export default function SubUnitsManager() {
           </thead>
           <tbody>
             {visible === null ? (
-              <LoadingRows colSpan={6} />
+              <LoadingRows colSpan={7} />
             ) : visible.length === 0 ? (
               <EmptyRow
-                colSpan={6}
+                colSpan={7}
                 text={rows?.length ? '当前筛选条件下没有小单元' : '还没有小单元，新增后前台即可选购'}
                 createLabel="新增小单元"
                 onCreate={openCreate}
@@ -382,6 +420,13 @@ export default function SubUnitsManager() {
             ) : (
               visible.map((row) => (
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                  <td className={tdCls}>
+                    <RowCheckbox
+                      checked={bulk.selected.has(row.id)}
+                      onChange={() => bulk.toggle(row.id)}
+                      label={`选择「${row.name}」`}
+                    />
+                  </td>
                   <td className={tdCls}>{row.sort_order}</td>
                   <td className={`${tdCls} font-medium`}>{row.name}</td>
                   <td className={tdCls}>
@@ -638,6 +683,26 @@ export default function SubUnitsManager() {
           )}
         </div>
       </Modal>
+
+      <BulkBar
+        count={bulk.selected.size}
+        noun="个小单元"
+        busy={bulkBusy}
+        onClear={bulk.clear}
+        actions={[{ key: 'delete', text: '批量删除', danger: true, onClick: () => setBulkConfirm(true) }]}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        title="批量删除小单元"
+        message={`确定要删除选中的 ${bulk.selected.size} 个小单元吗？删除后其关联卡密商品会被自动禁用，此操作不可恢复。`}
+        note="关联卡密商品会被自动禁用；已兑换用户的权益不受影响，但小单元删除后不可恢复。"
+        busy={bulkBusy}
+        onConfirm={handleBulkDelete}
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirm(false);
+        }}
+      />
 
       <ConfirmDialog
         open={Boolean(deleting)}

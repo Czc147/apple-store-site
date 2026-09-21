@@ -12,6 +12,14 @@ import { adminFetch, extractError } from '@/lib/admin-fetch';
 import { classifyMedia, type MediaKind } from '@/lib/upload';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
+import {
+  BulkBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+  bulkDelete,
+  bulkResultText,
+  useBulkSelect,
+} from './BulkBar';
 import FileUploader from './FileUploader';
 import ImageUploader from './ImageUploader';
 import {
@@ -89,6 +97,11 @@ export default function DailyPicksManager() {
 
   const [deleting, setDeleting] = useState<DailyPickAdminRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  // 批量删除（勾选 + 底部批量条）
+  const bulk = useBulkSelect((rows ?? []).map((r) => r.id));
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const noticeTimer = useRef<number | null>(null);
@@ -204,6 +217,23 @@ export default function DailyPicksManager() {
     }
   };
 
+  /** 批量删除选中每日推荐（无级联） */
+  const handleBulkDelete = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const r = await bulkDelete('daily_picks', [...bulk.selected]);
+      showNotice(r.failed.length === 0, bulkResultText(r, '删除'));
+      setBulkConfirm(false);
+      bulk.clear();
+      await load();
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -224,6 +254,14 @@ export default function DailyPicksManager() {
         <TableShell>
           <thead>
             <tr>
+              <th className={thCls}>
+                <SelectAllCheckbox
+                  checked={bulk.allSelected}
+                  indeterminate={bulk.someSelected}
+                  onChange={bulk.toggleAll}
+                  label="全选当前列表"
+                />
+              </th>
               <th className={thCls}>日期</th>
               <th className={thCls}>标题</th>
               <th className={thCls}>封面</th>
@@ -234,10 +272,10 @@ export default function DailyPicksManager() {
           </thead>
           <tbody>
             {rows === null ? (
-              <LoadingRows colSpan={6} />
+              <LoadingRows colSpan={7} />
             ) : rows.length === 0 ? (
               <EmptyRow
-                colSpan={6}
+                colSpan={7}
                 text="还没有每日推荐内容，新增后前台「每日推荐」区块即可展示"
                 createLabel="新增每日推荐"
                 onCreate={openCreate}
@@ -245,6 +283,13 @@ export default function DailyPicksManager() {
             ) : (
               rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
+                  <td className={tdCls}>
+                    <RowCheckbox
+                      checked={bulk.selected.has(row.id)}
+                      onChange={() => bulk.toggle(row.id)}
+                      label={`选择「${row.title}」`}
+                    />
+                  </td>
                   <td className={`${tdCls} whitespace-nowrap font-medium`}>
                     {row.pick_date}
                   </td>
@@ -407,6 +452,26 @@ export default function DailyPicksManager() {
         onConfirm={handleDelete}
         onClose={() => {
           if (!deleteBusy) setDeleting(null);
+        }}
+      />
+
+      <BulkBar
+        count={bulk.selected.size}
+        noun="条每日推荐"
+        busy={bulkBusy}
+        onClear={bulk.clear}
+        actions={[{ key: 'delete', text: '批量删除', danger: true, onClick: () => setBulkConfirm(true) }]}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        title="批量删除每日推荐"
+        message={`确定要删除选中的 ${bulk.selected.size} 条每日推荐吗？此操作不可恢复。`}
+        note="删除后不可恢复；如需保留请先取消选择。"
+        busy={bulkBusy}
+        onConfirm={handleBulkDelete}
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirm(false);
         }}
       />
 
