@@ -91,21 +91,33 @@ async function consumeIfUnused(
 
 /**
  * CAS 绑定账号：仅当 bound_user_id 为 null 时写入 userId。
- * 返回 fresh=本次是否新绑定（已被他人绑定 / 已是本人时 false）。
+ * 返回 fresh=本次是否新绑定；已被绑定时回传 boundTo（现持有者 user id），
+ * 供调用方判断「码本来就是本人的」——用户删过权益行时用它补写（同码可恢复）。
  */
 async function bindKeyToUser(
   db: ReturnType<typeof supabaseAdmin>,
   keyId: string,
   userId: string,
-): Promise<{ fresh: boolean; error?: string }> {
+): Promise<{ fresh: boolean; boundTo: string | null; error?: string }> {
   const { data, error } = await db
     .from('card_keys')
     .update({ bound_user_id: userId })
     .eq('id', keyId)
     .is('bound_user_id', null)
     .select('id');
-  if (error) return { fresh: false, error: error.message };
-  return { fresh: (data ?? []).length > 0 };
+  if (error) return { fresh: false, boundTo: null, error: error.message };
+  if ((data ?? []).length > 0) return { fresh: true, boundTo: userId };
+
+  const { data: cur, error: readErr } = await db
+    .from('card_keys')
+    .select('bound_user_id')
+    .eq('id', keyId)
+    .maybeSingle();
+  if (readErr) return { fresh: false, boundTo: null, error: readErr.message };
+  return {
+    fresh: false,
+    boundTo: (cur as { bound_user_id: string | null } | null)?.bound_user_id ?? null,
+  };
 }
 
 /**
@@ -121,6 +133,8 @@ async function bindKeyToUser(
  *
  * 若请求带 Bearer（已登录）：顺带 CAS 绑定账号并写入「我的库」权益；
  * 游客兑换不落权益（本地库保存码，登录后经 /api/library/sync 补绑）。
+ * 内容类权益为「同码幂等写入」：码本已绑给本人时也补写一次，
+ * 所以用户在我的库里删掉的条目，重新输入同一码即可恢复。
  *
  * 响应：
  * - content：{ result_type:'content', product_name, product_description, image_url, redeemed_now, bound }
@@ -380,7 +394,10 @@ async function handleContent(
   if (user) {
     const bind = await bindKeyToUser(db, target.id, user.id);
     if (bind.error) return fail(bind.error, 500);
-    if (bind.fresh) {
+    // 新绑定，或码本就绑给本人（重复查看 / 用户删过该条目）都写一次：
+    // 同码幂等（uq_entitlements_content_key 兜底，23505 忽略），
+    // 于是「用户在我的内容里删掉 → 重新兑换」即可恢复条目。
+    if (bind.fresh || bind.boundTo === user.id) {
       const { error: entErr } = await db.from('user_entitlements').insert({
         user_id: user.id,
         user_email: user.email,
@@ -393,7 +410,7 @@ async function handleContent(
         target_id: targetId,
         source: 'redeem',
       });
-      // 23505 = 同用户同码已有权益（并发/重复）→ 幂等忽略
+      // 23505 = 同用户同码已有权益（并发/重复/未删除）→ 幂等忽略
       if (entErr && entErr.code !== '23505') return fail(entErr.message, 500);
     }
   }

@@ -60,6 +60,20 @@ export async function fetchLibrary(
   }
 }
 
+/** 删除「我的内容」中的一条权益（成功返回 true；失败/未登录返回 false） */
+export async function deleteLibraryContent(
+  getAuthHeaders: () => Promise<Record<string, string>>,
+  id: string,
+): Promise<boolean> {
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/library/entitlements/${id}`, { method: 'DELETE', headers });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** 把本机码同步到账号，返回逐码结果（失败返回 null） */
 export async function syncLibrary(
   getAuthHeaders: () => Promise<Record<string, string>>,

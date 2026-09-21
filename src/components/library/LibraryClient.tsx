@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useLocalLibrary, type LocalSubscriptionItem } from '@/lib/unlocks';
 import {
+  deleteLibraryContent,
   fetchLibrary,
   syncLibrary,
   type LibraryProduct,
@@ -109,6 +110,20 @@ export default function LibraryClient() {
     // 已登录兑换：服务端已落库，重新拉取权威权益以刷新「我的库」
     if (user) void loadLibrary();
   }, [user, loadLibrary]);
+
+  // 删除「我的内容」一条：成功后本地摘掉该行（不重拉整库，删失败保持原样）
+  const handleDeleteContent = useCallback(
+    async (id: string) => {
+      const okDelete = await deleteLibraryContent(getAuthHeaders, id);
+      if (okDelete) {
+        setData((d) =>
+          d ? { ...d, contents: d.contents.filter((c) => c.id !== id) } : d,
+        );
+      }
+      return okDelete;
+    },
+    [getAuthHeaders],
+  );
 
   if (loading) {
     return (
@@ -307,11 +322,11 @@ export default function LibraryClient() {
             </section>
           )}
 
-          {/* 我的内容 */}
+          {/* 我的内容（登录态带删除入口；订阅不支持删，故只在内容区给） */}
           {contents.length > 0 && (
             <section className={subscriptions.length > 0 ? 'mt-6' : ''}>
               <SectionHeader title="我的内容" count={contents.length} />
-              <ContentsView contents={contents} />
+              <ContentsView contents={contents} onDelete={handleDeleteContent} />
             </section>
           )}
 

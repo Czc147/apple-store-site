@@ -7,13 +7,17 @@ import {
   Image as ImageIcon,
   Inbox,
   StickyNote,
+  Trash2,
   Video,
   X,
 } from 'lucide-react';
 import { classifyMedia } from '@/lib/upload';
+import BottomSheet from '@/components/ui/BottomSheet';
+import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import IconButton from '@/components/ui/IconButton';
 import ListRow from '@/components/ui/ListRow';
+import Message from '@/components/ui/Message';
 import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
 import { cn } from '@/lib/cn';
 
@@ -51,16 +55,57 @@ function kindOf(item: ContentItem): Kind {
  * - 图片走 2 列网格（object-contain 不裁剪，点击全屏预览，预览里带名称/说明/备注）
  * - 纯文字内容（无附件）走整块文字卡，只归入「全部」，展示说明与备注全文
  * - 视频/文档走 ListRow（subtitle 显示 description，下方备注块显示统一备注）
+ * - 登录态（传了 onDelete）时每张卡带删除入口 → 确认弹层 → 调后端删权益行；
+ *   删除不作废卡密，重新兑换同码即可恢复（服务端同码幂等补写）
  * audit 收敛：Tab 命中 33px → 44pt；lightbox 遮罩/z/关闭钮走 token +
  * IconButton(on-dark) + 补 Esc 关闭；行卡 → ListRow primitive；
  * 分类空态裸文字 → EmptyState(inline)。
  */
-export default function ContentsView({ contents }: { contents: ContentItem[] }) {
+export default function ContentsView({
+  contents,
+  onDelete,
+}: {
+  contents: ContentItem[];
+  /** 删除一条权益（登录态由 LibraryClient 传入；游客视图不传 = 不显示删除入口） */
+  onDelete?: (id: string) => Promise<boolean>;
+}) {
   const [tab, setTab] = useState<Tab>('all');
   const [lightbox, setLightbox] = useState<ContentItem | null>(null);
+  // 待确认删除的条目（弹层 + 请求状态）
+  const [pendingDelete, setPendingDelete] = useState<ContentItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   // Portal 挂载标记：SSR 无 document.body 可挂
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  const confirmDelete = async () => {
+    if (!pendingDelete || !onDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    const okDelete = await onDelete(pendingDelete.id);
+    setDeleting(false);
+    if (okDelete) {
+      setPendingDelete(null);
+      if (lightbox?.id === pendingDelete.id) setLightbox(null);
+    } else {
+      setDeleteError('删除失败，请检查网络后重试');
+    }
+  };
+
+  const closeDelete = () => {
+    if (deleting) return;
+    setPendingDelete(null);
+    setDeleteError('');
+  };
+
+  /** 请求删除（无 onDelete 时返回 undefined，卡片不渲染删除入口） */
+  const requestDelete = onDelete
+    ? (item: ContentItem) => {
+        setDeleteError('');
+        setPendingDelete(item);
+      }
+    : undefined;
 
   // lightbox 打开时支持 Esc 关闭（原本只能点击关闭）
   useEffect(() => {
@@ -132,24 +177,35 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
           {images.length > 0 && (
             <div className="mt-3 grid grid-cols-2 gap-3">
               {images.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setLightbox(c)}
-                  aria-label={`全屏预览「${c.name ?? '图片'}」`}
-                  className="group overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card transition-[transform,box-shadow,border-color] duration-base ease-apple hover:border-apple-blue/40 hover:shadow-card-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={c.media_url as string}
-                    alt={c.name ?? '图片'}
-                    loading="lazy"
-                    className="aspect-square w-full bg-apple-bg object-contain"
-                  />
-                  <p className="truncate px-2.5 py-2 text-center text-xs text-apple-text-2">
-                    {c.name ?? '图片'}
-                  </p>
-                </button>
+                // 删除钮不能嵌在卡片的 <button> 里（按钮不能嵌套），外层再包一层
+                <div key={c.id} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setLightbox(c)}
+                    aria-label={`全屏预览「${c.name ?? '图片'}」`}
+                    className="group w-full overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card transition-[transform,box-shadow,border-color] duration-base ease-apple hover:border-apple-blue/40 hover:shadow-card-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={c.media_url as string}
+                      alt={c.name ?? '图片'}
+                      loading="lazy"
+                      className="aspect-square w-full bg-apple-bg object-contain"
+                    />
+                    <p className="truncate px-2.5 py-2 text-center text-xs text-apple-text-2">
+                      {c.name ?? '图片'}
+                    </p>
+                  </button>
+                  {requestDelete && (
+                    <IconButton
+                      icon={Trash2}
+                      label={`删除「${c.name ?? '图片'}」`}
+                      variant="filled"
+                      onClick={() => requestDelete(c)}
+                      className="absolute right-0.5 top-0.5"
+                    />
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -158,7 +214,7 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
           {texts.length > 0 && (
             <div className={cn('space-y-2.5', images.length > 0 && 'mt-3')}>
               {texts.map((c) => (
-                <TextCard key={c.id} item={c} />
+                <TextCard key={c.id} item={c} onRequestDelete={requestDelete} />
               ))}
             </div>
           )}
@@ -172,7 +228,7 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
               )}
             >
               {rows.map((c) => (
-                <RowCard key={c.id} item={c} />
+                <RowCard key={c.id} item={c} onRequestDelete={requestDelete} />
               ))}
             </div>
           )}
@@ -231,6 +287,47 @@ export default function ContentsView({ contents }: { contents: ContentItem[] }) 
         </div>,
         document.body,
       )}
+
+      {/* 删除确认（BottomSheet 统一弹层：实底白面板 + scrim + 锁滚动 + Portal） */}
+      <BottomSheet
+        open={Boolean(pendingDelete)}
+        onClose={closeDelete}
+        title="删除内容"
+      >
+        <div className="px-6 pb-5">
+          <p className="text-sm leading-relaxed text-apple-text">
+            确定要删除「{pendingDelete?.name ?? '这条内容'}」吗？
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-apple-text-3">
+            删除后不再显示在「我的内容」里；卡密不会被作废，之后重新兑换同一张卡密即可恢复。
+          </p>
+          {deleteError && (
+            <Message tone="error" className="mt-3">
+              {deleteError}
+            </Message>
+          )}
+          <div className="mt-4 flex gap-3">
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              disabled={deleting}
+              onClick={closeDelete}
+            >
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              size="lg"
+              fullWidth
+              loading={deleting}
+              onClick={() => void confirmDelete()}
+            >
+              {deleting ? '删除中…' : '删除'}
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
     </div>
   );
 }
@@ -250,7 +347,13 @@ function NoteBlock({ note, className }: { note: string; className?: string }) {
 }
 
 /** 视频 / 文档 / 纯内容 行卡（ListRow：图标芯片 + 标题/描述 + 外链动作 + 备注块） */
-function RowCard({ item }: { item: ContentItem }) {
+function RowCard({
+  item,
+  onRequestDelete,
+}: {
+  item: ContentItem;
+  onRequestDelete?: (item: ContentItem) => void;
+}) {
   const kind = kindOf(item);
   const Icon = kind === 'video' ? Video : kind === 'doc' ? FileText : ImageIcon;
   const label = kind === 'video' ? '视频' : kind === 'doc' ? '文档' : '内容';
@@ -267,9 +370,18 @@ function RowCard({ item }: { item: ContentItem }) {
         title={item.name ?? label}
         subtitle={item.description ?? undefined}
         trailing={
-          item.media_url && kind !== 'image' ? (
-            <ExternalLinkAction href={item.media_url}>打开</ExternalLinkAction>
-          ) : undefined
+          <span className="flex items-center gap-1">
+            {item.media_url && kind !== 'image' && (
+              <ExternalLinkAction href={item.media_url}>打开</ExternalLinkAction>
+            )}
+            {onRequestDelete && (
+              <IconButton
+                icon={Trash2}
+                label={`删除「${item.name ?? label}」`}
+                onClick={() => onRequestDelete(item)}
+              />
+            )}
+          </span>
         }
       />
       {item.note && <NoteBlock note={item.note} className="mx-4 mb-3" />}
@@ -278,7 +390,13 @@ function RowCard({ item }: { item: ContentItem }) {
 }
 
 /** 纯文字内容卡（无附件）：名称 + 说明全文 + 备注全文，没有「打开」入口 */
-function TextCard({ item }: { item: ContentItem }) {
+function TextCard({
+  item,
+  onRequestDelete,
+}: {
+  item: ContentItem;
+  onRequestDelete?: (item: ContentItem) => void;
+}) {
   return (
     <div className="rounded-card border border-apple-border bg-apple-card p-4 shadow-card">
       <div className="flex items-start gap-3">
@@ -293,6 +411,14 @@ function TextCard({ item }: { item: ContentItem }) {
             </p>
           )}
         </div>
+        {onRequestDelete && (
+          <IconButton
+            icon={Trash2}
+            label={`删除「${item.name ?? '内容'}」`}
+            onClick={() => onRequestDelete(item)}
+            className="-mr-1.5 -mt-1"
+          />
+        )}
       </div>
       {item.note && <NoteBlock note={item.note} className="mt-3" />}
     </div>
