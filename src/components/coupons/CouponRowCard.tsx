@@ -1,6 +1,7 @@
 'use client';
 
 import { formatExpiry } from '@/lib/format';
+import { daysUntilExpiry } from './coupon-row-adapter';
 import { COUPON_TYPE, couponThresholdText, type CouponWithState } from '@/lib/coupon-types';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
@@ -39,6 +40,10 @@ export default function CouponRowCard({
 }) {
   const expired = Boolean(coupon.valid_to && Date.now() > Date.parse(coupon.valid_to));
   const badge = claimStateBadge(coupon.my_claim, expired);
+  // 被动到期提醒：3 天内到期且还可用时，有效期行标红并写明「N 天后过期」
+  const daysLeft = daysUntilExpiry(coupon.valid_to);
+  const expiringSoon =
+    daysLeft !== null && daysLeft >= 0 && daysLeft <= 3 && !expired && !coupon.my_claim?.used_at;
   const soldOut = coupon.remaining !== null && coupon.remaining <= 0;
 
   return (
@@ -64,8 +69,14 @@ export default function CouponRowCard({
           {couponThresholdText(coupon)}
           {coupon.remaining !== null && ` · 剩 ${coupon.remaining} 张`}
         </p>
-        <p className="mt-0.5 text-2xs text-apple-text-3">
+        <p
+          className={cn(
+            'mt-0.5 text-2xs',
+            expiringSoon ? 'font-medium text-apple-danger' : 'text-apple-text-3',
+          )}
+        >
           {coupon.valid_to ? `有效期至 ${formatExpiry(coupon.valid_to)}` : '长期有效'}
+          {expiringSoon && (daysLeft === 0 ? ' · 今天到期' : ` · ${daysLeft} 天后过期`)}
           {expired && ' · 已过期'}
         </p>
       </div>

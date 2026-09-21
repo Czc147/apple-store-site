@@ -43,3 +43,28 @@ export function sortMyCoupons(items: MyCouponItem[]): MyCouponItem[] {
 export function countAvailable(items: MyCouponItem[]): number {
   return items.filter((i) => i.status === 'available').length;
 }
+
+/**
+ * 还剩几天到期（今天到期 = 0；已过期 = 负数；无有效期 = null）。
+ * 用 floor 而非 ceil：不足 24 小时的（比如 2 小时后到期）算「今天到期」，
+ * ceil 会把它说成「1 天后过期」——那是会误导用户的说法。
+ */
+export function daysUntilExpiry(validTo: string | null | undefined, now: number = Date.now()): number | null {
+  if (!validTo) return null;
+  const t = Date.parse(validTo);
+  if (!Number.isFinite(t)) return null;
+  return Math.floor((t - now) / 86400000);
+}
+
+/**
+ * 即将过期张数（被动提醒用，UI 升级后的增量）：
+ * 只数「还可用、且 ≤ 阈值天数」的券——已用/已过期不算。
+ * 放到我的券卡片的收起态上，用户不用展开就能看到该赶紧用了。
+ */
+export function countExpiringSoon(items: MyCouponItem[], withinDays = 3): number {
+  return items.filter((i) => {
+    if (i.status !== 'available') return false;
+    const d = daysUntilExpiry(i.coupon.valid_to);
+    return d !== null && d >= 0 && d <= withinDays;
+  }).length;
+}

@@ -8,6 +8,7 @@ import Surface from '@/components/ui/Surface';
 import CouponRowCard, { claimStateBadge } from '@/components/coupons/CouponRowCard';
 import {
   countAvailable,
+  countExpiringSoon,
   sortMyCoupons,
   toCouponRow,
   type MyCouponItem,
@@ -52,6 +53,7 @@ export default function MyCouponsCard() {
   if (!user || !items || items.length === 0) return null;
 
   const available = countAvailable(items);
+  const expiringSoon = countExpiringSoon(items);
   const expiredCount = items.filter((i) => i.status === 'expired').length;
 
   return (
@@ -72,6 +74,13 @@ export default function MyCouponsCard() {
             {available > 0 ? `${available} 张可用` : '暂无可用'}
             {items.length > available && ` · 共 ${items.length} 张`}
             {expiredCount > 0 && available === 0 && '（已过期）'}
+            {/* 被动到期提醒（§无定时任务的降级）：收起态即可见 */}
+            {expiringSoon > 0 && (
+              <span className="font-medium text-apple-danger">
+                {' · '}
+                {expiringSoon} 张即将过期
+              </span>
+            )}
           </span>
         </span>
         <ChevronDown
