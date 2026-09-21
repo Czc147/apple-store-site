@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { resolveTargetContent } from '@/lib/card-targets';
+import { consumeClaimForOrder } from '@/lib/coupons-server';
 import { ORDER_TYPE } from '@/lib/order-types';
 import type { Order, OrderItem } from '@/lib/order-types';
 
@@ -157,6 +158,15 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     .update({ status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', orderId);
   if (paidErr) return fail(paidErr.message, 500);
+
+  // 核销本单占用的优惠券（写 used_at；失败不阻断确认，可在订单页重试确认）
+  if ((order as Order).coupon_code) {
+    try {
+      await consumeClaimForOrder(db, orderId);
+    } catch (e) {
+      console.warn('[order-confirm] 核销优惠券失败:', e instanceof Error ? e.message : e);
+    }
+  }
 
   await writeNotification(order as Order, orderItems.length, totalKeys);
 

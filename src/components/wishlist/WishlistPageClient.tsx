@@ -91,6 +91,13 @@ export default function WishlistPageClient() {
   if (items.length === 0) {
     return (
       <div className="px-page">
+        {/* 推送成功后愿望单被清空 → 这里是用户实际停留的空态，
+            提示必须放在这一支，否则「订单已成功推送」永远看不到（本次修复） */}
+        {pushedOrder && (
+          <Message tone="success" title="订单已成功推送" className="mb-4">
+            订单号 {pushedOrder}。我们确认收款后会自动把卡密发送到您的「我的库」。
+          </Message>
+        )}
         <EmptyState
           icon={Heart}
           title="愿望单还是空的"

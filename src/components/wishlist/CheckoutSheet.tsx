@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import type { WishlistItem } from '@/lib/wishlist';
 import type { PaymentMethod } from '@/lib/order-types';
 import { formatPrice } from '@/lib/format';
 import BottomSheet from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import PaymentMethodBody from '@/components/checkout/PaymentMethodBody';
+import CouponCodeInput, { type AppliedCoupon } from '@/components/checkout/CouponCodeInput';
 
 interface CheckoutSheetProps {
   open: boolean;
@@ -29,15 +31,22 @@ export default function CheckoutSheet({
   items,
   onOrderCreated,
 }: CheckoutSheetProps) {
+  // 优惠码（需求 6）：服务端试算通过后才记下来，下单时带 coupon_code
+  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const payable = coupon ? coupon.payable : total;
+
+  const orderItems = items.map((i) => ({
+    ref_type: 'sub_unit' as const,
+    ref_id: i.sub_unit_id,
+    quantity: i.quantity,
+  }));
 
   const buildBody = (method: PaymentMethod) => ({
-    items: items.map((i) => ({
-      ref_type: 'sub_unit' as const,
-      ref_id: i.sub_unit_id,
-      quantity: i.quantity,
-    })),
+    items: orderItems,
     payment_method: method,
+    ...(coupon ? { coupon_code: coupon.code } : {}),
   });
 
   return (
@@ -60,9 +69,32 @@ export default function CheckoutSheet({
           ))}
         </ul>
 
+        {/* 优惠码（需求 6）：一人一码，服务端试算权威校验 */}
+        <div className="mt-4">
+          <CouponCodeInput items={orderItems} applied={coupon} onChange={setCoupon} />
+        </div>
+
+        {/* 金额明细：原价 / 优惠 / 实付（无券时只显示合计，与既有版式一致） */}
+        {coupon && (
+          <div className="mt-3 space-y-1 rounded-card border border-apple-border bg-apple-bg px-3.5 py-3 text-sm">
+            <div className="flex items-center justify-between text-apple-text-2">
+              <span>商品合计</span>
+              <span className="tabular-nums">{formatPrice(coupon.original_total)}</span>
+            </div>
+            <div className="flex items-center justify-between text-apple-success">
+              <span>优惠</span>
+              <span className="tabular-nums">-{formatPrice(coupon.discount_amount)}</span>
+            </div>
+            <div className="flex items-center justify-between font-semibold text-apple-text">
+              <span>实付</span>
+              <span className="tabular-nums">{formatPrice(coupon.payable)}</span>
+            </div>
+          </div>
+        )}
+
         <div className="mt-4">
           <PaymentMethodBody
-            total={total}
+            total={payable}
             buildBody={buildBody}
             onSuccess={onOrderCreated}
             loginFrom="/wishlist"

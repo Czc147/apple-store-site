@@ -239,9 +239,24 @@ export default function OrdersManager() {
                     </span>
                   </td>
                   <td className={tdCls}>
-                    <span className="whitespace-nowrap tabular-nums text-[14px] font-medium">
-                      {formatPrice(Number(row.total))}
-                    </span>
+                    {/* 有优惠券时：实付加粗 + 原价划线 + 券码（前后端同一口径：实付 = total - discount） */}
+                    {Number(row.discount_amount) > 0 ? (
+                      <div className="whitespace-nowrap">
+                        <span className="tabular-nums text-[14px] font-medium">
+                          {formatPrice(Number(row.total) - Number(row.discount_amount))}
+                        </span>
+                        <span className="ml-1.5 tabular-nums text-[12px] text-apple-text-3 line-through">
+                          {formatPrice(Number(row.total))}
+                        </span>
+                        <span className="mt-0.5 block font-mono text-[11.5px] text-apple-text-3">
+                          {row.coupon_code}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="whitespace-nowrap tabular-nums text-[14px] font-medium">
+                        {formatPrice(Number(row.total))}
+                      </span>
+                    )}
                   </td>
                   <td className={tdCls}>
                     <span className="text-[13px] text-apple-text-2">
@@ -333,6 +348,17 @@ export default function OrdersManager() {
           <p className="text-[14px] leading-relaxed text-apple-text">
             确认已收到订单「{action.order.order_no}」的付款吗？确认后将自动派发{' '}
             {totalQty(action.order)} 件内容到买家仓库（库存不足会被拦截）。
+          </p>
+        )}
+        {action && Number(action.order.discount_amount) > 0 && (
+          <p className="mt-2 rounded-lg bg-apple-bg/70 px-3 py-2 text-[13px] leading-relaxed text-apple-text-2">
+            本单用了优惠券 <span className="font-mono">{action.order.coupon_code}</span>：
+            原价 {formatPrice(Number(action.order.total))}，优惠{' '}
+            {formatPrice(Number(action.order.discount_amount))}，
+            <span className="font-medium text-apple-text">
+              实付 {formatPrice(Number(action.order.total) - Number(action.order.discount_amount))}
+            </span>
+            —— 请按实付金额核对到账，确认后该券自动核销。
           </p>
         )}
       </Modal>

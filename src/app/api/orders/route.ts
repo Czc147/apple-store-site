@@ -6,6 +6,8 @@ import { checkAdmin } from '@/lib/auth';
 import { getRequestUser } from '@/lib/user-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { notifyNewOrder } from '@/lib/serverchan';
+import { parseOrderItems, resolveOrderItems } from '@/lib/orders-server';
+import { lockClaimForOrder, validateCouponCode } from '@/lib/coupons-server';
 import {
   ORDER_TYPE,
   ORDER_STATUS,
@@ -13,7 +15,6 @@ import {
   type OrderType,
   type PaymentMethod,
   type OrderStatus,
-  type OrderCreateItem,
   type Order,
   type OrderItem,
 } from '@/lib/order-types';
@@ -23,9 +24,7 @@ export const dynamic = 'force-dynamic';
 const UNCONFIGURED_MSG =
   'SUPABASE_NOT_CONFIGURED：请先配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY';
 
-const VALID_REF_TYPES: OrderType[] = [ORDER_TYPE.SUB_UNIT, ORDER_TYPE.SUBSCRIPTION];
 const VALID_PAYMENT: PaymentMethod[] = [PAYMENT_METHOD.WECHAT, PAYMENT_METHOD.ALIPAY];
-const MAX_ITEMS = 20;
 
 /** 生成可读订单号：Z + 年月日时分秒 + 2 字节随机 hex（唯一冲突时重试） */
 function genOrderNo(): string {
@@ -49,12 +48,13 @@ interface TargetRow {
  * 业务闭环：前台结算弹窗选微信/支付宝 → 「推送订单」→ 本站建 order + order_items，
  * 并按行创建 card_deliveries（幂等键 order_id = "order_no:line_index"）供确认时派发。
  *
- * 请求体：{ items: [{ ref_type, ref_id, quantity }], payment_method }
+ * 请求体：{ items: [{ ref_type, ref_id, quantity }], payment_method, coupon_code? }
  * 校验：ref_type ∈ sub_unit|subscription；目标存在且有启用卡密商品；quantity 1–100。
- * 金额/名称由服务端按目标表现算（防篡改）。
+ * 金额/名称由服务端按目标表现算（防篡改）；带 coupon_code 时同一处校验并重算实付：
+ * total 存原价合计、discount_amount 存优惠金额（实付 = total - discount_amount）。
  * 库存不足不硬拦截（允许先建单后补货，确认环节再校验）。
  *
- * 响应 201：{ order_no, total, type, payment_method }
+ * 响应 201：{ order_no, total, discount_amount, payable, type, payment_method }
  */
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured()) return fail(UNCONFIGURED_MSG, 503);
@@ -72,66 +72,30 @@ export async function POST(req: NextRequest) {
     return fail('payment_method 必须为 wechat / alipay');
   }
 
-  const rawItems: unknown[] = Array.isArray(body.items) ? body.items : [];
-  if (rawItems.length === 0) return fail('订单没有商品');
-  if (rawItems.length > MAX_ITEMS) return fail(`一次最多下单 ${MAX_ITEMS} 个商品`);
-
   // 逐条解析 + 校验（订单类型必须一致：愿望单=sub_unit，订阅=subscription）
-  const items: OrderCreateItem[] = [];
-  let orderType: OrderType | null = null;
-  for (const raw of rawItems) {
-    const it = (raw ?? {}) as Record<string, unknown>;
-    const refType = it.ref_type as OrderType;
-    const refId = typeof it.ref_id === 'string' ? it.ref_id.trim() : '';
-    const quantity = it.quantity;
-    if (!VALID_REF_TYPES.includes(refType)) {
-      return fail('ref_type 必须为 sub_unit / subscription');
-    }
-    if (!refId) return fail('ref_id 为必填字段');
-    if (
-      typeof quantity !== 'number' ||
-      !Number.isInteger(quantity) ||
-      quantity < 1 ||
-      quantity > 100
-    ) {
-      return fail('quantity 必须为 1–100 的整数');
-    }
-    if (orderType && orderType !== refType) {
-      return fail('同一订单只能包含同类商品（小单元或订阅）');
-    }
-    orderType = refType;
-    items.push({ ref_type: refType, ref_id: refId, quantity });
-  }
+  const parsed = parseOrderItems(body.items);
+  if (!parsed.ok) return fail(parsed.error);
+  const { items, orderType } = parsed;
 
   const db = supabaseAdmin();
 
   // 解析每个目标：存在性 + 名称 + 金额（服务端现值） + 启用卡密商品
-  const resolved: Array<{
-    ref_type: OrderType;
-    ref_id: string;
-    quantity: number;
-    name: string;
-    price: string;
-    card_product_id: string;
-  }> = [];
+  const resolvedResult = await resolveOrderItems(db, items);
+  if (!resolvedResult.ok) return fail(resolvedResult.error, resolvedResult.status);
+  const { resolved } = resolvedResult;
+  const total = resolvedResult.total;
 
-  for (const item of items) {
-    const target = await resolveTarget(db, item);
-    if (!target) {
-      return fail(
-        item.ref_type === ORDER_TYPE.SUB_UNIT ? '商品不存在或已下架' : '订阅不存在或已下架',
-        409,
-      );
-    }
-    resolved.push({
-      ...item,
-      ...target,
-    });
+  // 优惠券（可选）：服务端权威校验 + 重算实付
+  const couponCode = typeof body.coupon_code === 'string' ? body.coupon_code.trim() : '';
+  let couponClaimId: string | null = null;
+  let discountAmount = 0;
+  if (couponCode) {
+    const check = await validateCouponCode(db, couponCode, user.id, Number(total));
+    if (!check.ok) return fail(check.error, check.status);
+    couponClaimId = check.claim.id;
+    discountAmount = check.discount;
   }
-
-  const total = resolved
-    .reduce((sum, r) => sum + Number(r.price) * r.quantity, 0)
-    .toFixed(2);
+  const payable = Math.round((Number(total) - discountAmount) * 100) / 100;
 
   // 建单：order 头 + order_items 行 + 每行一条 card_deliveries（幂等键）
   const orderNo = genOrderNo();
@@ -145,10 +109,21 @@ export async function POST(req: NextRequest) {
       type: orderType,
       payment_method: paymentMethod,
       status: 'pending',
+      coupon_code: couponCode || null,
+      discount_amount: discountAmount,
     })
     .select()
     .single();
   if (orderErr) return fail(orderErr.message, 500);
+
+  // 下单锁券（CAS）：并发下被抢先则回滚订单（订单行尚未写入，删头即可）
+  if (couponClaimId) {
+    const locked = await lockClaimForOrder(db, couponClaimId, (order as { id: string }).id);
+    if (!locked) {
+      await db.from('orders').delete().eq('id', (order as { id: string }).id);
+      return fail('该优惠码刚被另一笔订单使用，请重新选择', 409);
+    }
+  }
 
   for (let i = 0; i < resolved.length; i++) {
     const r = resolved[i];
@@ -178,7 +153,7 @@ export async function POST(req: NextRequest) {
 
   // 新订单通知（Server酱 → 微信）：后台配置了 SendKey 才发；失败静默，不阻塞下单成功
   try {
-    await notifyNewOrder(db, orderNo, Number(total), resolved.length, paymentMethod);
+    await notifyNewOrder(db, orderNo, payable, resolved.length, paymentMethod);
   } catch {
     /* 推送失败不影响下单结果 */
   }
@@ -187,43 +162,13 @@ export async function POST(req: NextRequest) {
     {
       order_no: orderNo,
       total: Number(total),
+      discount_amount: discountAmount,
+      payable,
       type: orderType,
       payment_method: paymentMethod,
     },
     201,
   );
-}
-
-/** 解析目标：存在性 + 名称 + 金额 + 启用卡密商品；目标缺失返回 null */
-async function resolveTarget(
-  db: ReturnType<typeof supabaseAdmin>,
-  item: OrderCreateItem,
-): Promise<{ name: string; price: string; card_product_id: string } | null> {
-  const table = item.ref_type === ORDER_TYPE.SUB_UNIT ? 'sub_units' : 'subscriptions';
-  const { data: target, error } = await db
-    .from(table)
-    .select('name, price')
-    .eq('id', item.ref_id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!target) return null;
-
-  // 目标上必须挂了一个「启用」的卡密商品（确认时靠它派发）
-  const { data: prod, error: prodErr } = await db
-    .from('card_products')
-    .select('id')
-    .eq('target_type', item.ref_type)
-    .eq('target_id', item.ref_id)
-    .eq('enabled', true)
-    .maybeSingle();
-  if (prodErr) throw new Error(prodErr.message);
-  if (!prod) return null;
-
-  return {
-    name: (target as { name: string }).name,
-    price: String((target as { price: string }).price),
-    card_product_id: (prod as { id: string }).id,
-  };
 }
 
 const VALID_TYPES: OrderType[] = Object.values(ORDER_TYPE);

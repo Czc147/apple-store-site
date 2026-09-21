@@ -44,7 +44,12 @@ export interface Order {
   order_no: string;
   user_id: string;
   user_email: string | null;
+  /** 行项原价合计（语义不变）；实付 = total - discount_amount */
   total: number | string;
+  /** 使用的优惠券专属码快照（迁移 022）；无券为 null */
+  coupon_code: string | null;
+  /** 优惠金额（元）；无券为 0 */
+  discount_amount: number | string;
   type: OrderType;
   payment_method: PaymentMethod;
   status: OrderStatus;
