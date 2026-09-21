@@ -272,17 +272,23 @@ export function Pagination({
   );
 }
 
-/** 管理页标题栏：标题 + 描述 + 右侧新增按钮（新增按钮可选：无新增入口的页面省略） */
+/**
+ * 管理页标题栏：标题 + 描述 + 右侧操作区。
+ * - createLabel/onCreate：主操作（蓝色「＋」按钮，无新增入口的页面省略）
+ * - secondaryAction：并列的次要操作（如卡密库存页的「生成卡密」）
+ */
 export function PageHeader({
   title,
   description,
   createLabel,
   onCreate,
+  secondaryAction,
 }: {
   title: string;
   description: string;
   createLabel?: string;
   onCreate?: () => void;
+  secondaryAction?: ReactNode;
 }) {
   return (
     <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -292,13 +298,18 @@ export function PageHeader({
         </h1>
         <p className="mt-1 text-[13px] text-apple-text-2">{description}</p>
       </div>
-      {createLabel && onCreate && (
-        <button type="button" onClick={onCreate} className={btnPrimary}>
-          <span className="text-[16px] leading-none" aria-hidden>
-            ＋
-          </span>
-          {createLabel}
-        </button>
+      {(secondaryAction || (createLabel && onCreate)) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {secondaryAction}
+          {createLabel && onCreate && (
+            <button type="button" onClick={onCreate} className={btnPrimary}>
+              <span className="text-[16px] leading-none" aria-hidden>
+                ＋
+              </span>
+              {createLabel}
+            </button>
+          )}
+        </div>
       )}
     </header>
   );

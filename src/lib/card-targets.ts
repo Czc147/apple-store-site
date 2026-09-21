@@ -27,7 +27,7 @@ export interface TargetInfo {
 type Targeted = Pick<CardProduct, 'id' | 'target_type' | 'target_id'>;
 
 /** 活动展示名：优先 title，回退 description 首行 */
-function activityName(title: string | null, description: string | null): string {
+export function activityName(title: string | null, description: string | null): string {
   if (title && title.trim()) return title.trim();
   const firstLine = description?.split(/\r?\n/).find((l) => l.trim());
   return firstLine?.trim() || '未命名活动';

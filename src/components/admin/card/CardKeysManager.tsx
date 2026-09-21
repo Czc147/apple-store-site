@@ -315,6 +315,15 @@ export default function CardKeysManager() {
               : '/admin/card-management/keys/import',
           )
         }
+        secondaryAction={
+          <button
+            type="button"
+            className={btnGhost}
+            onClick={() => router.push('/admin/card-management/keys/generate')}
+          >
+            生成卡密
+          </button>
+        }
       />
 
       {/* 筛选区 */}
