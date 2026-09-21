@@ -54,9 +54,14 @@ export default function TabBar() {
   useEffect(() => setMounted(true), []);
 
   // 彩虹反射（§7.3）：pathname 变化时，仅让「当前激活的那个图标」播一次，
-  // 300ms 后撤下覆盖层（动画本身起止全透明，撤下不会闪）
+  // 300ms 后撤下覆盖层（动画本身起止全透明，撤下不会闪）。
+  // §7.6 减弱动态效果：直接跳过反射（不渲染覆盖层），只保留灰→蓝的颜色切换
   const [sweepHref, setSweepHref] = useState<string | null>(null);
   useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setSweepHref(null);
+      return;
+    }
     setSweepHref(pathname);
     const t = window.setTimeout(() => setSweepHref(null), 300);
     return () => window.clearTimeout(t);

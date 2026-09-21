@@ -15,18 +15,47 @@ import DataError from '@/components/ui/DataError';
 import NewPostComposer from './NewPostComposer';
 import PostCard from './PostCard';
 
-/** 骨架与真实布局同构（发帖框 + 帖子卡），避免加载完成跳变 */
+/** 骨架与真实布局同构（发帖框 + 帖子卡 + 作者行/正文/操作行，UI 升级 §9.5），避免加载完成跳变 */
 function CommunitySkeleton() {
   return (
     <div className="space-y-3" aria-busy="true" aria-live="polite" aria-label="社区加载中">
-      <div className="skeleton h-[108px] rounded-card" />
-      <div className="skeleton h-36 rounded-card" />
-      <div className="skeleton h-36 rounded-card" />
+      {/* 发帖入口 */}
+      <div className="rounded-card-lg bg-apple-card p-3 sm:p-4">
+        <div className="skeleton h-16 w-full rounded-input" />
+        <div className="mt-2 flex justify-end">
+          <div className="skeleton h-9 w-20 rounded-btn" />
+        </div>
+      </div>
+      {/* 帖子卡 ×2 */}
+      {[0, 1].map((i) => (
+        <div key={i} className="rounded-card-lg bg-apple-card p-4 sm:p-5">
+          <div className="flex items-center gap-2.5">
+            <div className="skeleton h-9 w-9 rounded-full" />
+            <div className="space-y-1.5">
+              <div className="skeleton h-3.5 w-24 rounded-full" />
+              <div className="skeleton h-3 w-16 rounded-full" />
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="skeleton h-4 w-full rounded-full" />
+            <div className="skeleton h-4 w-4/5 rounded-full" />
+          </div>
+          {/* 操作行：真实行高 44px，内容只有小号图标 + 计数 */}
+          <div className="mt-2 flex h-11 items-center gap-3">
+            <div className="skeleton h-4 w-10 rounded-full" />
+            <div className="skeleton h-4 w-12 rounded-full" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/** 社区页主体：发帖框 + 帖子流（置顶在前）；发帖/点赞/评论/删帖即时更新 */
+/**
+ * 社区页主体：发帖框 + 帖子流（置顶在前）；发帖/点赞/评论/删帖即时更新。
+ * UI 升级 §8.5：阅读优先、减少装饰 —— 白底阅读面（卡片自带圆角，无描边/投影），
+ * 发帖入口与内容流同一材质，层级靠背景差异而非卡片装饰。数据流与业务逻辑不变。
+ */
 export default function CommunityClient() {
   const { user, getAuthHeaders } = useAuth();
   const [posts, setPosts] = useState<CommunityPost[] | null>(null);

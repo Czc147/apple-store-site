@@ -27,6 +27,8 @@ interface CommentListProps {
  * audit 收敛：气泡 rounded-card(20px 用在 30px 小元素) → rounded-input；
  * 删除钮 ~16px / 发送钮 36px 命中 → 44pt；输入框 focus 方案 B(仅边框) →
  * 方案 A(边框+ring)；材质统一 bg-apple-bg 填充式；日期 → timeAgo。
+ * UI 升级 §8.5：评论正文升到正文档（14px）+ 宽松行距、气泡内边距放宽，
+ * 阅读层级 = 作者/时间（灰）→ 正文（深色）；不放玻璃、不加装饰。
  */
 export default function CommentList({
   postId,
@@ -79,7 +81,7 @@ export default function CommentList({
           </p>
         )}
         {(comments ?? []).map((c) => (
-          <div key={c.id} className="rounded-input bg-apple-bg px-3 py-2">
+          <div key={c.id} className="rounded-input bg-apple-bg px-3.5 py-2.5">
             <div className="flex items-center gap-1.5 text-2xs text-apple-text-3">
               <Avatar
                 avatarKey={c.author?.avatar_key}
@@ -104,7 +106,7 @@ export default function CommentList({
                 </button>
               )}
             </div>
-            <p className="mt-1 break-words whitespace-pre-wrap text-sm leading-relaxed text-apple-text">
+            <p className="mt-1 break-words whitespace-pre-wrap text-base leading-relaxed text-apple-text">
               {c.content}
             </p>
           </div>

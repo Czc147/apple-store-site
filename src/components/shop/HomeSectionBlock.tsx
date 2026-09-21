@@ -2,6 +2,7 @@
 
 import type { MajorUnit, SubUnit, HomeSection } from '@/lib/types';
 import SectionHeader from '@/components/ui/SectionHeader';
+import RevealOnView from '@/components/ui/RevealOnView';
 import AlbumStackCard from './AlbumStackCard';
 
 interface HomeSectionBlockProps {
@@ -38,7 +39,8 @@ export default function HomeSectionBlock({
 
   return (
     <section aria-label={section.title} className="bg-apple-bg py-9 sm:py-12">
-      <div className="px-page">
+      {/* 编辑式区块：标题进入视口时淡入上移一次（§9.4，默认可见、reduced-motion 跳过） */}
+      <RevealOnView className="px-page">
         <div className="mx-auto max-w-wide">
           <SectionHeader
             size="lg"
@@ -46,7 +48,7 @@ export default function HomeSectionBlock({
             subtitle={section.subtitle ?? undefined}
           />
         </div>
-      </div>
+      </RevealOnView>
 
       {section.layout === 'grid' ? (
         <div className="mx-auto grid max-w-wide grid-cols-2 gap-3 px-page sm:gap-5 lg:grid-cols-3 lg:gap-6">

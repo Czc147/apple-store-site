@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Send } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import Surface from '@/components/ui/Surface';
 
 interface NewPostComposerProps {
   isLoggedIn: boolean;
@@ -14,6 +13,8 @@ interface NewPostComposerProps {
  * 发帖输入框：纯文本；未登录只读并提示去登录。
  * audit 收敛：textarea 材质与评论输入统一（bg-apple-bg 填充式 + 方案 A focus）；
  * 发布钮手抄类串 → Button primitive（disabled/loading 语义内建）；计数 11.5px → 2xs。
+ * UI 升级 §8.5：卡片与帖子流同为「白底阅读面」（去描边/投影），
+ * 输入区靠填充式灰底自成层级；发布仍是唯一的蓝色主操作。
  */
 export default function NewPostComposer({
   isLoggedIn,
@@ -32,7 +33,7 @@ export default function NewPostComposer({
   };
 
   return (
-    <Surface radius="card" className="p-3">
+    <div className="rounded-card-lg bg-apple-card p-3 sm:p-4">
       <textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -63,6 +64,6 @@ export default function NewPostComposer({
           {submitting ? '发布中…' : '发布'}
         </Button>
       </div>
-    </Surface>
+    </div>
   );
 }
