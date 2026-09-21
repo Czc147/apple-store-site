@@ -23,7 +23,7 @@ function MajorGrid({
   subsByMajor: Record<string, SubUnit[]>;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 lg:gap-6">
       {majors.map((major) => (
         <AlbumStackCard key={major.id} major={major} subs={subsByMajor[major.id] ?? []} />
       ))}
