@@ -15,7 +15,8 @@ const MAX_DESC_LEN = 500;
 
 interface PushItem {
   name: string;
-  media_url: string;
+  /** 可为空：允许纯文字推送（无附件） */
+  media_url: string | null;
   description?: string | null;
 }
 
@@ -53,9 +54,11 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST /api/admin/push — 按邮箱推送文件/图片进用户库（需管理员）
- * body: { email, items: [{name, media_url, description?}], note? }
+ * POST /api/admin/push — 按邮箱推送内容进用户库（需管理员）
+ * body: { email, items: [{name, media_url?, description?}], note? }
  * 写 user_entitlements（kind='content', source='admin'）+ 一条站内通知
+ * media_url 可空：纯文字条目（只有名称 + 说明/备注）也允许，前端按文字卡展示。
+ * note 是本次推送的统一备注，独立成列（迁移 021），不再兜底写进 description。
  */
 export async function POST(req: NextRequest) {
   if (!checkAdmin(req)) return fail('未登录或登录已过期', 401);
@@ -66,18 +69,17 @@ export async function POST(req: NextRequest) {
   if (!email) return fail('请输入邮箱');
 
   const rawItems = Array.isArray(body?.items) ? body.items : [];
-  if (rawItems.length === 0) return fail('请至少添加一个文件');
-  if (rawItems.length > MAX_ITEMS) return fail(`单次最多推送 ${MAX_ITEMS} 个文件`);
+  if (rawItems.length === 0) return fail('请至少添加一项内容');
+  if (rawItems.length > MAX_ITEMS) return fail(`单次最多推送 ${MAX_ITEMS} 项内容`);
 
   const items: PushItem[] = [];
   for (const raw of rawItems) {
     const name = typeof raw?.name === 'string' ? raw.name.trim() : '';
     const mediaUrl = typeof raw?.media_url === 'string' ? raw.media_url.trim() : '';
     const description = typeof raw?.description === 'string' ? raw.description.trim() : null;
-    if (!name || name.length > MAX_NAME_LEN) return fail('文件名称需为 1-100 个字符');
-    if (!mediaUrl) return fail('文件地址不能为空');
+    if (!name || name.length > MAX_NAME_LEN) return fail('内容名称需为 1-100 个字符');
     if (description && description.length > MAX_DESC_LEN) return fail('说明过长');
-    items.push({ name, media_url: mediaUrl, description: description || null });
+    items.push({ name, media_url: mediaUrl || null, description: description || null });
   }
 
   const note = typeof body?.note === 'string' ? body.note.trim() : '';
@@ -94,20 +96,23 @@ export async function POST(req: NextRequest) {
       user_email: user.email,
       kind: 'content',
       name: item.name,
-      description: item.description ?? note ?? null,
+      description: item.description ?? null,
+      note: note || null,
       media_url: item.media_url,
       source: 'admin',
     })),
   );
   if (insertErr) return fail(insertErr.message, 500);
 
+  const base =
+    items.length === 1
+      ? `管理员为你推送了「${items[0].name}」，快去「我的库」查看`
+      : `管理员为你推送了 ${items.length} 项新内容，快去「我的库」查看`;
   const { error: notifyErr } = await db.from('notifications').insert({
     user_id: user.id,
     title: '你收到了新内容',
-    body:
-      items.length === 1
-        ? `管理员为你推送了「${items[0].name}」，快去「我的库」查看`
-        : `管理员为你推送了 ${items.length} 项新内容，快去「我的库」查看`,
+    // 备注带上，用户在通知里就能看到本次推送的说明
+    body: note ? `${base}。备注：${note}` : base,
     payload: { ref_type: 'admin_push', url: '/library' },
   });
   if (notifyErr) return fail(notifyErr.message, 500);

@@ -146,6 +146,8 @@ export interface UserEntitlement {
   /* ---- content 类快照字段（防目标删除/改动后丢内容） ---- */
   name: string | null;
   description: string | null;
+  /** 统一备注（后台推送的全局备注等），与 description 各自独立展示（迁移 021） */
+  note: string | null;
   media_url: string | null;
   target_type: string | null;
   target_id: string | null;
