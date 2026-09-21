@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useWishlist } from '@/lib/wishlist';
+import { useNotifications } from '@/lib/notifications-store';
 
 interface Tab {
   href: string;
@@ -37,13 +38,18 @@ const TABS: Tab[] = [
  * - 高度契约：内容区通过 --tabbar-h（globals.css :root）避让，禁止再写 68/72/76 魔数
  * - 状态模型：选中=品牌蓝+加粗描边 / 未选中=灰（桌面 hover 提亮）/
  *   按压=scale-95 触觉反馈 / 键盘=inset focus ring；整 Tab 命中区 ≥44pt
- * - 愿望单角标：badge-pop 弹跳为全站唯一过冲例外（用户拍板保留）
+ * - 角标两处（用户拍板）：愿望单=蓝（本机数据）、我的库=红（登录态通知未读，
+ *   数据走 lib/notifications-store 的全局 30s 轮询，进我的库读通知即刻消）；
+ *   badge-pop 弹跳为全站唯一过冲例外（用户拍板保留）
  */
 export default function TabBar() {
   const pathname = usePathname();
   const { count } = useWishlist();
+  // 通知未读：未登录不轮询、恒为 0（store 内部处理登录态）
+  const { unread } = useNotifications();
 
-  // 角标依赖 localStorage，仅在客户端挂载后显示，避免 SSR 水合不一致
+  // 愿望单角标依赖 localStorage，仅在客户端挂载后显示，避免 SSR 水合不一致
+  // （通知未读由 store 的 SSR 快照恒 0 兜底，无需 mounted）
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -84,6 +90,14 @@ export default function TabBar() {
                     className="animate-badge-pop absolute -right-2.5 -top-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-apple-blue px-[4px] text-micro font-semibold leading-none text-white shadow-badge"
                   >
                     {count > 99 ? '99+' : count}
+                  </span>
+                )}
+                {href === '/library' && unread > 0 && (
+                  <span
+                    key={unread}
+                    className="animate-badge-pop absolute -right-2.5 -top-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-apple-danger px-[4px] text-micro font-semibold leading-none text-white shadow-badge"
+                  >
+                    {unread > 99 ? '99+' : unread}
                   </span>
                 )}
               </span>

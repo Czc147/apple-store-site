@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, Check, Inbox, X } from 'lucide-react';
 import type { Notification } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
+import { useNotifications } from '@/lib/notifications-store';
 import { timeAgo } from '@/lib/format';
 import EmptyState from '@/components/ui/EmptyState';
 import IconButton from '@/components/ui/IconButton';
@@ -15,46 +16,18 @@ function panelBody(item: Notification): string {
 
 /**
  * 通知铃（「我的库」账号条右侧）：
- * - 轮询 /api/notifications，未读数角标
+ * - 数据与轮询全部走 lib/notifications-store（与底部导航「我的库」角标同源，
+ *   登录态全局只有一个 30s 轮询；本组件只做展示与交互）
  * - 点开面板：未读高亮 + 全部已读；点单条标记已读并按 payload.url 跳转
+ * - 读通知后 store 立即更新未读数 → 底部导航角标同步消
  */
 export default function NotificationBell() {
-  const { user, getAuthHeaders } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
+  const { items, unread, busy, markRead, markAllRead } = useNotifications();
 
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Notification[]>([]);
-  const [unread, setUnread] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const timer = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  const load = useCallback(async () => {
-    if (!user) {
-      setItems([]);
-      setUnread(0);
-      return;
-    }
-    try {
-      const headers = await getAuthHeaders();
-      if (!headers.Authorization) return;
-      const res = await fetch('/api/notifications', { headers });
-      if (!res.ok) return;
-      const data = (await res.json()) as { items: Notification[]; unread_count: number };
-      setItems(Array.isArray(data.items) ? data.items : []);
-      setUnread(typeof data.unread_count === 'number' ? data.unread_count : 0);
-    } catch {
-      /* 静默，下次轮询重试 */
-    }
-  }, [user, getAuthHeaders]);
-
-  useEffect(() => {
-    void load();
-    timer.current = window.setInterval(() => void load(), 30000);
-    return () => {
-      if (timer.current) window.clearInterval(timer.current);
-    };
-  }, [load]);
 
   useEffect(() => {
     // 面板打开时关闭外部点击
@@ -68,50 +41,10 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const markRead = async (n: Notification) => {
-    if (n.read_at) return;
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`/api/notifications/${n.id}/read`, {
-        method: 'POST',
-        headers,
-      });
-      if (res.ok) {
-        setItems((list) =>
-          list.map((x) =>
-            x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x,
-          ),
-        );
-        setUnread((u) => Math.max(0, u - 1));
-      }
-    } catch {
-      /* 忽略 */
-    }
-  };
-
-  const markAll = async () => {
-    setLoading(true);
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch('/api/notifications/read-all', {
-        method: 'POST',
-        headers,
-      });
-      if (res.ok) {
-        setItems((list) => list.map((x) => ({ ...x, read_at: x.read_at ?? new Date().toISOString() })));
-        setUnread(0);
-      }
-    } catch {
-      /* 忽略 */
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (!user) return null;
 
   const handleOpen = (n: Notification) => {
-    void markRead(n);
+    void markRead(n.id);
     const url = n.payload?.url;
     if (typeof url === 'string' && url) router.push(url);
     setOpen(false);
@@ -148,8 +81,8 @@ export default function NotificationBell() {
               {unread > 0 && (
                 <button
                   type="button"
-                  onClick={() => void markAll()}
-                  disabled={loading}
+                  onClick={() => void markAllRead()}
+                  disabled={busy}
                   className="-my-1.5 inline-flex min-h-11 items-center gap-1 rounded-btn px-2 text-2xs font-medium text-apple-blue transition-colors duration-fast ease-apple hover:bg-apple-blue-soft active:scale-[0.97] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
                 >
                   <Check className="h-3 w-3" aria-hidden />
