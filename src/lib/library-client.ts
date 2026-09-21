@@ -41,7 +41,8 @@ export interface SyncResultItem {
   ok: boolean;
   reason: 'success' | 'already' | 'bound_other' | 'not_redeemed' | 'invalid' | 'error';
   message: string;
-  kind?: 'unlock_daily' | 'content';
+  /** 落库的权益类别（订阅目标细分 daily_plan 与普通订阅） */
+  kind?: 'unlock_daily' | 'subscription' | 'content';
 }
 
 /** 拉取「我的库」（未登录 / 失败返回 null） */

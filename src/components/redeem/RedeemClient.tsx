@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { CheckCircle2, FileText, Image as ImageIcon, Sparkles, Video } from 'lucide-react';
 import { classifyMedia } from '@/lib/upload';
 import { useAuth } from '@/lib/auth-context';
@@ -15,7 +15,7 @@ import RegisterBanner from '@/components/ui/RegisterBanner';
 
 /** POST /api/redeem 成功响应（迁移 005 起区分兑换类型） */
 interface RedeemResultBase {
-  result_type: 'content' | 'unlock';
+  result_type: 'content' | 'unlock' | 'subscription';
   product_name: string;
   /** true = 本次核销；false = 该码此前已兑换过（重复查看） */
   redeemed_now: boolean;
@@ -38,15 +38,58 @@ interface UnlockResult extends RedeemResultBase {
   expires_at: string | null;
 }
 
-type RedeemResult = ContentResult | UnlockResult;
+/** 普通订阅类兑换结果：订阅入库（「我的库 → 我的订阅」）+ 有效期 */
+interface SubscriptionResult extends RedeemResultBase {
+  result_type: 'subscription';
+  permanent: boolean;
+  expires_at: string | null;
+}
+
+type RedeemResult = ContentResult | UnlockResult | SubscriptionResult;
 
 type Status = 'idle' | 'loading' | 'error' | 'result';
+
+/**
+ * 权益类兑换结果卡外壳（每日计划解锁 / 订阅解锁共用）：
+ * 成功图标 + 标题 + 权益名 + 一行有效期说明，children 追加 CTA 等。
+ */
+function EntitlementResultCard({
+  title,
+  name,
+  line,
+  children,
+}: {
+  title: string;
+  name: string;
+  line: string;
+  children?: ReactNode;
+}) {
+  return (
+    <Surface radius="card" className="p-5">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-success-soft">
+          <CheckCircle2 className="h-5 w-5 text-apple-success" aria-hidden />
+        </span>
+        <p className="text-md font-semibold text-apple-text">{title}</p>
+      </div>
+
+      <p className="mt-4 text-lg font-bold leading-snug text-apple-text">{name}</p>
+      <p className="mt-1.5 flex items-center gap-1.5 text-sm leading-relaxed text-apple-text-2">
+        <Sparkles className="h-4 w-4 shrink-0 text-apple-blue" aria-hidden />
+        {line}
+      </p>
+
+      {children}
+    </Surface>
+  );
+}
 
 /**
  * 兑换交互（内嵌于「我的库」）：输入卡密 → 调 /api/redeem（登录时携带
  * Bearer 顺带绑定账号）→ 按结果类型展示：
  * - content：兑换内容（图片 / 视频 / 文档）
  * - unlock：每日计划解锁成功卡（有效期 / 永久）+「查看今日推荐」
+ * - subscription：订阅解锁成功卡（有效期 / 永久），内容在「我的库 → 我的订阅」
  * 游客兑换成功时强提示注册（RegisterBanner 共享组件）；
  * 兑换记录写入本地库（登录后经「我的库」同步）。
  *
@@ -56,7 +99,7 @@ type Status = 'idle' | 'loading' | 'error' | 'result';
  */
 export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }) {
   const { getAuthHeaders } = useAuth();
-  const { setDailyPlan, addContent } = useLocalLibrary();
+  const { setDailyPlan, addSubscription, addContent } = useLocalLibrary();
 
   const [code, setCode] = useState('');
   const [status, setStatus] = useState<Status>('idle');
@@ -99,6 +142,13 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
             redeemed_at: new Date().toISOString(),
             expires_at: data.expires_at,
           });
+        } else if (data.result_type === 'subscription') {
+          addSubscription({
+            code: trimmed,
+            name: data.product_name,
+            redeemed_at: new Date().toISOString(),
+            expires_at: data.expires_at,
+          });
         } else {
           addContent({
             code: trimmed,
@@ -132,31 +182,46 @@ export default function RedeemClient({ onRedeemed }: { onRedeemed?: () => void }
     if (result.result_type === 'unlock') {
       return (
         <div className="w-full">
-          <Surface radius="card" className="p-5">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-apple-success-soft">
-                <CheckCircle2 className="h-5 w-5 text-apple-success" aria-hidden />
-              </span>
-              <p className="text-md font-semibold text-apple-text">
-                {result.redeemed_now ? '每日计划解锁成功' : '每日计划已解锁'}
-              </p>
-            </div>
-
-            <p className="mt-4 text-lg font-bold leading-snug text-apple-text">
-              {result.product_name}
-            </p>
-            <p className="mt-1.5 flex items-center gap-1.5 text-sm leading-relaxed text-apple-text-2">
-              <Sparkles className="h-4 w-4 shrink-0 text-apple-blue" aria-hidden />
-              {result.permanent
+          <EntitlementResultCard
+            title={result.redeemed_now ? '每日计划解锁成功' : '每日计划已解锁'}
+            name={result.product_name}
+            line={
+              result.permanent
                 ? '永久有效 · 每天更新 1 期精选内容，可看全部历史仓库'
-                : `有效期至 ${formatExpiry(result.expires_at)} · 每天更新 1 期精选内容`}
-            </p>
-
+                : `有效期至 ${formatExpiry(result.expires_at)} · 每天更新 1 期精选内容`
+            }
+          >
             {/* 死循环链接已修：/daily 重定向回 /library，今日推荐在首页 Hero 区 */}
             <Button variant="primary" size="lg" fullWidth className="mt-5" href="/">
               查看今日推荐
             </Button>
-          </Surface>
+          </EntitlementResultCard>
+
+          {!result.bound && <RegisterBanner className="mt-4" />}
+
+          <Button variant="secondary" size="lg" fullWidth className="mt-4" onClick={reset}>
+            兑换其他卡密
+          </Button>
+        </div>
+      );
+    }
+
+    if (result.result_type === 'subscription') {
+      // 订阅内容不在兑换页展示（都在「我的库 → 我的订阅」），只回执解锁结果
+      const validity = result.permanent
+        ? '永久有效'
+        : `有效期至 ${formatExpiry(result.expires_at)}`;
+      return (
+        <div className="w-full">
+          <EntitlementResultCard
+            title={result.redeemed_now ? '订阅解锁成功' : '该卡密已兑换过，订阅已在你的库中'}
+            name={result.product_name}
+            line={
+              result.bound
+                ? `${validity} · 内容已存入「我的库 → 我的订阅」`
+                : `${validity} · 注册账号后可永久保存，换设备也能找回`
+            }
+          />
 
           {!result.bound && <RegisterBanner className="mt-4" />}
 

@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { useLocalLibrary } from '@/lib/unlocks';
+import { useLocalLibrary, type LocalSubscriptionItem } from '@/lib/unlocks';
 import {
   fetchLibrary,
   syncLibrary,
@@ -141,8 +141,20 @@ export default function LibraryClient() {
             {local.dailyPlan && (
               <GuestDailyCard expiresAt={local.dailyPlan.expires_at} />
             )}
-            {local.contents.length > 0 && (
+            {local.subscriptions.length > 0 && (
               <section className={local.dailyPlan ? 'mt-6' : ''}>
+                <SectionHeader title="我的订阅" count={local.subscriptions.length} />
+                <div className="space-y-4">
+                  {local.subscriptions.map((s) => (
+                    <GuestSubscriptionCard key={s.code} item={s} />
+                  ))}
+                </div>
+              </section>
+            )}
+            {local.contents.length > 0 && (
+              <section
+                className={local.dailyPlan || local.subscriptions.length > 0 ? 'mt-6' : ''}
+              >
                 <SectionHeader title="我的内容" count={local.contents.length} />
                 <ContentsView
                   contents={local.contents.map((c) => ({
@@ -340,6 +352,32 @@ function GuestDailyCard({ expiresAt }: { expiresAt: string | null }) {
         </Button>
         <p className="mt-2 text-center text-2xs text-apple-text-3">
           注册账号后可永久保存，换设备也能找回
+        </p>
+      </div>
+    </Surface>
+  );
+}
+
+/** 游客态订阅卡（本机记录，权威状态以服务端为准；登录同步后转为订阅权益） */
+function GuestSubscriptionCard({ item }: { item: LocalSubscriptionItem }) {
+  return (
+    <Surface radius="card-lg" className="overflow-hidden">
+      <div className="flex items-center gap-3 p-4">
+        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-apple-blue-soft">
+          <Sparkles className="h-5 w-5 text-apple-blue" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-md font-bold text-apple-text">{item.name}</p>
+          <p className="mt-0.5 text-xs text-apple-text-2">
+            {item.expires_at
+              ? `有效期至 ${formatExpiry(item.expires_at)}（本机记录）`
+              : '永久有效（本机记录）'}
+          </p>
+        </div>
+      </div>
+      <div className="border-t border-apple-hairline px-4 py-3">
+        <p className="text-xs leading-relaxed text-apple-text-3">
+          登录账号并同步后，可在此查看订阅内容，换设备也能找回。
         </p>
       </div>
     </Surface>

@@ -24,6 +24,15 @@ interface ProductRow {
   unlock_duration_days: number | null;
 }
 
+/** 订阅行（订阅目标的兑换语义由其「类型」决定，迁移 008） */
+interface SubscriptionRow {
+  type: string | null;
+  unlock_duration_days: number | null;
+}
+
+/** 同步落库的权益类别（订阅目标细分 daily_plan 与普通订阅） */
+type SyncKind = 'unlock_daily' | 'subscription' | 'content';
+
 /** 单个码的同步结果（逐码返回，前端逐条展示） */
 interface SyncResult {
   code: string;
@@ -32,8 +41,15 @@ interface SyncResult {
    *  not_redeemed 尚未兑换 / invalid 无效或作废 / error 内部错误 */
   reason: 'success' | 'already' | 'bound_other' | 'not_redeemed' | 'invalid' | 'error';
   message: string;
-  kind?: 'unlock_daily' | 'content';
+  kind?: SyncKind;
 }
+
+/** 各类别的同步结果文案（幂等重放与新绑定的表述不同） */
+const KIND_ALREADY_MSG: Record<SyncKind, string> = {
+  unlock_daily: '每日计划已在此前同步',
+  subscription: '该订阅已在此前同步',
+  content: '该内容已在此前同步',
+};
 
 /** 掩码后的码（回显用，避免完整码进日志/响应） */
 function masked(code: string): string {
@@ -46,6 +62,7 @@ function masked(code: string): string {
  * 请求体：{ codes: string[] }
  * 逐码处理：
  * - unlock_daily 码：CAS 绑定 → grant_daily_plan（原子叠加延期）
+ * - 普通订阅码：CAS 绑定 → grant_subscription（订阅权益，「我的订阅」可见）
  * - content 码：CAS 绑定 → 写 content 权益（快照商品名/兑换内容，幂等）
  * 幂等：已被本人绑定 → already；被他人绑定 → bound_other；未核销 → not_redeemed。
  *
@@ -128,7 +145,28 @@ async function syncOneCode(
   if (!prod) {
     return { code: display, ok: false, reason: 'invalid', message: '码关联的商品不存在' };
   }
-  const isUnlock = prod.redeem_type === 'unlock_daily';
+
+  // 2.1) 订阅目标：语义由订阅「类型」决定（与 /api/redeem 同口径）——
+  //      daily_plan 解锁每日推荐；普通订阅写订阅权益（此前缺本分支，被错写成 content，
+  //      「我的订阅」看不到，迁移 020 修复）。订阅目标的有效期以订阅配置为准。
+  let kind: SyncKind = prod.redeem_type === 'unlock_daily' ? 'unlock_daily' : 'content';
+  let durationDays =
+    typeof prod.unlock_duration_days === 'number' ? prod.unlock_duration_days : null;
+  if (prod.target_type === 'subscription' && prod.target_id) {
+    const { data: sub, error: subErr } = await db
+      .from('subscriptions')
+      .select('type, unlock_duration_days')
+      .eq('id', prod.target_id)
+      .maybeSingle();
+    if (subErr) return { code: display, ok: false, reason: 'error', message: subErr.message };
+    const s = sub as SubscriptionRow | null;
+    if (s) {
+      kind = s.type === 'daily_plan' ? 'unlock_daily' : 'subscription';
+      durationDays = s.unlock_duration_days;
+    }
+    // 订阅行已删除：保持 content 兜底（商品随触发器自动禁用，正常不会走到）
+  }
+  const isUnlock = kind === 'unlock_daily';
 
   // 3) CAS 绑定（仅未绑定时写入）
   const { data: boundRows, error: bindErr } = await db
@@ -154,17 +192,34 @@ async function syncOneCode(
         code: display,
         ok: true,
         reason: 'already',
-        message: isUnlock ? '每日计划已在此前同步' : '该内容已在此前同步',
-        kind: isUnlock ? 'unlock_daily' : 'content',
+        message: KIND_ALREADY_MSG[kind],
+        kind,
       };
     }
     return { code: display, ok: false, reason: 'bound_other', message: '该码已绑定其它账号' };
   }
 
   // 4) 新绑定成功 → 写权益
+  if (kind === 'subscription' && prod.target_id) {
+    const { error: rpcErr } = await db.rpc('grant_subscription', {
+      p_user_id: user.id,
+      p_user_email: user.email,
+      p_subscription_id: prod.target_id,
+      p_card_key_id: issued.id,
+      p_duration_days: durationDays,
+      p_source: 'sync',
+    });
+    if (rpcErr) return { code: display, ok: false, reason: 'error', message: rpcErr.message };
+    return {
+      code: display,
+      ok: true,
+      reason: 'success',
+      message: '订阅已同步到账号',
+      kind: 'subscription',
+    };
+  }
+
   if (isUnlock) {
-    const durationDays =
-      typeof prod.unlock_duration_days === 'number' ? prod.unlock_duration_days : null;
     const { error: rpcErr } = await db.rpc('grant_daily_plan', {
       p_user_id: user.id,
       p_user_email: user.email,

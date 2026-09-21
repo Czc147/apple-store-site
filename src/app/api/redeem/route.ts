@@ -45,6 +45,12 @@ interface KeyRow {
   status: string;
 }
 
+/** 订阅行（订阅目标的兑换语义由其「类型」决定，迁移 008） */
+interface SubscriptionRow {
+  type: string | null;
+  unlock_duration_days: number | null;
+}
+
 /** 核销 CAS 结果 */
 type ConsumeResult =
   | { ok: true; redeemedNow: boolean }
@@ -109,6 +115,9 @@ async function bindKeyToUser(
  * 按商品兑换类型分流（迁移 005）：
  * - content（默认）：核销后返回兑换商品（图片 / 视频 / 文档）
  * - unlock_daily：核销后解锁「每日计划」，返回有效期（后台设定的天数，自核销起算）
+ * - 订阅目标（迁移 020 修复）：语义由订阅「类型」决定（迁移 008）——
+ *   daily_plan 走 unlock_daily；普通订阅写订阅权益（grant_subscription），
+ *   在「我的库 → 我的订阅」可见并接收内容更新推送。
  *
  * 若请求带 Bearer（已登录）：顺带 CAS 绑定账号并写入「我的库」权益；
  * 游客兑换不落权益（本地库保存码，登录后经 /api/library/sync 补绑）。
@@ -116,6 +125,7 @@ async function bindKeyToUser(
  * 响应：
  * - content：{ result_type:'content', product_name, product_description, image_url, redeemed_now, bound }
  * - unlock_daily：{ result_type:'unlock', product_name, permanent, expires_at, redeemed_now, bound }
+ * - subscription：{ result_type:'subscription', product_name, permanent, expires_at, redeemed_now, bound }
  *
  * 错误语义：400 空码/超长 · 403 无效码（防枚举）· 409 未配置兑换内容 · 429 限速
  */
@@ -175,10 +185,9 @@ export async function POST(req: NextRequest) {
   // 登录用户（可选）：带 Bearer 时顺带绑定账号 + 写「我的库」权益
   const user = await getRequestUser(req);
 
-  // 订阅目标：兑换语义由其「类型」决定（迁移 008）——每日计划订阅 → 解锁，普通订阅 → 兑换内容。
+  // 订阅目标：兑换语义由其「类型」决定（迁移 008）——每日计划订阅 → 解锁每日推荐，
+  // 普通订阅 → 订阅权益入库（迁移 020 修复：此前被强制改判为 content，导致「我的订阅」不显示）。
   // 其它目标（小单元 / 活动）仍按 card_products.redeem_type（现状不变）。
-  let effectiveType: RedeemType = prod.redeem_type ?? REDEEM_TYPE.CONTENT;
-  let effectiveDurationDays: number | null = prod.unlock_duration_days;
   if (targetType === TARGET_TYPE.SUBSCRIPTION) {
     const { data: sub, error: subErr } = await db
       .from('subscriptions')
@@ -186,24 +195,28 @@ export async function POST(req: NextRequest) {
       .eq('id', targetId)
       .maybeSingle();
     if (subErr) return fail(subErr.message, 500);
-    const s = sub as { type: string | null; unlock_duration_days: number | null } | null;
+    const s = sub as SubscriptionRow | null;
+    // 订阅目标的有效期一律以订阅配置为准：后台表单对订阅目标固定提交
+    // card_products.unlock_duration_days = null（见 CardProductForm）。
     if (s?.type === 'daily_plan') {
-      effectiveType = REDEEM_TYPE.UNLOCK_DAILY;
-      effectiveDurationDays = s.unlock_duration_days;
-    } else {
-      effectiveType = REDEEM_TYPE.CONTENT;
+      return handleUnlockDaily(
+        db,
+        { ...prod, unlock_duration_days: s.unlock_duration_days },
+        targetType,
+        targetId,
+        target,
+        user,
+      );
     }
+    if (s) {
+      return handleSubscription(db, prod, targetId, s.unlock_duration_days, target, user);
+    }
+    // 订阅行已被删除（多态关联无外键）：落到下方 content 分支，
+    // 由其给出统一「未配置兑换内容」提示，不核销卡密。
   }
 
-  if (effectiveType === REDEEM_TYPE.UNLOCK_DAILY) {
-    return handleUnlockDaily(
-      db,
-      { ...prod, redeem_type: effectiveType, unlock_duration_days: effectiveDurationDays },
-      targetType,
-      targetId,
-      target,
-      user,
-    );
+  if ((prod.redeem_type ?? REDEEM_TYPE.CONTENT) === REDEEM_TYPE.UNLOCK_DAILY) {
+    return handleUnlockDaily(db, prod, targetType, targetId, target, user);
   }
   return handleContent(db, prod, targetType, targetId, target, user);
 }
@@ -266,6 +279,78 @@ async function handleUnlockDaily(
 
   return ok({
     result_type: 'unlock',
+    product_name: productName,
+    permanent: expiresAt === null,
+    expires_at: expiresAt,
+    redeemed_now: consume.redeemedNow,
+    bound: Boolean(user),
+  });
+}
+
+/**
+ * 普通订阅分支：核销 → 订阅权益入库（登录用户走 grant_subscription 原子叠加延期）。
+ *
+ * 与 content 分支的区别：订阅内容不在兑换页展示（图/视频/文档都在「我的库 → 我的订阅」），
+ * 因此不要求订阅配 redeem_image_url，也不写 content 快照行——
+ * 只写 kind='subscription' + subscription_id，让订阅进入「我的订阅」并订阅更新推送。
+ */
+async function handleSubscription(
+  db: ReturnType<typeof supabaseAdmin>,
+  product: ProductRow,
+  subscriptionId: string,
+  durationDays: number | null,
+  target: KeyRow,
+  user: AuthUser | null,
+): Promise<NextResponse> {
+  // 展示名取订阅名；解析失败回退商品描述，不阻断兑换
+  let productName = product.description ?? '订阅';
+  try {
+    const resolved = await resolveTargetContent(TARGET_TYPE.SUBSCRIPTION, subscriptionId);
+    if (resolved?.name) productName = resolved.name;
+  } catch {
+    /* 目标解析失败不阻断兑换 */
+  }
+
+  const consume = await consumeIfUnused(db, target.id, target.status === CARD_KEY_STATUS.UNUSED);
+  if (!consume.ok) return fail(consume.message, consume.status);
+
+  // 游客回显的到期估算（权威以服务端 /api/library 现算为准）
+  let expiresAt: string | null =
+    durationDays === null ? null : new Date(Date.now() + durationDays * 86400000).toISOString();
+
+  if (user) {
+    const bind = await bindKeyToUser(db, target.id, user.id);
+    if (bind.error) return fail(bind.error, 500);
+    if (bind.fresh) {
+      // 原子写权益：无则插入，有则叠加延期（grant_subscription RPC）
+      const { data: ent, error: entErr } = await db.rpc('grant_subscription', {
+        p_user_id: user.id,
+        p_user_email: user.email,
+        p_subscription_id: subscriptionId,
+        p_card_key_id: target.id,
+        p_duration_days: durationDays,
+        p_source: 'redeem',
+      });
+      if (entErr) return fail(entErr.message, 500);
+      const row = ent as { expires_at: string | null } | null;
+      if (row) expiresAt = row.expires_at; // 叠加延期后为真实到期时间
+    } else {
+      // 已绑定（本人此前已兑换/同步）：读现有权益回显真实到期状态
+      const { data: existing, error: exErr } = await db
+        .from('user_entitlements')
+        .select('expires_at')
+        .eq('user_id', user.id)
+        .eq('kind', 'subscription')
+        .eq('subscription_id', subscriptionId)
+        .maybeSingle();
+      if (!exErr && existing) {
+        expiresAt = (existing as { expires_at: string | null }).expires_at;
+      }
+    }
+  }
+
+  return ok({
+    result_type: 'subscription',
     product_name: productName,
     permanent: expiresAt === null,
     expires_at: expiresAt,

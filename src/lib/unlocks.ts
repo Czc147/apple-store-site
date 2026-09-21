@@ -31,8 +31,18 @@ export interface LocalContentItem {
   redeemed_at: string;
 }
 
+/** 游客本地已兑换的订阅记录（订阅码兑换；登录后经 sync 绑定为订阅权益） */
+export interface LocalSubscriptionItem {
+  code: string;
+  name: string;
+  redeemed_at: string;
+  /** 兑换时服务端算出的到期时间；null = 永久（展示回退用，权威在服务端） */
+  expires_at: string | null;
+}
+
 interface LocalLibrary {
   daily_plan: LocalDailyPlan | null;
+  subscriptions: LocalSubscriptionItem[];
   contents: LocalContentItem[];
   /** 登录账号后是否已完成同步（同步过后不再弹提示） */
   synced: boolean;
@@ -40,7 +50,7 @@ interface LocalLibrary {
 
 const STORAGE_KEY = 'apple-store.library.v1';
 
-const EMPTY: LocalLibrary = { daily_plan: null, contents: [], synced: false };
+const EMPTY: LocalLibrary = { daily_plan: null, subscriptions: [], contents: [], synced: false };
 
 /* ----------------------------------------------------------
    极简外部 store：localStorage 持久化 + 订阅通知
@@ -52,6 +62,12 @@ function isValidDailyPlan(v: unknown): v is LocalDailyPlan {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   return typeof o.code === 'string' && o.code !== '';
+}
+
+function isValidSubscription(v: unknown): v is LocalSubscriptionItem {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return typeof o.code === 'string' && o.code !== '' && typeof o.name === 'string';
 }
 
 function isValidContent(v: unknown): v is LocalContentItem {
@@ -97,6 +113,17 @@ function load(): LocalLibrary {
               typeof c.redeemed_at === 'string'
                 ? c.redeemed_at
                 : new Date().toISOString(),
+          }))
+        : [],
+      subscriptions: Array.isArray(o.subscriptions)
+        ? o.subscriptions.filter(isValidSubscription).map((s) => ({
+            code: s.code,
+            name: s.name,
+            redeemed_at:
+              typeof s.redeemed_at === 'string'
+                ? s.redeemed_at
+                : new Date().toISOString(),
+            expires_at: typeof s.expires_at === 'string' ? s.expires_at : null,
           }))
         : [],
       synced: o.synced === true,
@@ -157,16 +184,32 @@ export const localLibraryStore = {
     });
   },
 
+  /** 记录订阅兑换（同码重复兑换时覆盖旧记录） */
+  addSubscription(item: LocalSubscriptionItem) {
+    const current = ensure();
+    setState({
+      ...current,
+      subscriptions: [
+        item,
+        ...current.subscriptions.filter((s) => s.code !== item.code),
+      ],
+      synced: false,
+    });
+  },
+
   /** 登录同步完成后标记（不再弹「同步本机记录」提示） */
   markSynced() {
     setState({ ...ensure(), synced: true });
   },
 
-  /** 待同步的本机码列表（每日计划码 + 内容码） */
+  /** 待同步的本机码列表（每日计划码 + 订阅码 + 内容码） */
   pendingCodes(): string[] {
     const s = ensure();
     const codes: string[] = [];
     if (s.daily_plan) codes.push(s.daily_plan.code);
+    for (const sub of s.subscriptions) {
+      if (!codes.includes(sub.code)) codes.push(sub.code);
+    }
     for (const c of s.contents) {
       if (!codes.includes(c.code)) codes.push(c.code);
     }
@@ -176,7 +219,7 @@ export const localLibraryStore = {
   /** 是否有本机兑换记录（游客态「我的库」是否有东西可展示） */
   hasAny(): boolean {
     const s = ensure();
-    return Boolean(s.daily_plan) || s.contents.length > 0;
+    return Boolean(s.daily_plan) || s.subscriptions.length > 0 || s.contents.length > 0;
   },
 
   clear() {
@@ -210,16 +253,23 @@ export function useLocalLibrary() {
     (item: LocalContentItem) => localLibraryStore.addContent(item),
     [],
   );
+  const addSubscription = useCallback(
+    (item: LocalSubscriptionItem) => localLibraryStore.addSubscription(item),
+    [],
+  );
   const markSynced = useCallback(() => localLibraryStore.markSynced(), []);
   const pendingCodes = useCallback(() => localLibraryStore.pendingCodes(), []);
   const clear = useCallback(() => localLibraryStore.clear(), []);
 
   return {
     dailyPlan: lib.daily_plan,
+    subscriptions: lib.subscriptions,
     contents: lib.contents,
     synced: lib.synced,
-    hasAny: Boolean(lib.daily_plan) || lib.contents.length > 0,
+    hasAny:
+      Boolean(lib.daily_plan) || lib.subscriptions.length > 0 || lib.contents.length > 0,
     setDailyPlan,
+    addSubscription,
     addContent,
     markSynced,
     pendingCodes,
