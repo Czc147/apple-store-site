@@ -20,7 +20,7 @@ interface SubscriptionPurchaseSheetProps {
 }
 
 /**
- * 订阅详情 + 下单弹层（SubscriptionCard / PremiumPlanCard 共用主体，
+ * 订阅详情 + 下单弹层（SubscriptionCard / SubscriptionMegaCard 共用主体，
  * 自 SubscriptionCard 内联实现抽出——相同语义相同实现）。
  * 业务行为与原版完全一致：价格/时长/介绍展示 + PaymentMethodBody
  * （收款码 + 推送订单闭环）+「了解更多」外链，未登录跳 /login?from=。

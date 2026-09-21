@@ -9,12 +9,19 @@ import { formatPrice } from '@/lib/format';
 import type { Subscription } from '@/lib/types';
 
 /**
- * 订阅卡片（网格常规档）：时长徽章 + 名称 + 价格 + 「查看详情」。
+ * 订阅卡片（网格安静档 · §6.9 默认状态：白底、发丝线、无重阴影）。
+ * 时长徽章 + 名称 + 价格（第一层级）+「查看详情」；
  * 整卡点击打开 SubscriptionPurchaseSheet（详情 + 收款码 + 推送订单）。
- * audit 收敛：卡壳/徽章/字号/按压/成功条全部改走 token 与 primitives
- * （原版 9 档任意字号 + 手写 transition + 私有绿 #1B7F3B 成功条）。
+ * 已拥有（owns）时打「已拥有」徽章，CTA 文案改「续费」。
+ * 玻璃材质只留给主推方案（SubscriptionMegaCard），这里保持克制。
  */
-export default function SubscriptionCard({ subscription }: { subscription: Subscription }) {
+export default function SubscriptionCard({
+  subscription,
+  owned = false,
+}: {
+  subscription: Subscription;
+  owned?: boolean;
+}) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pushedOrder, setPushedOrder] = useState<string | null>(null);
   const { name, price, duration } = subscription;
@@ -25,12 +32,13 @@ export default function SubscriptionCard({ subscription }: { subscription: Subsc
         as="button"
         interactive
         onClick={() => setSheetOpen(true)}
-        aria-label={`查看「${name}」详细介绍`}
+        aria-label={`查看「${name}」详细介绍${owned ? '（已拥有）' : ''}`}
         className="flex w-full flex-col p-4 text-left"
       >
-        {/* 时长徽章 */}
-        <div className="flex h-6 items-center">
+        {/* 徽章行 */}
+        <div className="flex min-h-6 flex-wrap items-center gap-1.5">
           {duration && <Badge tone="blue">{duration}</Badge>}
+          {owned && <Badge tone="success">已拥有</Badge>}
         </div>
 
         {/* 订阅名称 */}
@@ -38,13 +46,13 @@ export default function SubscriptionCard({ subscription }: { subscription: Subsc
           {name}
         </h2>
 
-        {/* 价格 */}
-        <p className="mt-2 text-xl font-semibold leading-none tracking-tight text-apple-text">
+        {/* 价格（第一层级） */}
+        <p className="mt-2 text-xl font-semibold leading-none tabular-nums text-apple-text">
           {formatPrice(price)}
         </p>
 
         <span className="mt-3 inline-flex items-center gap-px text-xs font-medium text-apple-blue">
-          查看详情 <span aria-hidden>›</span>
+          {owned ? '续费 / 查看详情' : '查看详情'} <span aria-hidden>›</span>
         </span>
       </Surface>
 

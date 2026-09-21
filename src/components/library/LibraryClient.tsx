@@ -29,6 +29,7 @@ import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 import SectionHeader from '@/components/ui/SectionHeader';
 import Surface from '@/components/ui/Surface';
+import GlassSurface from '@/components/ui/GlassSurface';
 import CoverImage from '@/components/ui/CoverImage';
 import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
 import RegisterBanner from '@/components/ui/RegisterBanner';
@@ -43,6 +44,9 @@ import ProfileHeader from '@/components/library/ProfileHeader';
  * - 游客：展示本机兑换记录 + 醒目注册横幅（换设备会丢失，引导注册永久保存）
  * - 登录：GET /api/library 为权威（订阅仓库 + 内容列表）；
  *   本机有未同步记录时提示一键 POST /api/library/sync，逐条展示结果。
+ *
+ * UI 升级 §8.6（个人馆藏）：账号卡改轻玻璃（neutral 色斑 + 玻璃层，文字仍为
+ * 深色保证可读），其余分组保持白卡与发丝线；分组间距放大到 8/10 级。
  *
  * Phase 7 收敛（grouped content 减少「一功能一卡片」）：
  * - 同步提示 / 同步结果并入「兑换卡密」分组（同属卡密语义域），页面浮卡从
@@ -202,25 +206,27 @@ export default function LibraryClient() {
 
   return (
     <div className="px-page pb-4">
-      {/* 账号分组：头像/昵称（点击编辑资料）+ 通知铃 + 退出 */}
-      <Surface radius="card-lg" className="mb-5 flex items-center justify-between gap-3 px-4 py-2.5">
-        <ProfileHeader getAuthHeaders={getAuthHeaders} fallbackEmail={email} />
-        <div className="flex shrink-0 items-center">
-          <NotificationBell />
-          <Button
-            variant="secondary"
-            size="sm"
-            className="ml-1"
-            onClick={() => void handleSignOut()}
-          >
-            <LogOut className="h-3.5 w-3.5" aria-hidden />
-            退出
-          </Button>
+      {/* 账号分组（§8.6 个人资料卡：轻玻璃，可读优先）：头像/昵称 + 通知铃 + 退出 */}
+      <GlassSurface tint="neutral" radius="hero" className="mb-8">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <ProfileHeader getAuthHeaders={getAuthHeaders} fallbackEmail={email} />
+          <div className="flex shrink-0 items-center">
+            <NotificationBell />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="ml-1"
+              onClick={() => void handleSignOut()}
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden />
+              退出
+            </Button>
+          </div>
         </div>
-      </Surface>
+      </GlassSurface>
 
       {/* 兑换卡密分组（同步提示/同步结果并入本组——同属卡密语义域） */}
-      <section className="mb-5">
+      <section className="mb-8">
         <SectionHeader title="兑换卡密" />
         <Surface radius="card-lg" className="p-4">
           <RedeemClient onRedeemed={handleRedeemed} />
@@ -317,7 +323,7 @@ export default function LibraryClient() {
           {/* 订阅仓库 */}
           {subscriptions.length > 0 && (
             <section>
-              <SectionHeader title="我的订阅" count={subscriptions.length} />
+              <SectionHeader size="lg" title="我的订阅" count={subscriptions.length} />
               <div className="space-y-4">
                 {subscriptions.map((sub) => (
                   <SubscriptionRepoSection key={sub.entitlement.id} data={sub} />
@@ -328,7 +334,7 @@ export default function LibraryClient() {
 
           {/* 我的内容（登录态带删除入口；订阅不支持删，故只在内容区给） */}
           {contents.length > 0 && (
-            <section className={subscriptions.length > 0 ? 'mt-6' : ''}>
+            <section className={subscriptions.length > 0 ? 'mt-10' : ''}>
               <SectionHeader title="我的内容" count={contents.length} />
               <ContentsView contents={contents} onDelete={handleDeleteContent} />
             </section>

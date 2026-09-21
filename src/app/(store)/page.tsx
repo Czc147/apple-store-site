@@ -19,16 +19,17 @@ export async function generateMetadata() {
 // 商品数据实时读取，禁止构建时静态化（Netlify 上每次请求即时渲染）
 export const dynamic = 'force-dynamic';
 
-/** Hero 骨架：与 DailyPickHero 同构（封面 + eyebrow + 标题 + CTA），避免加载跳变 */
+/** Hero 骨架：与 DailyPickHero 同构（白画廊 + 16:9 封面 + kicker/大标题/CTA） */
 function HeroFallback() {
   return (
     <div className="px-page">
-      <div className="overflow-hidden rounded-hero border border-apple-border bg-apple-card shadow-card">
-        <div className="skeleton aspect-[16/9] sm:aspect-[21/9]" />
-        <div className="space-y-2.5 p-5 sm:p-6">
+      <div className="mx-auto max-w-wide lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
+        <div className="skeleton aspect-video w-full rounded-hero lg:order-2" />
+        <div className="space-y-3 pt-5 lg:order-1 lg:pt-0">
           <div className="skeleton h-3.5 w-24 rounded-md" />
-          <div className="skeleton h-6 w-3/4 rounded-md" />
-          <div className="skeleton h-11 w-full rounded-btn" />
+          <div className="skeleton h-8 w-3/4 rounded-md" />
+          <div className="skeleton h-4 w-2/3 rounded-md" />
+          <div className="skeleton h-11 w-52 rounded-btn" />
         </div>
       </div>
     </div>
@@ -36,12 +37,16 @@ function HeroFallback() {
 }
 
 /**
- * Tab 1 · 选购（Brief §13.1 Content Discovery Surface）：
- * 公告条 → 大标题 → 每日推荐 Hero（editorial 焦点）→ 板块卡片流 → 客服悬浮入口
+ * Tab 1 · 选购（Brief §13.1 Content Discovery Surface；UI 升级 §8.1）：
+ * 公告条 → 大标题 → 每日推荐 Hero（Gallery White 编辑焦点）→
+ * 专辑合集流（Studio Mist 板块带）→ 客服悬浮入口。
+ * 分层：首页画布为 Gallery White（纯白），板块带用 Studio Mist（#f5f5f7），
+ * 层级只靠背景差异与圆角表达，不用投影。
  */
 export default function ShopPage() {
   return (
-    <>
+    // Gallery White 画布：盖住 body 的雾灰底，让首页从白开始
+    <div className="bg-apple-card pb-8">
       <AnnouncementBar />
 
       <HomeHeader />
@@ -50,13 +55,13 @@ export default function ShopPage() {
         <DailyPickServer />
       </Suspense>
 
-      <div className="h-10" aria-hidden />
+      <div className="h-14" aria-hidden />
 
       <Suspense fallback={<ShopSkeleton />}>
         <ShopServer />
       </Suspense>
 
       <ServiceButton />
-    </>
+    </div>
   );
 }

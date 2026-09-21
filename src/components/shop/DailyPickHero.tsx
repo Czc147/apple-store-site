@@ -19,13 +19,12 @@ interface DailyPickHeroProps {
 }
 
 /**
- * 首页 Hero：每日计划最新一期（Phase 2 改版方案 A，用户拍板）。
- * 由原 DailyPickBlock 升格（该区块曾在 1973bbe 从首页摘除、组件遗留至今）：
- * - editorial 层级：eyebrow（每日推荐）→ 大标题 → 封面 tagline → 状态化 CTA
- * - 封面走 CoverImage hero 比例（移动 16:9 → 桌面 21:9），带 shimmer 骨架与
- *   失败回退；无图时 accent_color 兜底 —— 图位天然预留（有 cover_url 即上图）
- * - 死链修复：已解锁「查看今日更新」→ /library（原 /daily 已重定向回 library，
- *   正文在「我的库 → 我的订阅」）；「已有兑换码？」→ /library（兑换已内嵌）
+ * 首页 Hero：每日计划最新一期（UI 升级 §8.1 · Gallery White 编辑式 Hero）。
+ * - 纯白画廊：去掉卡片描边与投影，让封面和标题承担视觉重心
+ * - 移动端上下布局（图 → kicker → 大标题 → 说明 → 蓝色胶囊 CTA）
+ * - 桌面左右分栏（左文右图，标题升到编辑级字号），容器放宽到 max-w-wide
+ * - 封面走 CoverImage 16:9，带 shimmer 骨架与失败回退；无图时 accent_color 兜底
+ * - 死链修复保持：已解锁「查看今日更新」→ /library；「已有兑换码？」→ /library
  *
  * 业务行为不变：解锁态仍由客户端实时向 /api/daily-access 校验
  * （登录用户走账号权益，游客用本地已核销码）。
@@ -54,12 +53,13 @@ export default function DailyPickHero({ teaser, isToday, isDemo }: DailyPickHero
 
   return (
     <section className="px-page" aria-label="每日推荐">
-      <div className="overflow-hidden rounded-hero border border-apple-border bg-apple-card shadow-card">
-        {/* 封面 + 角标 + tagline 叠层 */}
+      <div className="mx-auto max-w-wide lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
+        {/* 封面 + 角标 + tagline 叠层（桌面为右列） */}
         <CoverImage
           src={teaser.cover_url}
           alt={`${teaser.title} 封面`}
-          ratio="hero"
+          ratio="video"
+          className="overflow-hidden rounded-hero lg:order-2"
           fallbackStyle={
             !teaser.cover_url && teaser.accent_color
               ? { background: teaser.accent_color }
@@ -98,8 +98,8 @@ export default function DailyPickHero({ teaser, isToday, isDemo }: DailyPickHero
           }
         />
 
-        {/* 内容区 */}
-        <div className="p-5 sm:p-6">
+        {/* 内容区（桌面为左列） */}
+        <div className="pt-5 lg:order-1 lg:pt-0">
           <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-apple-blue">
             <Sparkles className="h-3.5 w-3.5" aria-hidden />
             每日推荐
@@ -109,7 +109,7 @@ export default function DailyPickHero({ teaser, isToday, isDemo }: DailyPickHero
               </Badge>
             )}
           </p>
-          <h2 className="mt-2 line-clamp-2 text-xl font-bold leading-snug tracking-tight text-apple-text">
+          <h2 className="mt-2 text-2xl font-semibold leading-[1.15] text-apple-text sm:text-editorial-title lg:text-editorial-display">
             {teaser.title}
           </h2>
 
@@ -124,7 +124,7 @@ export default function DailyPickHero({ teaser, isToday, isDemo }: DailyPickHero
             </Button>
           ) : (
             <>
-              <p className="mt-2.5 flex items-start gap-1.5 text-sm leading-relaxed text-apple-text-2">
+              <p className="mt-3 flex items-start gap-1.5 text-md leading-relaxed text-apple-text-2">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-apple-text-3" aria-hidden />
                 {status.expired
                   ? '每日计划已过期，续费后继续查看每日更新与历史仓库'

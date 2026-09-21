@@ -54,7 +54,7 @@ export default function ShopClient({
 
   if (isDemo) {
     return (
-      <div className="px-page">
+      <div className="mx-auto max-w-wide px-page">
         <Message tone="info" className="mb-4">
           当前为演示数据 · 配置 SUPABASE 环境变量后将自动显示真实商品
         </Message>
@@ -65,14 +65,14 @@ export default function ShopClient({
 
   if (sections.length === 0) {
     return (
-      <div className="px-page">
+      <div className="mx-auto max-w-wide px-page">
         <MajorGrid majors={majors} subsByMajor={subsByMajor} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-10">
+    <div>
       {sections.map((section) => (
         <HomeSectionBlock
           key={section.id}
