@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Zorvin 使用指南</title>
+<link rel="icon" href="/icon.svg" />
+<link rel="apple-touch-icon" href="/apple-icon.png" />
 <style>
   :root {
     --blue: #0071e3;
@@ -18,7 +20,7 @@
     --hairline: #e8e8ed;
     --radius: 20px;
     --radius-sm: 12px;
-    --green: #1b7f3b;
+    --green: #1d8a3e;
     --orange: #d9550a;
     --purple: #8944ab;
   }
@@ -132,6 +134,12 @@
     letter-spacing: -0.02em;
     margin: 40px 0 16px;
   }
+  h3.sub {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 28px 0 12px;
+  }
   p.body {
     font-size: 16px;
     color: var(--text-2);
@@ -139,6 +147,7 @@
     max-width: 40em;
   }
   p.body + p.body { margin-top: 12px; }
+  p.body strong { color: var(--text); font-weight: 600; }
 
   /* ---------- 卡片 ---------- */
   .card {
@@ -167,6 +176,11 @@
     transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s;
     border-radius: var(--radius);
     background: var(--bg-soft);
+    border: none;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    width: 100%;
   }
   .quick:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08); }
   .quick .ico {
@@ -214,20 +228,46 @@
   .note svg { width: 22px; height: 22px; color: var(--blue); flex-shrink: 0; margin-top: 1px; }
   .note h3 { font-size: 15px; font-weight: 600; }
   .note p { font-size: 14px; color: var(--text-2); margin-top: 4px; line-height: 1.6; }
+  .note p + p { margin-top: 8px; }
   .note.amber { background: #fdf0e5; }
   .note.amber svg { color: var(--orange); }
+  .note ul { margin: 6px 0 0 18px; }
+  .note li { font-size: 14px; color: var(--text-2); line-height: 1.7; }
 
-  /* ---------- 媒体占位（待替换图片） ---------- */
-  .media {
-    margin-top: 24px;
-    border: 1.5px dashed var(--border);
-    border-radius: var(--radius);
+  /* ---------- 截图 ---------- */
+  .shot { margin: 28px 0 8px; }
+  .shot img {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    margin: 0 auto;
+    border-radius: 28px;
+    border: 1px solid var(--hairline);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
     background: var(--bg-soft);
-    display: grid; place-items: center;
-    min-height: 220px; color: var(--text-3); text-align: center;
   }
-  .media svg { width: 40px; height: 40px; opacity: 0.5; }
-  .media span { display: block; font-size: 13px; margin-top: 10px; }
+  .shot figcaption {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-3);
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+  .shots-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    margin: 28px 0 8px;
+  }
+  .shots-2 .shot { margin: 0; }
+  .shots-2 .shot img { max-width: 100%; border-radius: 24px; }
+  .shots-2 .shot figcaption { font-size: 12.5px; }
+  /* 手机上并排两张会窄到看不清界面里的字，改成单列铺开 */
+  @media (max-width: 560px) {
+    .shots-2 { grid-template-columns: 1fr; gap: 24px; }
+    .shots-2 .shot img { max-width: 320px; border-radius: 28px; }
+  }
 
   /* ---------- 页脚 ---------- */
   footer {
@@ -278,8 +318,29 @@
     <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
     </symbol>
-    <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>
+    <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+    </symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+    </symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="i-basket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m15 11-1 9"/><path d="m19 11-4-7"/><path d="M2 11h20"/><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4"/><path d="M4.5 15.5h15"/><path d="m5 11 4-7"/>
+    </symbol>
+    <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+    </symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
     </symbol>
   </defs>
 </svg>
@@ -296,12 +357,14 @@
     <nav class="tabs" role="tablist" aria-label="指南导航">
       <button class="tab active" role="tab" data-target="overview">概览</button>
       <button class="tab" role="tab" data-target="shop">选购</button>
-      <button class="tab" role="tab" data-target="purchase">购买与付款</button>
-      <button class="tab" role="tab" data-target="redeem">兑换码</button>
-      <button class="tab" role="tab" data-target="activities">活动</button>
-      <button class="tab" role="tab" data-target="subscriptions">订阅方案</button>
-      <button class="tab" role="tab" data-target="daily">每日计划</button>
+      <button class="tab" role="tab" data-target="wishlist">愿望单</button>
+      <button class="tab" role="tab" data-target="purchase">付款与兑换</button>
+      <button class="tab" role="tab" data-target="subscriptions">订阅</button>
       <button class="tab" role="tab" data-target="library">我的库</button>
+      <button class="tab" role="tab" data-target="activities">活动</button>
+      <button class="tab" role="tab" data-target="plaza">探究广场</button>
+      <button class="tab" role="tab" data-target="friends">好友与对话</button>
+      <button class="tab" role="tab" data-target="account">账号与设置</button>
     </nav>
   </div>
 </header>
@@ -316,40 +379,46 @@
       <p class="lede">从选购、付款到兑换，几步之内，尽享属于你的精选内容。</p>
     </div>
     <p class="body">
-      这里是一份完整的使用说明，涵盖从发现商品、完成付款、获取兑换码，到兑换内容、解锁每日计划的全部流程。
-      点击下方任意卡片，或使用顶部导航，即可快速跳转到对应章节。
+      这份指南按你实际会走的路子组织：<strong>先挑</strong>（选购、愿望单）→ <strong>再付</strong>（付款、兑换码、订阅）→
+      <strong>然后用</strong>（我的库、活动、每日计划）→ <strong>最后是和人打交道</strong>（探究广场、好友、你的账号）。
+      每一节都配了站内的真实截图，照着点就行。
     </p>
 
+    <figure class="shot">
+      <img src="/guide/01-home.jpg" alt="选购首页" width="430" height="932" loading="lazy" />
+      <figcaption>选购首页：顶部是全站公告，下面是各个板块的卡片</figcaption>
+    </figure>
+
     <div class="grid">
-      <div class="quick" data-target="shop">
+      <button class="quick" data-target="shop">
         <div class="ico"><svg width="22" height="22"><use href="#i-bag"/></svg></div>
-        <div><h3>选购</h3><p>浏览板块与商品，发现心仪内容。</p></div>
-      </div>
-      <div class="quick" data-target="purchase">
+        <div><h3>选购</h3><p>浏览板块与小单元，看到心仪的就收藏。</p></div>
+      </button>
+      <button class="quick" data-target="wishlist">
+        <div class="ico"><svg width="22" height="22"><use href="#i-heart"/></svg></div>
+        <div><h3>愿望单</h3><p>确认清单，一次推送下单。</p></div>
+      </button>
+      <button class="quick" data-target="purchase">
         <div class="ico"><svg width="22" height="22"><use href="#i-card"/></svg></div>
-        <div><h3>购买与付款</h3><p>在第三方平台安全付款，获取兑换码。</p></div>
-      </div>
-      <div class="quick" data-target="redeem">
-        <div class="ico"><svg width="22" height="22"><use href="#i-key"/></svg></div>
-        <div><h3>兑换码</h3><p>输入兑换码，即兑即用。</p></div>
-      </div>
-      <div class="quick" data-target="activities">
-        <div class="ico"><svg width="22" height="22"><use href="#i-calendar"/></svg></div>
-        <div><h3>活动</h3><p>发现限时与主题内容。</p></div>
-      </div>
-      <div class="quick" data-target="subscriptions">
+        <div><h3>付款与兑换</h3><p>扫码付款、推送订单、拿卡密兑换。</p></div>
+      </button>
+      <button class="quick" data-target="subscriptions">
         <div class="ico"><svg width="22" height="22"><use href="#i-layers"/></svg></div>
-        <div><h3>订阅方案</h3><p>选一个适合你的付费节奏。</p></div>
-      </div>
-      <div class="quick" data-target="daily">
-        <div class="ico"><svg width="22" height="22"><use href="#i-star"/></svg></div>
-        <div><h3>每日计划</h3><p>解锁每天一条精选推荐。</p></div>
-      </div>
+        <div><h3>订阅</h3><p>选一个适合你的付费节奏。</p></div>
+      </button>
+      <button class="quick" data-target="library">
+        <div class="ico"><svg width="22" height="22"><use href="#i-book"/></svg></div>
+        <div><h3>我的库</h3><p>兑换码、我的券、我的订阅、我的内容。</p></div>
+      </button>
+      <button class="quick" data-target="plaza">
+        <div class="ico"><svg width="22" height="22"><use href="#i-users"/></svg></div>
+        <div><h3>探究广场</h3><p>交流、共享、一起买、对话与搜索。</p></div>
+      </button>
     </div>
 
     <div class="tags">
       <span class="tag blue"><svg><use href="#i-check"/></svg>简单几步</span>
-      <span class="tag green"><svg><use href="#i-shield"/></svg>安全付款</span>
+      <span class="tag green"><svg><use href="#i-shield"/></svg>第三方平台付款</span>
       <span class="tag orange"><svg><use href="#i-star"/></svg>每日更新</span>
     </div>
   </section>
@@ -359,100 +428,220 @@
     <div class="page-head">
       <div class="eyebrow">选购</div>
       <h1>发现属于你的那一款。</h1>
-      <p class="lede">首页按板块组织，精选与全部商品一目了然。</p>
+      <p class="lede">首页按板块组织，点开卡片就能看到里面的全部内容。</p>
     </div>
 
     <p class="body">
-      进入首页，你会看到一个个横向滑动的板块：带「精选」标记的卡片是编辑特别推荐，其余商品也按分类整齐排列。
-      点开任意卡片，即可查看该分类下的具体内容。
+      首页从上到下依次是：<strong>全站公告</strong>（付款方式、客服联系方式等，下单前务必看一眼）、
+      <strong>板块卡片</strong>（横向滑动浏览，带「精选」标记的是编辑特别推荐）。
+      点一下卡片，它会展开成一个整屏的合集页，里面列出该板块下所有小单元和价格。
     </p>
 
-    <!-- 图片占位：首页板块截图（用户后续提供） -->
-    <div class="media">
-      <div><svg><use href="#i-image"/></svg><span>图片待添加 · 首页板块示例</span></div>
-    </div>
+    <figure class="shot">
+      <img src="/guide/17-home-expanded.jpg" alt="板块展开后的合集页" width="430" height="932" loading="lazy" />
+      <figcaption>点开板块后：顶部是简介与「查看详情」，下面是每个小单元的价格和「＋」</figcaption>
+    </figure>
 
-    <h2>如何浏览</h2>
+    <h2>怎么把东西放进愿望单</h2>
     <div class="steps">
-      <div class="step"><div class="num">1</div><div><h3>打开首页</h3><p>进入 Zorvin 选购页，顶部是每日推荐，下方是商品板块。</p></div></div>
-      <div class="step"><div class="num">2</div><div><h3>滑动板块</h3><p>左右滑动卡片流，浏览不同分类与精选内容。</p></div></div>
-      <div class="step"><div class="num">3</div><div><h3>点开卡片</h3><p>点击卡片展开选项，查看该分类下的具体商品。</p></div></div>
-    </div>
-
-    <div class="tags">
-      <span class="tag blue"><svg><use href="#i-star"/></svg>精选</span>
-      <span class="tag gray">板块</span>
-      <span class="tag gray">分类</span>
-    </div>
-  </section>
-
-  <!-- ==================== 购买与付款 ==================== -->
-  <section class="page" id="purchase">
-    <div class="page-head">
-      <div class="eyebrow">购买与付款</div>
-      <h1>几步之内，完成购买。</h1>
-      <p class="lede">付款在第三方发卡平台完成，安全、私密。</p>
-    </div>
-
-    <p class="body">
-      选择好商品或订阅方案后，点击「立即订阅」即可跳转到第三方发卡平台完成付款。
-      付款成功后，平台会为你生成一个兑换码——它是你兑换内容的凭证，请妥善保管。
-    </p>
-
-    <h2>购买流程</h2>
-    <div class="steps">
-      <div class="step"><div class="num">1</div><div><h3>选择方案</h3><p>在商品或订阅详情中，确定你要购买的内容。</p></div></div>
-      <div class="step"><div class="num">2</div><div><h3>跳转付款</h3><p>点击「立即订阅」，在新标签页打开第三方发卡平台的付款链接。</p></div></div>
-      <div class="step"><div class="num">3</div><div><h3>完成支付</h3><p>按平台提示完成付款。</p></div></div>
-      <div class="step"><div class="num">4</div><div><h3>获取兑换码</h3><p>付款成功后，平台会显示你的兑换码（卡密），请复制保存。</p></div></div>
+      <div class="step"><div class="num">1</div><div><h3>打开板块</h3><p>在首页点任意板块卡片，展开合集页。</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>点亮爱心 / 点「＋」</h3><p>看到心仪的小单元，点亮爱心（或点右侧的「＋」）即可加入愿望单。</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>去愿望单结算</h3><p>底部导航切到「愿望单」，确认清单后一次下单。</p></div></div>
     </div>
 
     <div class="note">
-      <svg><use href="#i-shield"/></svg>
+      <svg><use href="#i-info"/></svg>
       <div>
-        <h3>付款安全</h3>
-        <p>所有付款均在第三方平台完成，Zorvin 不接触、不保存你的任何支付信息。</p>
+        <h3>先收藏、再下单</h3>
+        <p>选购页只负责挑，付款统一在愿望单里完成——这样你可以一次挑好几样，只推送一次订单。</p>
       </div>
-    </div>
-
-    <div class="tags">
-      <span class="tag blue"><svg><use href="#i-shield"/></svg>安全付款</span>
-      <span class="tag green"><svg><use href="#i-link"/></svg>第三方平台</span>
-      <span class="tag orange"><svg><use href="#i-key"/></svg>兑换码凭证</span>
     </div>
   </section>
 
-  <!-- ==================== 兑换码 ==================== -->
-  <section class="page" id="redeem">
+  <!-- ==================== 愿望单 ==================== -->
+  <section class="page" id="wishlist">
     <div class="page-head">
-      <div class="eyebrow">兑换码</div>
-      <h1>一码在手，即兑即用。</h1>
-      <p class="lede">在兑换页输入兑换码，内容即刻解锁。</p>
+      <div class="eyebrow">愿望单</div>
+      <h1>挑好的，都在这里。</h1>
+      <p class="lede">确认清单后推送订单，即可完成支付。</p>
     </div>
 
     <p class="body">
-      拿到兑换码后，回到 Zorvin，进入「兑换」页面输入兑换码。
-      兑换成功后会立即弹出你购买的内容，或为你解锁「每日计划」。
+      愿望单是下单前的最后一站。这里能看到每件商品的<strong>单价、数量与小计</strong>，
+      可以加减数量、单件删除，或者一键清空重挑。底部的浮动条实时显示件数与合计金额，右侧就是「去结算」。
     </p>
 
-    <h2>兑换步骤</h2>
+    <figure class="shot">
+      <img src="/guide/10-wishlist.jpg" alt="愿望单" width="430" height="932" loading="lazy" />
+      <figcaption>愿望单：调整数量 → 看合计 → 去结算</figcaption>
+    </figure>
+
+    <div class="tags">
+      <span class="tag blue"><svg><use href="#i-heart"/></svg>收藏的商品</span>
+      <span class="tag gray">改数量</span>
+      <span class="tag green"><svg><use href="#i-check"/></svg>一次结算</span>
+    </div>
+  </section>
+
+  <!-- ==================== 付款与兑换 ==================== -->
+  <section class="page" id="purchase">
+    <div class="page-head">
+      <div class="eyebrow">付款与兑换</div>
+      <h1>付款之后，别忘了点「推送订单」。</h1>
+      <p class="lede">付款在微信 / 支付宝完成，卡密由站长核对后发到你的仓库。</p>
+    </div>
+
+    <p class="body">
+      点「去结算」会弹出确认结算面板：先核对清单，有优惠码就填上点「应用」，
+      再选<strong>微信支付</strong>或<strong>支付宝支付</strong>扫码完成付款。
+      付款成功后，<strong>一定要回到这个面板点一次「推送订单」</strong>——那是把订单交给我们核对的唯一动作。
+    </p>
+
+    <figure class="shot">
+      <img src="/guide/18-checkout.jpg" alt="确认结算面板" width="430" height="932" loading="lazy" />
+      <figcaption>确认结算：清单 → 优惠码 → 合计 → 选支付方式 → 推送订单</figcaption>
+    </figure>
+
+    <h2>下单流程</h2>
     <div class="steps">
-      <div class="step"><div class="num">1</div><div><h3>打开兑换页</h3><p>在首页或导航中找到「兑换」入口。</p></div></div>
-      <div class="step"><div class="num">2</div><div><h3>输入兑换码</h3><p>粘贴你在付款后获得的兑换码。</p></div></div>
-      <div class="step"><div class="num">3</div><div><h3>确认兑换</h3><p>点击兑换，内容会立即展示，或提示你已解锁每日计划。</p></div></div>
+      <div class="step"><div class="num">1</div><div><h3>核对清单与合计</h3><p>在结算面板里确认商品、数量与金额。</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>填优惠码（选填）</h3><p>有券就填进「优惠码」再点「应用」，合计会立刻更新。</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>扫码付款</h3><p>选微信或支付宝，按提示完成支付，<strong>付款金额与备注按公告要求填</strong>。</p></div></div>
+      <div class="step"><div class="num">4</div><div><h3>点「推送订单」</h3><p>付款后回到结算面板点它，我们才能收到你的订单。</p></div></div>
+      <div class="step"><div class="num">5</div><div><h3>等卡密到仓库</h3><p>核对无误后，卡密会发到你的「我的库」，再按下一节兑换即可。</p></div></div>
     </div>
 
     <div class="note amber">
       <svg><use href="#i-key"/></svg>
       <div>
-        <h3>温馨提示</h3>
-        <p>兑换码是唯一凭证，请妥善保管。兑换成功后，内容会归档到「我的库」，随时可再次查看。</p>
+        <h3>下单前后请留意这几点（与站内公告一致）</h3>
+        <ul>
+          <li><strong>不要重复点「推送订单」</strong>，点一次就好，反复点不会更快。</li>
+          <li>推送后<strong>耐心等 5 分钟左右</strong>，商品会自动推送到你的库中。</li>
+          <li>推送时间 <strong>9:00–00:00</strong>，不在这个时段内推送可能会延迟。</li>
+          <li>付款时<strong>备注你的注册邮箱</strong>；金额请与订单一致，若有差异需补足后才会发货。</li>
+          <li>二维码失效或遇到问题，按公告里的客服 QQ 联系。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>兑换卡密</h2>
+    <p class="body">
+      拿到卡密后，去「<strong>我的库</strong>」最上方的「兑换卡密」输入框，粘贴卡密点「兑换」即可解锁内容。
+      兑换过的卡密可以<strong>反复输入查看</strong>，不会因为再输一次就失效。
+      登录状态下兑换会同步到账号；以游客身份兑换的记录只存在这台设备上，换设备会丢，建议先登录。
+    </p>
+
+    <figure class="shot">
+      <img src="/guide/07-library.jpg" alt="我的库顶部的兑换卡密" width="430" height="932" loading="lazy" />
+      <figcaption>兑换入口在「我的库」顶部：粘贴卡密 → 兑换</figcaption>
+    </figure>
+
+    <div class="tags">
+      <span class="tag green"><svg><use href="#i-shield"/></svg>微信 / 支付宝</span>
+      <span class="tag blue"><svg><use href="#i-key"/></svg>卡密凭证</span>
+      <span class="tag orange"><svg><use href="#i-info"/></svg>推送后约 5 分钟</span>
+    </div>
+  </section>
+
+  <!-- ==================== 订阅 ==================== -->
+  <section class="page" id="subscriptions">
+    <div class="page-head">
+      <div class="eyebrow">订阅</div>
+      <h1>选一个适合你的节奏。</h1>
+      <p class="lede">按月、按季或按年，随时可以停。</p>
+    </div>
+
+    <p class="body">
+      订阅页把当前在售的套餐列成卡片：最上面是主推方案，下面「更多套餐」按周期排开。
+      点「立即订阅」弹出的面板与结算面板是同一套：<strong>优惠码 → 合计 → 选支付方式 → 推送订单</strong>，
+      付款与推送的要求和买东西完全一样。
+    </p>
+
+    <div class="shots-2">
+      <figure class="shot">
+        <img src="/guide/03-subscription.jpg" alt="订阅页" width="430" height="932" loading="lazy" />
+        <figcaption>订阅页：主推方案 + 更多套餐</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/guide/16-subscribe-sheet.jpg" alt="订阅购买面板" width="430" height="932" loading="lazy" />
+        <figcaption>订阅面板：同样支持优惠码与推送订单</figcaption>
+      </figure>
+    </div>
+
+    <h2>每日计划</h2>
+    <p class="body">
+      「每日计划」是一种按月更新的订阅：解锁后每天更新一期精选内容，你可以在「我的库」里看到
+      <strong>订阅有效期</strong>，以及每期对应的「打开链接」。有效期从解锁那一刻开始算。
+      它同样可以通过购买订阅、或用卡密兑换来解锁。
+    </p>
+
+    <div class="note">
+      <svg><use href="#i-star"/></svg>
+      <div>
+        <h3>订阅的权益到哪儿看</h3>
+        <p>全部在「我的库 → 我的订阅」：订阅名称、到期日、以及它包含的每一期内容入口。</p>
       </div>
     </div>
 
     <div class="tags">
-      <span class="tag blue"><svg><use href="#i-key"/></svg>卡密</span>
-      <span class="tag green"><svg><use href="#i-check"/></svg>即兑即用</span>
+      <span class="tag blue">月付</span>
+      <span class="tag blue">季付</span>
+      <span class="tag blue">年付</span>
+      <span class="tag orange"><svg><use href="#i-star"/></svg>每日更新</span>
+    </div>
+  </section>
+
+  <!-- ==================== 我的库 ==================== -->
+  <section class="page" id="library">
+    <div class="page-head">
+      <div class="eyebrow">我的库</div>
+      <h1>你拥有的，都在这里。</h1>
+      <p class="lede">兑换的内容与权益自动归档，随时查看。</p>
+    </div>
+
+    <p class="body">
+      「我的库」是账号里最重要的页面，从上到下分四块：<strong>兑换卡密</strong>、<strong>我的券</strong>、
+      <strong>我的订阅</strong>、<strong>我的内容</strong>。顶部是你的账号卡片，点一下可以改昵称和头像。
+    </p>
+
+    <div class="shots-2">
+      <figure class="shot">
+        <img src="/guide/08-library-coupons.jpg" alt="我的券" width="430" height="932" loading="lazy" />
+        <figcaption>我的券：展开可见面额、门槛与状态</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/guide/09-library-contents.jpg" alt="我的内容" width="430" height="932" loading="lazy" />
+        <figcaption>我的内容：可按图片 / 视频 / 文档筛选</figcaption>
+      </figure>
+    </div>
+
+    <h2>四块分别是什么</h2>
+    <div class="grid">
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">兑换卡密</h3>
+        <p class="body" style="margin-top:8px">粘贴卡密解锁内容。兑换过的码可以重复输入查看，不会失效。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">我的券</h3>
+        <p class="body" style="margin-top:8px">在活动里领到的优惠券都在这里，结算时填它的专属码即可抵扣；券有门槛与有效期。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">我的订阅</h3>
+        <p class="body" style="margin-top:8px">订阅名称、到期日，以及每一期内容的「打开链接」。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">我的内容</h3>
+        <p class="body" style="margin-top:8px">兑换过的图片、视频与文档，可筛选、可删除（删了之后重新兑换同一卡密还能恢复）。</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <svg><use href="#i-info"/></svg>
+      <div>
+        <h3>登录与游客</h3>
+        <p>登录后兑换的内容会归档到账号，换设备也还在。游客身份兑换只保存在本机浏览器里，清除数据或换设备就会丢失。</p>
+      </div>
     </div>
   </section>
 
@@ -465,14 +654,14 @@
     </div>
 
     <p class="body">
-      活动是 Zorvin 不定期推出的限时或主题内容。点击活动卡片即可查看详情，
-      卡片上的「了解更多」会带你前往完整介绍页面。
+      活动页是 Zorvin 不定期推出的限时或主题活动，同时<strong>也是优惠券的领取入口</strong>——
+      看到「领取」就点，领到的券会进「我的库 → 我的券」，下单时能直接抵扣。
     </p>
 
-    <!-- 图片占位：活动卡片示例（用户后续提供） -->
-    <div class="media">
-      <div><svg><use href="#i-image"/></svg><span>图片待添加 · 活动示例</span></div>
-    </div>
+    <figure class="shot">
+      <img src="/guide/04-activities.jpg" alt="活动页" width="430" height="932" loading="lazy" />
+      <figcaption>活动页：卡片上可以直接领券</figcaption>
+    </figure>
 
     <div class="tags">
       <span class="tag orange"><svg><use href="#i-calendar"/></svg>限时</span>
@@ -481,91 +670,176 @@
     </div>
   </section>
 
-  <!-- ==================== 订阅方案 ==================== -->
-  <section class="page" id="subscriptions">
+  <!-- ==================== 探究广场 ==================== -->
+  <section class="page" id="plaza">
     <div class="page-head">
-      <div class="eyebrow">订阅方案</div>
-      <h1>选一个适合你的节奏。</h1>
-      <p class="lede">月付、季付、年付，灵活选择。</p>
+      <div class="eyebrow">探究广场</div>
+      <h1>交流、共享、一起买。</h1>
+      <p class="lede">底部导航切到「探究」，右上角进入探究广场。</p>
     </div>
 
     <p class="body">
-      订阅提供多种付费周期，你可以按需选择月付、季付或年付。
-      购买订阅后同样会获得兑换码，兑换后即可获得对应的内容权益。
+      「探究」页本身只放官方公告，<strong>帖子、好友、拼单、搜索都在广场里</strong>。
+      进广场后底部是五个板块：<strong>交流</strong>、<strong>共享</strong>、<strong>一起买</strong>、<strong>对话</strong>，
+      以及最右侧的圆形<strong>搜索</strong>。整个广场是一个独立界面，左上角「探究」可以随时退出。
     </p>
 
-    <h2>可选周期</h2>
-    <div class="grid">
-      <div class="card"><h3 style="font-size:18px;font-weight:600">月付</h3><p class="body" style="margin-top:8px">按月订阅，随时取消，适合先体验再决定的朋友。</p></div>
-      <div class="card"><h3 style="font-size:18px;font-weight:600">季付</h3><p class="body" style="margin-top:8px">按季订阅，性价比更高，含完整季度更新。</p></div>
-      <div class="card"><h3 style="font-size:18px;font-weight:600">年付</h3><p class="body" style="margin-top:8px">一次订阅全年畅用，含所有更新与年度权益。</p></div>
+    <div class="shots-2">
+      <figure class="shot">
+        <img src="/guide/05-explore.jpg" alt="探究页" width="430" height="700" loading="lazy" />
+        <figcaption>探究页：官方公告 + 右上角广场入口</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/guide/06-plaza-chat.jpg" alt="交流板块" width="430" height="932" loading="lazy" />
+        <figcaption>交流板块：发帖、点赞、评论、收藏</figcaption>
+      </figure>
     </div>
 
-    <div class="tags">
-      <span class="tag blue">月付</span>
-      <span class="tag blue">季付</span>
-      <span class="tag blue">年付</span>
-      <span class="tag green"><svg><use href="#i-check"/></svg>兑换内容</span>
+    <h2>五个板块分别做什么</h2>
+    <div class="steps">
+      <div class="step"><div class="num"><svg width="18" height="18" style="color:#fff"><use href="#i-chat"/></svg></div>
+        <div><h3>交流</h3><p>发帖分享（支持文字 + 配图），也能点赞、评论、收藏别人的帖子。点作者头像可以进他的主页加好友。</p></div></div>
+      <div class="step"><div class="num"><svg width="18" height="18" style="color:#fff"><use href="#i-share"/></svg></div>
+        <div><h3>共享</h3><p>用你手上的资源换你需要的小单元：发起交换，双方确认后各自解锁。</p></div></div>
+      <div class="step"><div class="num"><svg width="18" height="18" style="color:#fff"><use href="#i-basket"/></svg></div>
+        <div><h3>一起买</h3><p>发起拼单，人满开团，<strong>每人只付分摊后的价格</strong>。到期没满会自动关闭，不扣款。</p></div></div>
+      <div class="step"><div class="num"><svg width="18" height="18" style="color:#fff"><use href="#i-users"/></svg></div>
+        <div><h3>对话</h3><p>和好友聊天，也可以直接给官方留言（小机器人会回复）。你的收藏也在这一栏。</p></div></div>
+      <div class="step"><div class="num"><svg width="18" height="18" style="color:#fff"><use href="#i-search"/></svg></div>
+        <div><h3>搜索</h3><p>点最右侧的圆形按钮搜索帖子与商品，结果可以直接跳回原帖。</p></div></div>
+    </div>
+
+    <figure class="shot">
+      <img src="/guide/11-plaza-group.jpg" alt="一起买" width="430" height="932" loading="lazy" />
+      <figcaption>一起买：显示当前人数、分摊价、省了多少，以及还剩多久</figcaption>
+    </figure>
+
+    <div class="note">
+      <svg><use href="#i-info"/></svg>
+      <div>
+        <h3>右上角那两个图标</h3>
+        <p>齿轮是<strong>总设置</strong>，右边的<strong>头像</strong>是你的个人主页（见「账号与设置」一节）。</p>
+      </div>
     </div>
   </section>
 
-  <!-- ==================== 每日计划 ==================== -->
-  <section class="page" id="daily">
+  <!-- ==================== 好友与对话 ==================== -->
+  <section class="page" id="friends">
     <div class="page-head">
-      <div class="eyebrow">每日计划</div>
-      <h1>每天一点新惊喜。</h1>
-      <p class="lede">解锁后，每天为你更新一条精选推荐。</p>
+      <div class="eyebrow">好友与对话</div>
+      <h1>找同好，聊到一块儿。</h1>
+      <p class="lede">从帖子上认识人，在对话里接着聊。</p>
     </div>
 
     <p class="body">
-      每日计划解锁后，首页的「每日推荐」会每天更新一条精选内容。
-      你可以通过购买每日计划订阅、兑换对应的兑换码来解锁；解锁有效期可以是固定天数，也可以是永久。
+      加好友不用加联系方式：在「交流」板块，点帖子上的<strong>「加好友」</strong>或点<strong>作者头像</strong>进主页，
+      对方同意后你们就是好友了。成为好友后，在「对话」板块就能找到他开聊。
     </p>
 
-    <h2>如何解锁</h2>
-    <div class="steps">
-      <div class="step"><div class="num">1</div><div><h3>购买每日计划</h3><p>在订阅方案中选择「每日计划」并完成购买。</p></div></div>
-      <div class="step"><div class="num">2</div><div><h3>兑换解锁</h3><p>使用获得的兑换码在「兑换」页完成解锁。</p></div></div>
-      <div class="step"><div class="num">3</div><div><h3>每天查看</h3><p>解锁后回到首页，每日推荐每天更新。</p></div></div>
+    <div class="shots-2">
+      <figure class="shot">
+        <img src="/guide/12-plaza-dm.jpg" alt="对话板块" width="430" height="932" loading="lazy" />
+        <figcaption>对话：官方入口固定置顶，下面是好友</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/guide/15-profile.jpg" alt="个人主页" width="430" height="932" loading="lazy" />
+        <figcaption>个人主页：作品、加好友、去对话</figcaption>
+      </figure>
+    </div>
+
+    <h2>对话里的三样东西</h2>
+    <div class="grid">
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">官方会话</h3>
+        <p class="body" style="margin-top:8px">固定在最上面，一条消息都没有时也在——新用户也找得到入口。给官方留言，小机器人会回复。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">我的收藏</h3>
+        <p class="body" style="margin-top:8px">你在交流板块收藏的帖子会以气泡的形式出现在这里，还能给自己写备注——相当于一个只属于你的地方。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">好友会话</h3>
+        <p class="body" style="margin-top:8px">聊过的好友在最前；还没聊过的点头像也能直接进去发第一条。</p>
+      </div>
+    </div>
+
+    <figure class="shot">
+      <img src="/guide/13-bookmarks.jpg" alt="我的收藏" width="430" height="932" loading="lazy" />
+      <figcaption>我的收藏：收藏的帖子 + 自己的备注，点「查看原帖」跳回交流板块</figcaption>
+    </figure>
+
+    <div class="note amber">
+      <svg><use href="#i-info"/></svg>
+      <div>
+        <h3>几个小操作</h3>
+        <ul>
+          <li>会话行<strong>向左滑动</strong>会出现删除按钮（触屏上悬停是不存在的，所以用滑动）。</li>
+          <li>在自己的主页点「这是我的主页 · 去编辑资料」可以改昵称与头像。</li>
+          <li>在好友主页上可以直接<strong>删除好友</strong>，当页就会变回「加好友」。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 账号与设置 ==================== -->
+  <section class="page" id="account">
+    <div class="page-head">
+      <div class="eyebrow">账号与设置</div>
+      <h1>你的账号，你做主。</h1>
+      <p class="lede">注册、登录、改密码，以及全部设置。</p>
+    </div>
+
+    <p class="body">
+      注册与登录都用<strong>邮箱 + 密码</strong>。忘记密码就点「忘记密码？」，我们会发一封重置邮件到你邮箱，
+      点邮件里的链接即可设置新密码。登录后可以在「我的库」顶部卡片里改昵称和头像。
+    </p>
+
+    <figure class="shot">
+      <img src="/guide/02-login.jpg" alt="登录页" width="430" height="932" loading="lazy" />
+      <figcaption>登录页：邮箱 + 密码，也可以从这里创建账号</figcaption>
+    </figure>
+
+    <h2>总设置</h2>
+    <p class="body">
+      在探究广场的右上角点<strong>齿轮</strong>，打开「总设置」。里面分四组：
+    </p>
+
+    <figure class="shot">
+      <img src="/guide/14-settings.jpg" alt="总设置" width="430" height="932" loading="lazy" />
+      <figcaption>总设置：账号 / 声音与通知 / 我的 / 关于</figcaption>
+    </figure>
+
+    <div class="grid">
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">账号</h3>
+        <p class="body" style="margin-top:8px">点第一行去编辑昵称与头像；「修改密码」需要先验证当前密码；「退出登录」在这里。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">声音与通知</h3>
+        <p class="body" style="margin-top:8px">发送、接收、机器人回复、错误提示音各自的开关，以及总开关与音量。设置保存在本机浏览器里。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">我的</h3>
+        <p class="body" style="margin-top:8px">「我的库」和「我的收藏」的快捷入口。</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:18px;font-weight:600">关于</h3>
+        <p class="body" style="margin-top:8px">使用指南入口与当前版本号。</p>
+      </div>
     </div>
 
     <div class="note">
-      <svg><use href="#i-star"/></svg>
+      <svg><use href="#i-shield"/></svg>
       <div>
-        <h3>有效期说明</h3>
-        <p>解锁有效期自兑换成功那一刻起算，可以是固定天数，也可以是永久有效，以购买方案为准。</p>
+        <h3>账号安全</h3>
+        <p>改密码必须先在设置里输入当前密码通过验证，光有已登录的页面改不了——这是有意的。</p>
       </div>
     </div>
 
     <div class="tags">
-      <span class="tag orange"><svg><use href="#i-star"/></svg>每日更新</span>
-      <span class="tag blue"><svg><use href="#i-check"/></svg>解锁</span>
-      <span class="tag green">永久 / 限时</span>
-    </div>
-  </section>
-
-  <!-- ==================== 我的库 ==================== -->
-  <section class="page" id="library">
-    <div class="page-head">
-      <div class="eyebrow">我的库</div>
-      <h1>你拥有的，都在这里。</h1>
-      <p class="lede">兑换的内容与权益，自动归档、随时查看。</p>
-    </div>
-
-    <p class="body">
-      登录后，你兑换的所有内容与权益都会自动归档到「我的库」。
-      即使作为游客兑换的内容，也会保存在本地；登录后会自动同步到你的账号。
-    </p>
-
-    <h2>你会看到</h2>
-    <div class="grid">
-      <div class="card"><h3 style="font-size:18px;font-weight:600">已兑换内容</h3><p class="body" style="margin-top:8px">你购买并兑换的图片、视频与文档。</p></div>
-      <div class="card"><h3 style="font-size:18px;font-weight:600">每日计划权益</h3><p class="body" style="margin-top:8px">每日计划解锁状态与有效期。</p></div>
-    </div>
-
-    <div class="tags">
-      <span class="tag blue"><svg><use href="#i-book"/></svg>权益归档</span>
-      <span class="tag green"><svg><use href="#i-check"/></svg>自动同步</span>
+      <span class="tag blue"><svg><use href="#i-check"/></svg>邮箱登录</span>
+      <span class="tag green"><svg><use href="#i-shield"/></svg>改密码需验证</span>
+      <span class="tag gray">设置存在本机</span>
     </div>
   </section>
 
@@ -573,7 +847,7 @@
 
 <footer>
   Zorvin 使用指南 · 本页内容会随功能更新而调整。<br/>
-  如有疑问，请通过站内客服或「了解更多」渠道与我们联系。
+  截图取自站内真实界面；如遇二维码失效或其他问题，请按站内公告里的客服 QQ 与我们联系。
 </footer>
 
 <script>
@@ -603,9 +877,20 @@
     tabs.forEach(function (t) { t.addEventListener('click', go); });
     quicks.forEach(function (q) { q.addEventListener('click', go); });
 
-    // 支持直接打开带 #锚点 的链接（深链）
-    var hash = location.hash.slice(1);
-    if (hash && document.getElementById(hash)) activate(hash);
+    // 支持带 #锚点 的链接（深链）。
+    // 别名表：旧版章节名要继续能用 —— 后台「订阅商品」的「了解更多」链接写死了
+    // #daily（订阅面板里点它跳过来），这一版把「每日计划」并进了「订阅」一节，
+    // 不映射的话那个链接会落在概览页，看起来像坏了。
+    var ALIAS = { daily: 'subscriptions', redeem: 'purchase', shop: 'shop', community: 'plaza' };
+    function goHash() {
+      var hash = location.hash.slice(1);
+      var target = ALIAS[hash] || hash;
+      if (target && document.getElementById(target)) activate(target);
+    }
+    goHash();
+    // 也要监听 hashchange：在本页里把 #overview 换成 #daily 属于**同文档导航**，
+    // 整页不会重载，上面那句就不会再跑一次 —— 点了像没反应。
+    window.addEventListener('hashchange', goHash);
   })();
 </script>
 </body>
