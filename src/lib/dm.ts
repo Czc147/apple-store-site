@@ -31,6 +31,13 @@ export interface DmMessage {
   read_at: string | null;
   /** 是不是我发的（服务端按当前用户算好，客户端不用自己比 id） */
   mine: boolean;
+  /**
+   * 消息种类（迁移 031）：
+   * - text   普通消息（含官方**自动**回复）
+   * - agent  人工客服发的 → 用户端打「客服」标签
+   * - system 系统提示（客服接入/结束）→ 用户端渲染成居中灰字
+   */
+  kind: 'text' | 'agent' | 'system';
 }
 
 type Headers = () => Promise<Record<string, string>>;
@@ -179,7 +186,12 @@ export async function fetchThreads(
  * 必须能区分出"你们已不是好友"，界面才解释得清楚。
  */
 export type FetchMessagesResult =
-  | { ok: true; messages: DmMessage[] }
+  | {
+      ok: true;
+      messages: DmMessage[];
+      /** 与官方对话时：是否正被人工接管（迁移 031）→ 界面显示「客服已介入」横幅 */
+      agentActive: boolean;
+    }
   | { ok: false; reason: 'not-friend' | 'unauthorized' | 'error' };
 
 /** 某会话的消息（服务端同时把这些消息标记为已读） */
@@ -193,8 +205,12 @@ export async function fetchMessages(
     if (res.status === 403) return { ok: false, reason: 'not-friend' };
     if (res.status === 401) return { ok: false, reason: 'unauthorized' };
     if (!res.ok) return { ok: false, reason: 'error' };
-    const data = (await res.json()) as { messages: DmMessage[] };
-    return { ok: true, messages: Array.isArray(data.messages) ? data.messages : [] };
+    const data = (await res.json()) as { messages: DmMessage[]; agent_active?: boolean };
+    return {
+      ok: true,
+      messages: Array.isArray(data.messages) ? data.messages : [],
+      agentActive: Boolean(data.agent_active),
+    };
   } catch {
     return { ok: false, reason: 'error' };
   }

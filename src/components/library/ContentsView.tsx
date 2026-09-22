@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import {
   FileText,
   Image as ImageIcon,
@@ -61,6 +62,37 @@ function kindOf(item: ContentItem): Kind {
  * IconButton(on-dark) + 补 Esc 关闭；行卡 → ListRow primitive；
  * 分类空态裸文字 → EmptyState(inline)。
  */
+/**
+ * 只有**站内公开桶的直链**才交给 next/image 优化。
+ *
+ * 两类图必须排除，否则要么白忙要么崩页：
+ * - **签约链接**（`object/sign/`）：每次现签的 URL 都不一样，交给优化器等于每次
+ *   都重新优化一遍，一点缓存都吃不到（而且 next.config 的 remotePatterns 也没放行它，
+ *   传进去会直接抛 "Invalid src prop" 把整页打崩）；
+ * - 站外链接同理不在放行名单里。
+ *
+ * 公开直链则相反：优化后能以 WebP + 合适尺寸下发，「我的内容」这种一屏十几张图的
+ * 网格能省掉大量流量，第二次打开也基本是秒开。
+ */
+function canOptimize(url: string): boolean {
+  return url.includes('/storage/v1/object/public/');
+}
+
+function ContentThumb({ url, alt }: { url: string; alt: string }) {
+  const box = 'aspect-square w-full bg-apple-bg object-contain';
+  if (!canOptimize(url)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={url} alt={alt} loading="lazy" className={box} />
+    );
+  }
+  return (
+    <span className="relative block aspect-square w-full bg-apple-bg">
+      <Image src={url} alt={alt} fill sizes="(min-width: 640px) 220px, 45vw" className="object-contain" />
+    </span>
+  );
+}
+
 export default function ContentsView({
   contents,
   onDelete,
@@ -185,13 +217,7 @@ export default function ContentsView({
                     aria-label={`全屏预览「${c.name ?? '图片'}」`}
                     className="group w-full overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card pressable hover:border-apple-blue/40 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={c.media_url as string}
-                      alt={c.name ?? '图片'}
-                      loading="lazy"
-                      className="aspect-square w-full bg-apple-bg object-contain"
-                    />
+                    <ContentThumb url={c.media_url as string} alt={c.name ?? '图片'} />
                     <p className="truncate px-2.5 py-2 text-center text-xs text-apple-text-2">
                       {c.name ?? '图片'}
                     </p>

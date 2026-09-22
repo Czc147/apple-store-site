@@ -43,7 +43,13 @@ export async function POST(req: NextRequest) {
   const db = supabaseAdmin();
   const { error } = await db
     .storage.from('avatars')
-    .upload(path, buffer, { contentType: ACCEPT_MIME, upsert: true });
+    .upload(path, buffer, {
+      contentType: ACCEPT_MIME,
+      upsert: true,
+      // ⚠️ 头像是**固定路径 + 覆盖写**，不能长缓存，否则用户换了头像还是看到旧的。
+      // 1 小时 + 返回 URL 上的 ?t=<时间戳> 破缓存：同头像不重复回源，换头像立刻生效。
+      cacheControl: '3600',
+    });
   if (error) return fail(`上传失败：${error.message}`, 500);
 
   const { data } = db.storage.from('avatars').getPublicUrl(path);

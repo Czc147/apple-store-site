@@ -133,6 +133,8 @@ export default function PlazaClient({ version }: { version: string }) {
     const boardForHash = (hash: string): BoardKey | null => {
       if (/^#post-/.test(hash)) return 'chat';
       if (/^#group-/.test(hash)) return 'group';
+      // 客服回复的站内通知落点：直接进「对话」板块（官方会话就在最上面）
+      if (hash === '#dm') return 'dm';
       return null;
     };
     const sync = () => {

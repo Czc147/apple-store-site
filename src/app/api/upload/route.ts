@@ -64,6 +64,9 @@ export async function POST(req: NextRequest) {
     .upload(path, buffer, {
       contentType: file.type,
       upsert: false,
+      // 路径带时间戳+随机串、upsert:false —— 文件永不覆盖，可以放心长缓存。
+      // 默认是 no-cache，等于每次展示都要跨境回源东京，又慢又费流量。
+      cacheControl: '31536000',
     });
   if (error) return fail(`上传失败：${error.message}`, 500);
 

@@ -12,6 +12,11 @@ interface MessageBubbleProps {
   avatar?: ReactNode;
   /** 发送失败时点击气泡重试（只对 status='failed' 的消息生效） */
   onRetry?: () => void;
+  /**
+   * 气泡内的标签（本站扩展，迁移 031）：人工客服的消息标一个「客服」，
+   * 用户要能一眼分清这条是真人发的还是机器人自动回的。
+   */
+  badge?: string;
 }
 
 /**
@@ -23,6 +28,7 @@ export default function MessageBubble({
   message,
   avatar,
   onRetry,
+  badge,
 }: MessageBubbleProps) {
   const failed = message.status === "failed";
   return (
@@ -67,6 +73,8 @@ export default function MessageBubble({
         </div>
 
         <div className="message-meta">
+          {/* 「客服」标签跟时间同一行靠左，用户扫一眼就知道这条是真人 */ }
+          {badge && <span className="message-badge">{badge}</span>}
           <span>{message.time}</span>
 
           {message.mine && (

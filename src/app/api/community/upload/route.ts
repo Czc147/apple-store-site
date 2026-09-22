@@ -65,7 +65,12 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const { error } = await supabaseAdmin()
     .storage.from('images')
-    .upload(path, buffer, { contentType: file.type, upsert: false });
+    .upload(path, buffer, {
+      contentType: file.type,
+      upsert: false,
+      // 唯一路径不覆盖 → 长缓存（默认 no-cache 会导致每次展示都回源）
+      cacheControl: '31536000',
+    });
   if (error) return fail(`上传失败：${error.message}`, 500);
 
   const { data } = supabaseAdmin().storage.from('images').getPublicUrl(path);

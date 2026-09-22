@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Headphones } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import Orbi, { type OrbiMood } from '@/components/orbi/Orbi';
 import MessageList from '@/components/chat/MessageList';
@@ -85,11 +85,29 @@ export default function DmThreadView({
   /** 发送失败的消息 id —— 它们不在服务端，轮询回来时要保住（见 load） */
   const failedIdsRef = useRef<Set<string>>(new Set());
   /**
+   * 密集轮询的截止时间戳：刚发完消息的 60 秒内每 3 秒拉一次（见下面的轮询 effect）。
+   * 等回复的那一小段时间是体感最关键的地方，平时则没必要这么频。
+   */
+  const burstUntilRef = useRef(0);
+  /**
+   * 立刻唤醒轮询链（由下面的 effect 挂上）。
+   *
+   * 为什么需要它：定时器是"拉完再排下一次"，如果发消息时正好挂着一个 18 秒的
+   * 定时器，光设 burstUntilRef 是没用的 —— 得等那一轮跑完才会改成 3 秒。
+   * 实测表现就是"发完消息还要等 8 秒才看到回复"。这里直接打断重排。
+   */
+  const wakeRef = useRef<(() => void) | null>(null);
+  /**
    * 会话被锁的原因。目前只有一种：好友关系被删了 ——
    * 会话列表是按消息记录聚合的，删了好友旧会话仍在列表里，
    * 点进来会 403。不把原因说出来，用户看到的就是"空白会话 + 发不出去"。
    */
   const [blocked, setBlocked] = useState(false);
+  /**
+   * 与官方对话时：是否正被人工接管（迁移 031）。接管期间服务端会暂停自动回复，
+   * 界面要说清楚 —— 否则用户发完消息等不到机器人回，只会以为坏了。
+   */
+  const [agentActive, setAgentActive] = useState(false);
   /** 发送失败时服务端给的原话（如「你们还不是好友」） */
   const [sendError, setSendError] = useState<string | null>(null);
 
@@ -100,6 +118,7 @@ export default function DmThreadView({
       return;
     }
     setBlocked(false);
+    setAgentActive(res.agentActive);
     const list = res.messages;
     setMessages((prev) => {
       // 失败的消息服务端没有，轮询/刷新时要把它们接回来，否则用户刚看到
@@ -153,19 +172,53 @@ export default function DmThreadView({
   }, [messages]);
 
   /**
-   * 轻量轮询：当前架构**没有消息推送通道**（没有 WebSocket/SSE/realtime），
-   * 不主动拉的话，好友回你消息你要重开会话才看得到，接收音也就永远不响。
-   * 20 秒一次、页面不可见时跳过 —— 只查一个会话，开销可接受。
-   * 官方会话不轮询：它的回复是发送接口同步返回的。
+   * 自适应轮询。
+   *
+   * 原实现有两处坑（2026-09-22 用户报「客服回复了，我得退出重进才看得到」）：
+   * 1. **官方会话压根不轮询** —— 当时的假设是"官方的回复由发送接口同步返回"。
+   *    有了人工客服之后这个假设就不成立了：站长是在后台**异步**回复的，
+   *    用户端没有任何机制去拿，只能退出重进。
+   * 2. 固定 20 秒太钝 —— 等回复的时候最需要即时。
+   *
+   * 现在改成：发完消息后的 60 秒内每 3 秒拉一次（等回复的窗口体感最关键），
+   * 平时 18 秒；页面不可见时降到 30 秒省请求，**切回前台立刻拉一次**。
    */
   useEffect(() => {
-    if (isOfficial) return;
-    const timer = window.setInterval(() => {
-      if (document.hidden) return;
-      void load();
-    }, 20000);
-    return () => window.clearInterval(timer);
-  }, [isOfficial, load]);
+    let cancelled = false;
+    let timer: number | undefined;
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (!document.hidden) await load();
+      if (cancelled) return;
+      const bursting = Date.now() < burstUntilRef.current;
+      timer = window.setTimeout(tick, document.hidden ? 30000 : bursting ? 3000 : 18000);
+    };
+
+    // 首次延迟一会儿：挂载时已经 load 过一次了，别马上再来一发
+    timer = window.setTimeout(tick, 15000);
+
+    // 供 handleSend 打断当前排期、立刻进入密集轮询
+    wakeRef.current = () => {
+      if (cancelled) return;
+      window.clearTimeout(timer);
+      void tick();
+    };
+
+    const onVisible = () => {
+      if (document.hidden || cancelled) return;
+      window.clearTimeout(timer);
+      void tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      wakeRef.current = null;
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [load]);
 
   useEffect(
     () => () => {
@@ -194,9 +247,15 @@ export default function DmThreadView({
         created_at: new Date().toISOString(),
         read_at: null,
         mine: true,
+        // 自己发的永远是普通消息（agent/system 只会出现在官方那一侧）
+        kind: 'text',
       },
     ]);
     setMood('idle');
+    // 进入密集轮询窗口：接下来 60 秒每 3 秒看一眼有没有回复。
+    // 并且**立刻打断当前排期**，否则可能要干等一个 18 秒的周期（实测踩过）。
+    burstUntilRef.current = Date.now() + 60_000;
+    wakeRef.current?.();
 
     const result = await sendMessage(getAuthHeaders, thread.peer_id, content);
     if (!result.ok) {
@@ -238,6 +297,8 @@ export default function DmThreadView({
     mine: m.mine,
     time: hhmm(m.created_at),
     status: failedIdsRef.current.has(m.id) ? 'failed' : 'sent',
+    // 客服相关（迁移 031）：agent 打「客服」标签、system 渲染成居中灰字
+    kind: m.kind,
   }));
 
   /** 点失败的气泡 → 删掉旧的、按同样内容重发 */
@@ -295,9 +356,18 @@ export default function DmThreadView({
               </Link>
             )}
           </h1>
-          <span>{isOfficial ? '小机器人随时待命' : '好友'}</span>
+          <span>{isOfficial && !agentActive ? '小机器人随时待命' : isOfficial ? '客服已介入' : '好友'}</span>
         </div>
       </header>
+
+      {/* 客服接管横幅：告诉用户「刚才是机器人，现在是真人」，
+          也解释了他为什么收不到自动回复了 */}
+      {isOfficial && agentActive && (
+        <div className="flex items-center justify-center gap-1.5 border-b border-apple-hairline bg-apple-blue-soft px-4 py-2 text-xs text-apple-blue">
+          <Headphones className="h-3.5 w-3.5 flex-none" aria-hidden />
+          客服已介入，正在为你处理
+        </div>
+      )}
 
       <MessageList
         messages={chatMessages}

@@ -6,6 +6,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { fetchAuthorsByUserIds } from '@/lib/profiles-server';
 import { getAppSettings } from '@/lib/app-settings';
 import { OFFICIAL_PEER_ID, type DmMessage } from '@/lib/dm';
+import { isAgentActive } from '@/lib/dm-official';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,7 @@ function shapeMessage(
     content: string;
     created_at: string;
     read_at: string | null;
+    kind?: string | null;
   },
   me: string,
 ): DmMessage {
@@ -37,6 +39,8 @@ function shapeMessage(
     created_at: row.created_at,
     read_at: row.read_at,
     mine: row.sender_id === me,
+    // 客户端要按它区分「客服」标签与系统提示（迁移 031）
+    kind: (row.kind as DmMessage['kind']) ?? 'text',
   };
 }
 
@@ -137,7 +141,10 @@ export async function POST(req: NextRequest) {
   if (error) return fail(error.message, 500);
 
   let reply: DmMessage | null = null;
-  if (toOfficial) {
+  // 人工接管期间**暂停自动回复**（迁移 031）：否则机器人会插进人跟客服的对话里，
+  // 用户刚被"客服已介入"告知有真人，转头又收到一句套话，等于白接管。
+  // 站长点「结束服务」后 active 置回 false，这里就自动恢复了。
+  if (toOfficial && !(await isAgentActive(db, user.id))) {
     const replyText = await pickAutoReply(content);
     const { data: replyRow } = await db
       .from('dm_messages')

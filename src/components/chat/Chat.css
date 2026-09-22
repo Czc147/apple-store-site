@@ -555,3 +555,55 @@
         animation: none;
     }
 }
+
+
+/* =====================
+   系统提示 / 客服标签（本站扩展，迁移 031）
+   ----------------------
+   官方留言支持人工客服：站长「接入」后自动回复暂停，
+   对话里会出现两类新消息：
+     · 系统提示（客服已介入 / 服务已结束）→ 居中灰字，不做成气泡
+       —— 它不是谁说的话，是状态变化，做成气泡会被误读成"官方说了这句"
+     · 人工客服的消息 → 气泡与普通官方消息一致，只在时间旁多一个「客服」标签
+       —— 用户要能一眼分清"这是真人"还是"机器人"
+===================== */
+
+.message-system {
+    /* 消息列表不是 flex（align-self 无效），且块级元素默认铺满整行 ——
+       要 fit-content + 自动外边距才能得到一个居中的小药丸 */
+    width: fit-content;
+
+    max-width: 82%;
+
+    margin: 8px auto;
+
+    padding: 5px 14px;
+
+    border-radius: 999px;
+
+    background: rgba(0, 0, 0, .05);
+
+    color: #86868b;
+
+    font-size: 12px;
+
+    line-height: 1.5;
+
+    text-align: center;
+}
+
+.message-badge {
+    margin-right: 6px;
+
+    padding: 1px 7px;
+
+    border-radius: 999px;
+
+    background: rgba(0, 113, 227, .12);
+
+    color: #0071e3;
+
+    font-size: 11px;
+
+    font-weight: 600;
+}

@@ -46,14 +46,23 @@ export default function MessageList({
       className="message-list"
     >
       {messages.length === 0 && empty}
-      {messages.map((message) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-          avatar={renderAvatar?.(message)}
-          onRetry={onRetry ? () => onRetry(message.id) : undefined}
-        />
-      ))}
+      {messages.map((message) =>
+        // 系统提示不是"谁说的话"，是状态变化（客服接入/结束）——
+        // 做成气泡会被误读成官方说了这句，所以单独渲染成居中灰字
+        message.kind === 'system' ? (
+          <p key={message.id} className="message-system">
+            {message.text}
+          </p>
+        ) : (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            avatar={renderAvatar?.(message)}
+            badge={message.kind === 'agent' ? '客服' : undefined}
+            onRetry={onRetry ? () => onRetry(message.id) : undefined}
+          />
+        ),
+      )}
     </div>
   );
 }
