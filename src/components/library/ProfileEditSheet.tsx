@@ -125,7 +125,7 @@ export default function ProfileEditSheet({
               <button
                 type="button"
                 onClick={() => setAvatarUrl(null)}
-                className="-my-1.5 inline-flex min-h-11 items-center rounded-btn px-2 text-xs font-medium text-apple-text-3 transition-colors duration-fast ease-apple hover:text-apple-text-2 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
+                className="-my-1.5 inline-flex min-h-11 items-center rounded-btn px-2 text-xs font-medium text-apple-text-3 pressable hover:text-apple-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
               >
                 移除自定义头像
               </button>

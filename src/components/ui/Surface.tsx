@@ -41,7 +41,7 @@ export default function Surface({
     'border border-apple-border bg-apple-card shadow-card',
     RADIUS[radius],
     interactive &&
-      'transition-[transform,box-shadow] duration-base ease-apple hover:-translate-y-0.5 hover:shadow-card-hover active:scale-[0.97]',
+      'pressable hover:-translate-y-0.5 hover:shadow-card-hover',
     className,
   );
 

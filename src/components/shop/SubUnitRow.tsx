@@ -39,7 +39,7 @@ export default function SubUnitRow({ sub }: { sub: SubUnit }) {
         aria-pressed={added}
         aria-label={added ? `将「${sub.name}」移出愿望单` : `将「${sub.name}」加入愿望单`}
         title={added ? '移出愿望单' : '加入愿望单'}
-        className="group flex h-11 w-11 flex-none items-center justify-center rounded-full transition-transform duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
+        className="group flex h-11 w-11 flex-none items-center justify-center rounded-full pressable-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
       >
         <span
           className={[

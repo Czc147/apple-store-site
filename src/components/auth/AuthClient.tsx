@@ -1,14 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, KeyRound, LogIn, Mail, UserPlus } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { supabaseBrowser } from '@/lib/supabase/client';
-import Button from '@/components/ui/Button';
-import Message from '@/components/ui/Message';
 import Surface from '@/components/ui/Surface';
-import TextField from '@/components/ui/TextField';
+import PremiumOrbi, { type OrbiMood } from '@/components/premium-orbi/PremiumOrbi';
+import LoginCard, { LoginField, PasswordField } from './LoginCard';
 
 /** 登录页四种模式 */
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
@@ -57,6 +56,9 @@ export default function AuthClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  /** 当前聚焦的字段 —— 驱动 Orbi 的情绪（照文档 LoginPage 的设计） */
+  const [field, setField] = useState<'email' | 'password' | null>(null);
 
   /** 切模式时清空提示与二次确认密码 */
   const switchMode = useCallback((m: Mode) => {
@@ -103,8 +105,7 @@ export default function AuthClient() {
     );
   }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (busy) return;
     setError('');
     setNotice('');
@@ -174,146 +175,140 @@ export default function AuthClient() {
     }
   };
 
-  const isEmailMode = mode !== 'reset';
-  const submitLabel =
-    mode === 'login' ? '登录' : mode === 'register' ? '注册' : mode === 'forgot' ? '发送重置邮件' : '保存新密码';
+  /**
+   * Orbi 情绪 —— 照文档 LoginPage 的设计：聚焦哪个字段、有没有出错、
+   * 是不是在提交，都会反映在小机器人脸上。这是这个登录页的主角，
+   * 不是装饰：用户能一眼看出"它在看我打字""它在想""它被吓到了"。
+   */
+  const mood: OrbiMood = busy
+    ? 'thinking'
+    : error
+      ? 'surprised'
+      : field === 'password'
+        ? 'shy'
+        : field === 'email'
+          ? 'watching'
+          : notice
+            ? 'happy'
+            : 'welcome';
 
-  /** 模式切换文字钮：44pt 命中（负边距不撑高行） */
-  const switchBtnCls =
-    '-my-1.5 inline-flex min-h-11 items-center gap-1 rounded-btn px-1 text-sm font-medium transition-colors duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40';
+  const submitLabel =
+    mode === 'login'
+      ? '登录'
+      : mode === 'register'
+        ? '创建账号'
+        : mode === 'forgot'
+          ? '发送重置邮件'
+          : '设置新密码';
+
+  /** 必填项没填就禁掉提交（文档版是 `!email || !password`，这里按模式取） */
+  const canSubmit =
+    (mode === 'reset' || email.trim().length > 0) &&
+    (mode === 'forgot' || password.length > 0);
 
   return (
-    <div className="mx-auto w-full max-w-md px-page">
-      <Surface radius="card-lg" className="p-6 sm:p-8">
-        {/* 表单头：居中图标 + 模式标题 + 一句话说明（交易控件优先，无彩色玻璃） */}
-        <div className="mb-6 flex flex-col items-center text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-apple-blue-soft">
-            {mode === 'login' ? (
-              <LogIn className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
-            ) : mode === 'register' ? (
-              <UserPlus className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
-            ) : (
-              <KeyRound className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
-            )}
-          </span>
-          <h2 className="mt-3.5 text-xl font-semibold tracking-tight text-apple-text">
-            {MODE_TITLE[mode]}
-          </h2>
-          <p className="mt-1 text-sm text-apple-text-2">{MODE_HINT[mode]}</p>
-        </div>
+    <div className="login-stage">
+      <div className="login-orbi">
+        <PremiumOrbi mood={mood} size={168} />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          {isEmailMode && (
-            <TextField
-              id="auth-email"
-              label="邮箱"
-              srLabel
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="邮箱"
-              autoComplete="email"
-              disabled={busy}
-            />
-          )}
-
-          {mode !== 'forgot' && (
-            <TextField
-              id="auth-password"
-              label={mode === 'reset' ? '新密码' : '密码'}
-              srLabel
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === 'reset' ? '新密码（至少 6 位）' : '密码（至少 6 位）'}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              disabled={busy}
-            />
-          )}
-
-          {(mode === 'register' || mode === 'reset') && (
-            <TextField
-              id="auth-password2"
-              label="确认密码"
-              srLabel
-              type="password"
-              value={password2}
-              onChange={(e) => setPassword2(e.target.value)}
-              placeholder="确认密码"
-              autoComplete="new-password"
-              disabled={busy}
-            />
-          )}
-
-          {/* 错误 / 通知紧跟输入区、紧贴提交钮：role=alert 由 Message 自身提供 */}
-          {error && (
-            <Message tone="error" className="animate-fade-in">
-              {error}
-            </Message>
-          )}
-          {notice && (
-            <Message tone="success" className="animate-fade-in">
-              {notice}
-            </Message>
-          )}
-
-          {/* 提交钮与输入区多留一档间距（包一层 padding，避免用 space-y 覆盖技巧） */}
-          <div className="pt-1.5">
-            <Button variant="primary" size="lg" fullWidth type="submit" loading={busy}>
-              {submitLabel}
-            </Button>
-          </div>
-        </form>
-
-        {/* 模式切换 */}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-2 border-t border-apple-hairline pt-3">
-          {mode === 'login' && (
+      <LoginCard
+        title={MODE_TITLE[mode]}
+        subtitle={MODE_HINT[mode]}
+        loading={busy}
+        error={error}
+        notice={notice}
+        submitLabel={submitLabel}
+        submitDisabled={!canSubmit}
+        onSubmit={() => void handleSubmit()}
+        footer={
+          mode === 'login' ? (
             <>
-              <button
-                type="button"
-                onClick={() => switchMode('register')}
-                className={`${switchBtnCls} text-apple-blue hover:text-apple-blue-hover`}
-              >
-                没有账号？注册
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode('forgot')}
-                className={`${switchBtnCls} text-apple-text-2 hover:text-apple-text`}
-              >
-                忘记密码？
-              </button>
-            </>
-          )}
-          {mode === 'register' && (
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className={`${switchBtnCls} text-apple-blue hover:text-apple-blue-hover`}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-              已有账号？返回登录
-            </button>
-          )}
-          {(mode === 'forgot' || mode === 'reset') && (
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className={`${switchBtnCls} text-apple-blue hover:text-apple-blue-hover`}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-              返回登录
-            </button>
-          )}
-        </div>
-      </Surface>
+              <div className="login-forgot">
+                <button
+                  type="button"
+                  className="login-linkbtn"
+                  onClick={() => switchMode('forgot')}
+                >
+                  忘记密码？
+                </button>
+              </div>
 
-      {mode === 'login' && (
-        <p className="mt-5 flex items-start gap-1.5 px-1 text-xs leading-relaxed text-apple-text-3">
-          <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          登录后可把兑换的每日计划与内容同步到「我的库」，换设备也能找回。
-        </p>
-      )}
+              <div className="login-divider">
+                <span />
+                <span>或者</span>
+                <span />
+              </div>
+
+              <div className="login-register">
+                <span>还没有账号？</span>
+                <button
+                  type="button"
+                  className="login-linkbtn"
+                  onClick={() => switchMode('register')}
+                >
+                  创建账号 <span className="register-arrow">→</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="login-linkbtn"
+              onClick={() => switchMode('login')}
+            >
+              ← 返回登录
+            </button>
+          )
+        }
+      >
+        {mode !== 'reset' && (
+          <LoginField
+            id="login-email"
+            label="邮箱"
+            type="email"
+            value={email}
+            placeholder="输入你的邮箱"
+            autoComplete="email"
+            disabled={busy}
+            onChange={setEmail}
+            onFocus={() => setField('email')}
+            onBlur={() => setField(null)}
+          />
+        )}
+
+        {mode !== 'forgot' && (
+          <PasswordField
+            id="login-password"
+            label={mode === 'reset' ? '新密码' : '密码'}
+            value={password}
+            placeholder={mode === 'reset' ? '设置新密码（至少 6 位）' : '输入你的密码'}
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            disabled={busy}
+            show={showPassword}
+            onToggleShow={() => setShowPassword((v) => !v)}
+            onChange={setPassword}
+            onFocus={() => setField('password')}
+            onBlur={() => setField(null)}
+          />
+        )}
+
+        {(mode === 'register' || mode === 'reset') && (
+          <PasswordField
+            id="login-password2"
+            label="确认密码"
+            value={password2}
+            placeholder="再输入一次"
+            autoComplete="new-password"
+            disabled={busy}
+            show={showPassword}
+            onToggleShow={() => setShowPassword((v) => !v)}
+            onChange={setPassword2}
+            onFocus={() => setField('password')}
+            onBlur={() => setField(null)}
+          />
+        )}
+      </LoginCard>
     </div>
   );
 }

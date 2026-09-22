@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import PageFade from '@/components/ui/PageFade';
 import {
+  ArrowLeftRight,
   BarChart3,
   Boxes,
   CalendarDays,
@@ -19,6 +20,7 @@ import {
   LogOut,
   Package,
   Receipt,
+  Flag,
   Send,
   Settings,
   ShieldCheck,
@@ -47,7 +49,9 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/orders', label: '订单管理', icon: Receipt },
       { href: '/admin/subscriptions', label: '订阅管理', icon: CreditCard },
       { href: '/admin/subscription-repos', label: '订阅仓库', icon: Sparkles },
-      { href: '/admin/community', label: '社区管理', icon: Users },
+      { href: '/admin/community', label: '探究管理', icon: Users },
+      { href: '/admin/reports', label: '举报管理', icon: Flag },
+      { href: '/admin/share-exchanges', label: '共享审核', icon: ArrowLeftRight },
       { href: '/admin/library', label: '用户权益', icon: LibraryBig },
       { href: '/admin/push', label: '推送服务', icon: Send },
       { href: '/admin/storage-cleanup', label: '存储清理', icon: Trash2 },

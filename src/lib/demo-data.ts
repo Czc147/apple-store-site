@@ -102,6 +102,13 @@ export const DEMO_SUBSCRIPTIONS: Subscription[] = [
     link_url: null,
     redeem_image_url: null,
     sort_order: 2,
+    // 演示会员卡与折扣（迁移 023）：演示模式下也能看到金卡与 9 折
+    card_style: 'gold',
+    card_text: '季度会员',
+    discount_percent: 10,
+    discount_scope: ['unit', 'subscription'],
+    discount_valid_from: null,
+    discount_valid_to: null,
     created_at: '2026-01-01T00:00:00Z',
   },
   {

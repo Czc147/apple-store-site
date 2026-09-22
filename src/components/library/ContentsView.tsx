@@ -152,7 +152,7 @@ export default function ContentsView({
             className={cn(
               'flex-none rounded-btn px-4 text-sm font-medium',
               'inline-flex min-h-11 items-center',
-              'transition-colors duration-fast ease-apple active:scale-[0.97]',
+              'pressable',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
               tab === t.key
                 ? 'bg-apple-blue text-white'
@@ -183,7 +183,7 @@ export default function ContentsView({
                     type="button"
                     onClick={() => setLightbox(c)}
                     aria-label={`全屏预览「${c.name ?? '图片'}」`}
-                    className="group w-full overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card transition-[transform,box-shadow,border-color] duration-base ease-apple hover:border-apple-blue/40 hover:shadow-card-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
+                    className="group w-full overflow-hidden rounded-card border border-apple-border bg-apple-card text-left shadow-card pressable hover:border-apple-blue/40 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img

@@ -17,7 +17,7 @@ export default function RegisterBanner({ href = '/login', className }: RegisterB
       href={href}
       className={cn(
         'flex items-start gap-3 rounded-card-lg border border-apple-blue/25 bg-apple-blue-soft/60 p-4',
-        'transition-colors duration-fast ease-apple hover:bg-apple-blue-soft active:scale-[0.99]',
+        'pressable hover:bg-apple-blue-soft',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
         className,
       )}

@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase/admin';
 import { getDemoDailyPicks } from '@/lib/demo-data';
 import { todayDateCN } from '@/lib/daily';
+import { isNetworkError } from '@/lib/network-error';
 import type { DailyPickTeaser } from '@/lib/types';
 import DailyPickHero from './DailyPickHero';
 
@@ -9,7 +10,7 @@ import DailyPickHero from './DailyPickHero';
  * 只查最新一条的 teaser 字段（日期/标题/封面/有无内容），
  * 绝不携带私有内容信息——正文一律在客户端凭凭证经 /api/daily-content 获取。
  *
- * 区块是附加入口：查询失败（如旧库未跑迁移 005）时静默隐藏，
+ * 区块是附加入口：网络不可达时回退演示数据；查询失败（如旧库未跑迁移 005）时静默隐藏，
  * 绝不拖累主商品流；错误细节只进服务端日志（后台页会正常报错提示）。
  */
 export default async function DailyPickServer() {
@@ -60,11 +61,28 @@ export default async function DailyPickServer() {
           }
         : null;
     } catch (e) {
-      console.warn(
-        '[daily-pick] 选购页区块取数失败，已隐藏：',
-        e instanceof Error ? e.message : e,
-      );
-      return null;
+      if (isNetworkError(e)) {
+        const picks = getDemoDailyPicks();
+        const row = picks[0];
+        console.warn('[daily-pick] 数据库不可达，已回退演示数据：', e);
+        if (!row) return null;
+
+        teaser = {
+          pick_date: row.pick_date,
+          title: row.title,
+          cover_url: row.cover_url,
+          subtitle: row.subtitle ?? null,
+          accent_color: row.accent_color ?? null,
+          has_content: Boolean(row.media_path || row.link_url),
+        };
+        isDemo = true;
+      } else {
+        console.warn(
+          '[daily-pick] 选购页区块取数失败，已隐藏：',
+          e instanceof Error ? e.message : e,
+        );
+        return null;
+      }
     }
   }
 

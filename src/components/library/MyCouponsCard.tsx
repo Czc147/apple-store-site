@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/auth-context';
 import CopyButton from '@/components/admin/CopyButton';
 import Surface from '@/components/ui/Surface';
 import CouponRowCard, { claimStateBadge } from '@/components/coupons/CouponRowCard';
+import MemberCard from '@/components/member/MemberCard';
+import type { MemberCardInfo } from '@/lib/vip-benefits';
 import {
   countAvailable,
   countExpiringSoon,
@@ -15,15 +17,24 @@ import {
 } from '@/components/coupons/coupon-row-adapter';
 import { cn } from '@/lib/cn';
 
+interface MyCouponsCardProps {
+  /**
+   * 会员卡（迁移 023）。由 LibraryClient 从 /api/library 的响应里带下来，
+   * **不在这里再发一次请求** —— 同一份数据没必要拉两遍。
+   */
+  memberCard?: MemberCardInfo | null;
+}
+
 /**
  * 「我的券」（我的库 · 横放卡片）：
  * - 收起态是一行横向卡：券图标 + 「我的券」+「N 张可用」+ 箭头
  * - 点击展开：丝滑高度+淡入过渡（duration-base + ease-apple，站内规约：
  *   唯一允许过冲的动效是角标 badge-pop，展开不做弹跳）
  * - 展开后列出券名（后台建券时填的名称）+ 面额 + 门槛 + 有效期 + 状态 + 专属码复制
- * - 没有领过任何券时不渲染（不占版面）
+ * - **会员卡排在所有券之后**（用户 2026-09-22 拍板：券在前，卡在后）
+ * - 券和卡都没有时才不渲染（不占版面）
  */
-export default function MyCouponsCard() {
+export default function MyCouponsCard({ memberCard = null }: MyCouponsCardProps) {
   const { user, loading, getAuthHeaders } = useAuth();
   const [items, setItems] = useState<MyCouponItem[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -50,7 +61,9 @@ export default function MyCouponsCard() {
     void load();
   }, [loading, user?.id, load]);
 
-  if (!user || !items || items.length === 0) return null;
+  // 券还没加载出来时先不渲染；但**有卡无券也要显示**，所以不能按 items 为空直接返回
+  if (!user || !items) return null;
+  if (items.length === 0 && !memberCard) return null;
 
   const available = countAvailable(items);
   const expiringSoon = countExpiringSoon(items);
@@ -71,14 +84,27 @@ export default function MyCouponsCard() {
         <span className="min-w-0 flex-1">
           <span className="block text-md font-bold text-apple-text">我的券</span>
           <span className="mt-0.5 block text-xs text-apple-text-2">
-            {available > 0 ? `${available} 张可用` : '暂无可用'}
-            {items.length > available && ` · 共 ${items.length} 张`}
-            {expiredCount > 0 && available === 0 && '（已过期）'}
+            {items.length > 0 ? (
+              <>
+                {available > 0 ? `${available} 张可用` : '暂无可用'}
+                {items.length > available && ` · 共 ${items.length} 张`}
+                {expiredCount > 0 && available === 0 && '（已过期）'}
+              </>
+            ) : (
+              // 有卡无券：说清楚这里是有东西的，否则「暂无可用」会让人以为整块是空的
+              '会员卡'
+            )}
             {/* 被动到期提醒（§无定时任务的降级）：收起态即可见 */}
             {expiringSoon > 0 && (
               <span className="font-medium text-apple-danger">
                 {' · '}
                 {expiringSoon} 张即将过期
+              </span>
+            )}
+            {memberCard && (
+              <span className="text-apple-text-3">
+                {items.length > 0 && ' · '}
+                1 张会员卡
               </span>
             )}
           </span>
@@ -123,6 +149,14 @@ export default function MyCouponsCard() {
                 }
               />
             ))}
+            {/* 会员卡排在所有券之后（用户拍板：券在前，卡在后） */}
+            {memberCard && (
+              <MemberCard
+                variant={memberCard.style}
+                text={memberCard.text}
+                expiresAt={memberCard.expiresAt}
+              />
+            )}
             <p className="text-2xs leading-relaxed text-apple-text-3">
               一人一码：结账时在「优惠码」里填入可用券的专属码即可抵扣；券不可转赠。
             </p>

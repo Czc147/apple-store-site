@@ -38,9 +38,10 @@ export default function IconButton({
 }: IconButtonProps) {
   const wrap = cn(
     'group inline-flex h-11 w-11 flex-none items-center justify-center rounded-full',
-    'transition-transform duration-fast ease-apple active:scale-[0.97]',
+    // 圆形小按钮按得浅一档（.pressable-soft，见 globals.css 的丝滑按压）
+    'pressable-soft',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
-    'disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100',
+    'disabled:cursor-not-allowed disabled:opacity-40',
     className,
   );
   const bubble = cn(

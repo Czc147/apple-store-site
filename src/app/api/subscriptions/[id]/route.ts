@@ -1,8 +1,14 @@
 import type { NextRequest } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
-import { ok, fail, parseBody } from '@/lib/api';
+import { ok, fail, parseBody, toNullableText } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { parseUnlockDurationDays } from '@/lib/card-redeem-fields';
+import {
+  parseCardStyle,
+  parseDateTime,
+  parseDiscountPercent,
+  parseDiscountScope,
+} from '@/lib/vip-benefits';
 import { SUBSCRIPTION_TYPE } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +51,36 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     const days = parseUnlockDurationDays(body.unlock_duration_days);
     if (!days.ok) return fail(days.error);
     patch.unlock_duration_days = days.value;
+  }
+  // 会员卡与 VIP 折扣（迁移 023）。四个字段都是「未提供 = 不动，提供了空值 = 清空」，
+  // 所以先判 !== undefined 再解析，不能用 parseX(body.x).value 直接赋值。
+  if (body.card_style !== undefined) {
+    const card = parseCardStyle(body.card_style);
+    if (!card.ok) return fail(card.error);
+    patch.card_style = card.value;
+  }
+  if (body.card_text !== undefined) {
+    patch.card_text = toNullableText(body.card_text);
+  }
+  if (body.discount_percent !== undefined) {
+    const percent = parseDiscountPercent(body.discount_percent);
+    if (!percent.ok) return fail(percent.error);
+    patch.discount_percent = percent.value;
+  }
+  if (body.discount_scope !== undefined) {
+    const scope = parseDiscountScope(body.discount_scope);
+    if (!scope.ok) return fail(scope.error);
+    patch.discount_scope = scope.value;
+  }
+  if (body.discount_valid_from !== undefined) {
+    const from = parseDateTime(body.discount_valid_from, '优惠开始时间');
+    if (!from.ok) return fail(from.error);
+    patch.discount_valid_from = from.value;
+  }
+  if (body.discount_valid_to !== undefined) {
+    const to = parseDateTime(body.discount_valid_to, '优惠结束时间');
+    if (!to.ok) return fail(to.error);
+    patch.discount_valid_to = to.value;
   }
   if (Object.keys(patch).length === 0) return fail('没有可更新的字段');
 

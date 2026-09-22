@@ -36,6 +36,7 @@ import RegisterBanner from '@/components/ui/RegisterBanner';
 import RedeemClient from '@/components/redeem/RedeemClient';
 import NotificationBell from '@/components/library/NotificationBell';
 import MyCouponsCard from '@/components/library/MyCouponsCard';
+import MemberCard from '@/components/member/MemberCard';
 import ContentsView from '@/components/library/ContentsView';
 import ProfileHeader from '@/components/library/ProfileHeader';
 
@@ -202,6 +203,7 @@ export default function LibraryClient() {
   const email = data?.user.email ?? user.email ?? '';
   const contents = data?.contents ?? [];
   const subscriptions = data?.subscriptions ?? [];
+  const memberCard = data?.member_card ?? null;
   const hasServerData = contents.length > 0 || subscriptions.length > 0;
 
   return (
@@ -224,6 +226,18 @@ export default function LibraryClient() {
           </div>
         </div>
       </GlassSurface>
+
+      {/* 会员卡（迁移 023）：持有的订阅权益里配了卡才发，取最高档；无卡整块不渲染。
+          放在账号卡之后、兑换卡密之前 —— 这是账户级身份标识，比兑换/订阅列表更靠上。 */}
+      {memberCard && (
+        <section className="mb-8">
+          <MemberCard
+            variant={memberCard.style}
+            text={memberCard.text}
+            expiresAt={memberCard.expiresAt}
+          />
+        </section>
+      )}
 
       {/* 兑换卡密分组（同步提示/同步结果并入本组——同属卡密语义域） */}
       <section className="mb-8">
@@ -305,7 +319,7 @@ export default function LibraryClient() {
       </section>
 
       {/* 我的券（横放卡片，点击展开；没领过券时组件自身不渲染） */}
-      <MyCouponsCard />
+      <MyCouponsCard memberCard={memberCard} />
 
       {fetching && !data ? (
         <div className="space-y-4" aria-busy="true" aria-live="polite">

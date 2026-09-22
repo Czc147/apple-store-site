@@ -40,13 +40,15 @@ function HeroFallback() {
  * Tab 1 · 选购（Brief §13.1 Content Discovery Surface；UI 升级 §8.1）：
  * 公告条 → 大标题 → 每日推荐 Hero（Gallery White 编辑焦点）→
  * 专辑合集流（Studio Mist 板块带）→ 客服悬浮入口。
- * 分层：首页画布为 Gallery White（纯白），板块带用 Studio Mist（#f5f5f7），
- * 层级只靠背景差异与圆角表达，不用投影。
+ * 分层：**页面画布随全站统一为雾灰底（body 的 #f5f5f7）**，白色只出现在卡片上，
+ * 层级靠背景差异与圆角表达，不用投影。
+ * 2026-09-22 用户拍板：撤销原「Gallery White 白画布」——它只覆盖 main 的
+ * max-w-page 宽，桌面端会形成「中间一条白柱 + 两侧灰边」的硬边，移动端则是
+ * 上半截白下半截灰的分界；改为全站雾灰底，白画廊概念由 Hero 自身的白卡承载。
  */
 export default function ShopPage() {
   return (
-    // Gallery White 画布：盖住 body 的雾灰底，让首页从白开始
-    <div className="bg-apple-card pb-8">
+    <div className="pb-8">
       <AnnouncementBar />
 
       <HomeHeader />

@@ -3,6 +3,12 @@ import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail, parseBody, toSortOrder, toNullableText } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { parseUnlockDurationDays } from '@/lib/card-redeem-fields';
+import {
+  parseCardStyle,
+  parseDateTime,
+  parseDiscountPercent,
+  parseDiscountScope,
+} from '@/lib/vip-benefits';
 import { SUBSCRIPTION_TYPE, type SubscriptionType } from '@/lib/types';
 import { PUT as putById, DELETE as deleteById } from './[id]/route';
 
@@ -49,6 +55,18 @@ export async function POST(req: NextRequest) {
   const unlockDurationDays =
     type === SUBSCRIPTION_TYPE.DAILY_PLAN ? days.value : null;
 
+  // 会员卡与 VIP 折扣（迁移 023）——解析口径与 PUT 共用，见 lib/vip-benefits.ts
+  const card = parseCardStyle(body.card_style);
+  if (!card.ok) return fail(card.error);
+  const percent = parseDiscountPercent(body.discount_percent);
+  if (!percent.ok) return fail(percent.error);
+  const scope = parseDiscountScope(body.discount_scope);
+  if (!scope.ok) return fail(scope.error);
+  const validFrom = parseDateTime(body.discount_valid_from, '优惠开始时间');
+  if (!validFrom.ok) return fail(validFrom.error);
+  const validTo = parseDateTime(body.discount_valid_to, '优惠结束时间');
+  if (!validTo.ok) return fail(validTo.error);
+
   const { data, error } = await supabaseAdmin()
     .from('subscriptions')
     .insert({
@@ -61,6 +79,12 @@ export async function POST(req: NextRequest) {
       redeem_image_url: toNullableText(body.redeem_image_url),
       type,
       unlock_duration_days: unlockDurationDays,
+      card_style: card.value,
+      card_text: toNullableText(body.card_text),
+      discount_percent: percent.value,
+      discount_scope: scope.value,
+      discount_valid_from: validFrom.value,
+      discount_valid_to: validTo.value,
       sort_order: toSortOrder(body.sort_order),
     })
     .select()

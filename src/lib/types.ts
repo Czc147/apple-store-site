@@ -61,6 +61,34 @@ export const SUBSCRIPTION_TYPE_LABEL: Record<SubscriptionType, string> = {
   daily_plan: '每日计划',
 };
 
+/** 会员卡样式（迁移 023）：三档，用户持多个订阅时取最高档 */
+export const CARD_STYLE = {
+  SILVER: 'silver',
+  GOLD: 'gold',
+  BLACK: 'black',
+} as const;
+export type CardStyle = (typeof CARD_STYLE)[keyof typeof CARD_STYLE];
+
+/** VIP 折扣适用范围（迁移 023）：勾选哪些，就在哪些购买行为上生效 */
+export const DISCOUNT_SCOPE = {
+  /** 选购页商品（订单 type = sub_unit） */
+  UNIT: 'unit',
+  /** 订阅套餐（订单 type = subscription） */
+  SUBSCRIPTION: 'subscription',
+} as const;
+export type DiscountScope = (typeof DISCOUNT_SCOPE)[keyof typeof DISCOUNT_SCOPE];
+
+export const DISCOUNT_SCOPE_LABEL: Record<DiscountScope, string> = {
+  unit: '选购页商品',
+  subscription: '订阅套餐',
+};
+
+export const CARD_STYLE_LABEL: Record<CardStyle, string> = {
+  silver: '银卡',
+  gold: '金卡',
+  black: '黑金卡',
+};
+
 /** 订阅 */
 export interface Subscription {
   id: string;
@@ -78,6 +106,18 @@ export interface Subscription {
   type?: SubscriptionType;
   /** 每日计划解锁有效天数（仅 daily_plan 有意义）；null = 永久 */
   unlock_duration_days?: number | null;
+  /** 会员卡样式（迁移 023）：null = 该订阅不发卡 */
+  card_style?: CardStyle | null;
+  /** 会员卡中心的大文本（迁移 023） */
+  card_text?: string | null;
+  /** VIP 折扣：减掉的百分比，20 = 打 8 折（与 coupons.value 同口径） */
+  discount_percent?: number | null;
+  /** VIP 折扣适用范围（迁移 023）；null / 空数组 = 不生效 */
+  discount_scope?: DiscountScope[] | null;
+  /** VIP 折扣生效开始时间；null = 不限 */
+  discount_valid_from?: string | null;
+  /** VIP 折扣生效结束时间；null = 不限 */
+  discount_valid_to?: string | null;
   sort_order: number;
   created_at: string;
 }

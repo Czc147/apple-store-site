@@ -243,25 +243,30 @@ export default function AlbumStackCard({ major, subs }: AlbumStackCardProps) {
                 tabIndex={-1}
                 className="mt-5 flex-1 focus:outline-none sm:mt-0"
               >
-                <h2 className="text-xl font-semibold text-apple-text">{major.name}</h2>
-                {major.subtitle && (
-                  <p className="mt-1.5 text-base leading-relaxed text-apple-text-2">
-                    {major.subtitle}
-                  </p>
-                )}
-                {minPrice !== null && (
-                  <p className="mt-2 text-sm tabular-nums text-apple-text-2">
-                    {subs.length} 个可选内容 · 起 {formatPrice(minPrice)}
-                  </p>
-                )}
-                {major.link_url && (
-                  <div className="mt-3">
-                    <ExternalLinkAction href={major.link_url}>查看详情</ExternalLinkAction>
-                  </div>
-                )}
+                {/* 信息卡必须是**实底白**：展开层背后是 rgba(0,0,0,.4) 的 scrim，
+                    深色文字 text-apple-text 直接压上去几乎不可读（用户报的 bug）。
+                    与下方小单元列表同为 bg-apple-card 白卡，保持同一套面板语言。 */}
+                <div className="rounded-card-lg bg-apple-card px-5 py-4 shadow-card">
+                  <h2 className="text-xl font-semibold text-apple-text">{major.name}</h2>
+                  {major.subtitle && (
+                    <p className="mt-1.5 text-base leading-relaxed text-apple-text-2">
+                      {major.subtitle}
+                    </p>
+                  )}
+                  {minPrice !== null && (
+                    <p className="mt-2 text-sm tabular-nums text-apple-text-2">
+                      {subs.length} 个可选内容 · 起 {formatPrice(minPrice)}
+                    </p>
+                  )}
+                  {major.link_url && (
+                    <div className="mt-3">
+                      <ExternalLinkAction href={major.link_url}>查看详情</ExternalLinkAction>
+                    </div>
+                  )}
+                </div>
 
                 {hasSubs ? (
-                  <ul className="mt-2 divide-y divide-apple-hairline rounded-card-lg bg-apple-card px-4 shadow-card sm:mt-4">
+                  <ul className="mt-3 divide-y divide-apple-hairline rounded-card-lg bg-apple-card px-4 shadow-card">
                     {subs.map((sub, i) => (
                       <li
                         key={sub.id}
@@ -273,7 +278,7 @@ export default function AlbumStackCard({ major, subs }: AlbumStackCardProps) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-6 rounded-card-lg bg-apple-card px-5 py-6 text-center text-sm text-apple-text-3 shadow-card">
+                  <p className="mt-3 rounded-card-lg bg-apple-card px-5 py-6 text-center text-sm text-apple-text-3 shadow-card">
                     该单元下暂无可选小单元
                   </p>
                 )}

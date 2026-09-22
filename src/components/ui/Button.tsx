@@ -28,7 +28,7 @@ interface ButtonProps {
  * 全站统一按钮（Brief 的 Primary/Secondary/Tertiary Action 唯一实现）。
  * 收敛自 audit：主按钮类串曾手抄 12+ 处、高度 4 档、按压 scale 5 档、disabled 3 套。
  * 规约：primary=品牌蓝胶囊+btn-blue 投影；secondary=白底描边；ghost=蓝字无底；
- * danger=红字无底（破坏性文字操作）。按压统一 active:scale-[0.97]。
+ * danger=红字无底（破坏性文字操作）。按压统一走 .pressable（globals.css）。
  * disabled 两规则：实底按钮变灰底灰字，文字类按钮降透明度。
  */
 const VARIANTS: Record<ButtonVariant, string> = {
@@ -66,8 +66,9 @@ export default function Button({
 }: ButtonProps) {
   const cls = cn(
     'inline-flex items-center justify-center gap-1.5 rounded-btn font-medium',
-    'transition-[background-color,color,transform,box-shadow] duration-base ease-apple',
-    'active:scale-[0.97]',
+    // 按压手感走 .pressable（非对称时长，见 globals.css）而不是
+    // duration-base + active:scale —— 对称的 200ms 按下去发黏、松手也不脆。
+    'pressable',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40 focus-visible:ring-offset-2',
     'disabled:cursor-not-allowed',
     VARIANTS[variant],

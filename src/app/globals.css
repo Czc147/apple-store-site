@@ -9,6 +9,9 @@
        padding/bottom 偏移一律引用此变量：
        calc(var(--tabbar-h) + env(safe-area-inset-bottom)) */
     --tabbar-h: 72px;
+    /* 探究广场自己的底部板块栏高度（广场不共用主 TabBar，见 (plaza)/layout.tsx）。
+       同样只此一处，需要避让的地方一律引用本变量 */
+    --plaza-bar-h: 72px;
   }
 
   html {
@@ -94,6 +97,260 @@
       border-color: rgba(0, 0, 0, 0.06);
     }
   }
+  /* 液态玻璃药丸（底部导航，2026-09-21 用户指定）。配方提炼自 CodePen
+     「liquid glass」jh3y/EajLxJV：位移贴图 + 三通道色散 → backdrop-filter: url()。
+
+     刻意拆成三层，任一层失效都**不会**退化成透明条（a7863fa 变灰事故防护）：
+       1. .liquid-pill          —— 只做定位/圆角，**绝不挂 backdrop-filter**：
+          父级一旦有 backdrop-filter 会形成 backdrop root，子层的 backdrop-filter
+          只能采样到父级已绘制的背景，折射会失效（实测采不到页面内容）。
+       2. .liquid-pill__frost   —— 实底白，永远生效，负责文字可读性。
+       3. .liquid-pill__refract —— 折射层。基线=磨砂；Chromium 升级为 url() 形变折射。
+     白色不透明度 0.60 ≥ 团队铁律 0.4（半透明面板白底下限）。 */
+  /* 注意：这里**不能**加 isolation/z-index —— 药丸必须留在导航行的层叠上下文里，
+     玻璃罩才能插在"药丸玻璃"与"药丸内容"中间（见 .liquid-dome 注释）。
+     加任一个都会把药丸变成独立层叠上下文，罩就只能整体压在药丸之上或之下。 */
+  .liquid-pill {
+    position: relative;
+  }
+  .liquid-pill__frost {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: rgba(255, 255, 255, 0.6);
+    /* 内侧高光描边 + 外投影：玻璃的"厚度"与离面感，替代原来整条的 border-t */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+      0 1px 2px rgba(0, 0, 0, 0.07),
+      0 6px 18px -6px rgba(17, 17, 26, 0.22);
+  }
+  .liquid-pill__refract {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    /* 基线：所有支持 backdrop-filter 的浏览器都有磨砂 */
+    backdrop-filter: blur(16px) saturate(1.7);
+    -webkit-backdrop-filter: blur(16px) saturate(1.7);
+  }
+  /* 增强：Chromium 才支持 backdrop-filter 引用 SVG 滤镜。
+     blur 放在 url() **之前**（滤镜链按序应用）：先磨砂再折射，
+     色散描边不会被后置模糊糊掉。
+     链式保留 blur 是刻意的兜底 —— 万一某浏览器解析了 url() 却不绘制，
+     blur(6px) 仍在同一值列表里生效，不至于连磨砂都丢。 */
+  @supports (backdrop-filter: url(#liquid-pill-filter)) {
+    .liquid-pill__refract {
+      backdrop-filter: blur(6px) url(#liquid-pill-filter) saturate(1.7);
+      -webkit-backdrop-filter: blur(6px) saturate(1.7);
+    }
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .liquid-pill__frost {
+      background: rgba(255, 255, 255, 0.94);
+    }
+  }
+  /* 玻璃罩（2026-09-22 用户点名）：停留在某个 Tab 时罩在该 Tab 上的一层玻璃，
+     跨 Tab 切换时整块平移过去；按住时放大 + 色散增强（彩虹发散）。
+     比药丸四周各大 5px，多出来的这一圈就是"罩"的可见边缘。
+
+     层叠关系（导航行是层叠上下文，.liquid-pill 刻意**不**建独立上下文）：
+        z-index 0  药丸自己的 frost / refract   ← 被罩盖住（激活 Tab 用罩的玻璃）
+        z-index 1  .liquid-dome                 ← 罩盖在按钮玻璃之上
+        z-index 2  药丸的图标与文字              ← 内容永远在最上层，清晰可读
+     所以罩是"盖住按钮的玻璃"，而不是垫在下面只露一圈边。 */
+  .liquid-dome {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    border-radius: 9999px;
+    pointer-events: none;
+    will-change: transform, width, height;
+  }
+  /* 内层单独承担"按压缩放"，与外层的"跨 Tab 平移"解耦 ——
+     同一个 transform 上既有定位过渡又有按压过渡会互相打断 */
+  .liquid-dome__inner {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    transition: transform 260ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  .liquid-dome__frost {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    /* 罩会盖住激活药丸自己的玻璃，所以它就是激活 Tab 的可读性底座，
+       白度与药丸同档（0.6，守住 ≥0.4 铁律） */
+    background: rgba(255, 255, 255, 0.6);
+    /* 比药丸更强的顶高光与投影：罩是"浮起来"的那一层 */
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+      0 2px 6px rgba(17, 17, 26, 0.1),
+      0 10px 26px -8px rgba(17, 17, 26, 0.32);
+  }
+  .liquid-dome__refract {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    backdrop-filter: blur(16px) saturate(1.7);
+    -webkit-backdrop-filter: blur(16px) saturate(1.7);
+  }
+  /* 增强色散层：与常规层同尺寸叠放，backdrop 会连常规层的结果一起采样，
+     所以淡入后色散是"叠加增强"而不是替换。按下放大 + 这层淡入 = 彩虹发散 */
+  .liquid-dome__boost {
+    opacity: 0;
+    transition: opacity 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  /* 彩虹环：仅按下时淡入，用于**拿不到真实色散**的环境（iOS Safari / Firefox
+     不支持 backdrop-filter: url()，真折射做不出来）。
+     做法 = 锥形彩虹渐变 + padding-box 遮罩做成**沿玻璃边缘的一圈环**：
+     中心被掏空所以文字区不受影响，只有边缘出彩，读作"从玻璃边缘发散的彩虹"。
+     早先用径向遮罩试过，药丸是宽扁形、径向遮罩跟不上形状，左右两端整块糊上色，
+     退化成一张彩色圆盘 —— padding-box 环才贴着圆角走。
+     Chromium 下整块被 @supports 关掉，走真实三通道色散，不会双重叠加。 */
+  .liquid-dome__rainbow {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    display: none;
+    transition: opacity 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 3px; /* 环宽 */
+    background: conic-gradient(
+      from 200deg,
+      #0066cc,
+      #32ade6,
+      #34c759,
+      #ffcc00,
+      #ff9500,
+      #ff375f,
+      #bf5af2,
+      #0066cc
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    filter: blur(0.5px);
+  }
+  @supports not (backdrop-filter: url(#liquid-dome-boost-filter)) {
+    .liquid-dome__rainbow {
+      display: block;
+    }
+  }
+  @supports (backdrop-filter: url(#liquid-dome-filter)) {
+    .liquid-dome__refract {
+      backdrop-filter: blur(6px) url(#liquid-dome-filter) saturate(1.7);
+      -webkit-backdrop-filter: blur(6px) saturate(1.7);
+    }
+  }
+  /* 必须排在上一块**之后**：两个选择器特异度相同，增强层同时带这两个 class，
+     靠源码顺序决定谁生效 */
+  @supports (backdrop-filter: url(#liquid-dome-boost-filter)) {
+    .liquid-dome__boost {
+      backdrop-filter: blur(6px) url(#liquid-dome-boost-filter) saturate(1.7);
+      -webkit-backdrop-filter: blur(6px) saturate(1.7);
+    }
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .liquid-dome__frost {
+      background: rgba(255, 255, 255, 0.94);
+    }
+  }
+  /* 会员卡（需求1）。三档配色的取值来自用户给的参考图：
+     银 #F2F4F6→#C9CED4 / 金 #EBD9AE→#C9A961 / 黑金 #2B2620→#16130F。
+     色值只出现在这里，组件里不散落；换档只改 data-variant。
+     形状（圆角）由组件上的 rounded-hero token 负责，此处只管材质与装饰。 */
+  .member-card {
+    --mc-bg-1: #f2f4f6;
+    --mc-bg-2: #dcdfe3;
+    --mc-bg-3: #c9ced4;
+    --mc-ink: #71767c;
+    --mc-line: rgba(255, 255, 255, 0.9);
+    --mc-spark: rgba(255, 255, 255, 0.5);
+    --mc-glow: rgba(160, 172, 184, 0.34);
+
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    aspect-ratio: 3 / 2;
+
+    color: var(--mc-ink);
+
+    /* 斜向刷痕 + 主渐变叠成金属感；刷痕很淡，只负责"不是一块死板渐变" */
+    background-image:
+      linear-gradient(
+        115deg,
+        rgba(255, 255, 255, 0.38) 0%,
+        rgba(255, 255, 255, 0) 34%,
+        rgba(255, 255, 255, 0) 66%,
+        rgba(255, 255, 255, 0.24) 100%
+      ),
+      linear-gradient(
+        150deg,
+        var(--mc-bg-1) 0%,
+        var(--mc-bg-2) 48%,
+        var(--mc-bg-3) 100%
+      );
+
+    box-shadow:
+      0 1px 2px rgba(17, 17, 26, 0.06),
+      0 10px 30px -12px var(--mc-glow);
+  }
+  .member-card[data-variant='gold'] {
+    --mc-bg-1: #ebd9ae;
+    --mc-bg-2: #dcc286;
+    --mc-bg-3: #c9a961;
+    --mc-ink: #8a6a2f;
+    --mc-line: rgba(255, 250, 235, 0.85);
+    --mc-spark: rgba(255, 248, 228, 0.55);
+    --mc-glow: rgba(201, 169, 97, 0.42);
+  }
+  .member-card[data-variant='black'] {
+    --mc-bg-1: #2b2620;
+    --mc-bg-2: #1e1a15;
+    --mc-bg-3: #16130f;
+    --mc-ink: #d9b978;
+    --mc-line: rgba(217, 185, 120, 0.72);
+    --mc-spark: rgba(217, 185, 120, 0.34);
+    --mc-glow: rgba(150, 116, 48, 0.4);
+  }
+  .member-card__swoosh {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    width: 100%;
+    pointer-events: none;
+  }
+  .member-card__label {
+    letter-spacing: 0.18em;
+    white-space: nowrap;
+    opacity: 0.85;
+  }
+  .member-card__expiry {
+    opacity: 0.75;
+  }
+  /* 小尺寸 Orbi（头像/列表）停掉漂浮与呼吸：
+     一屏里好几个一起动会很吵，而且列表行的高度会被动画带着轻微抖动。
+     聊天窗口里那只大的不套这个类，保留完整动效。 */
+  .orbi-still .orbi-wrapper,
+  .orbi-still .orbi-antenna,
+  .orbi-still .orbi-antenna-light,
+  .orbi-still .orbi-core,
+  .orbi-still .orbi-ground-glow,
+  .orbi-still .orbi-arm {
+    animation: none;
+  }
   /* 弹层遮罩两档（原 black/25、/40、/45、/80 四档收敛）。
      sheet 档带 2px 轻模糊制造纵深；lightbox 档纯深遮罩突出内容 */
   .scrim-sheet {
@@ -111,6 +368,36 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* 按钮「丝滑」按压（2026-09-22 用户要求：所有核心按钮的交互都要平滑、不违和）。
+     关键在于**非对称时长**：按下 90ms（慢了会觉得发黏、跟不上手指），
+     回弹 240ms（快了会觉得"啪"地弹回来、很廉价）。原来全站两个方向
+     都是 duration-base 200ms，按起来是钝的。
+     回弹刻意**不带过冲**：全站过冲只批了三处（角标 badge-pop / 玻璃罩跨 Tab /
+     帖子点赞 like-pop），按钮是最高频的操作，每个都弹一下会很吵 ——
+     "丝滑"要的是顺，不是弹。
+     非 transform 的时长/曲线与全站 duration-base + ease-apple 完全一致，
+     所以即使和 Tailwind 的 transition-* 工具类同时命中，谁赢结果都一样。 */
+  .pressable,
+  .pressable-soft {
+    transition:
+      transform 240ms cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .pressable:active {
+    transform: scale(0.97);
+    /* 单值 duration 会覆盖上面全部属性：按下这一瞬间要整体"跟手" */
+    transition-duration: 90ms;
+  }
+  /* 图标/头像这类小圆按钮按得更浅一点，缩太多会显得"陷进去" */
+  .pressable-soft:active {
+    transform: scale(0.94);
+    transition-duration: 90ms;
   }
 
   /* 页面切换淡入（200ms，改用 apple 缓动而非 CSS ease）
@@ -231,6 +518,11 @@
   .animate-prism-sweep {
     animation: none;
   }
+  /* 按压的位移也关掉：颜色/底色反馈保留（否则按下去毫无反馈），只去掉缩放 */
+  .pressable:active,
+  .pressable-soft:active {
+    transform: none;
+  }
   /* 滚动出现退化为「直接可见」，不做位移 */
   .animate-rise {
     animation: fade-in 120ms ease backwards;
@@ -272,5 +564,65 @@
   }
   100% {
     transform: scale(1);
+  }
+}
+
+
+
+/* ==========================================================
+   帖子微交互（UI.docx 第 14/16/30 条）
+   ----------------------------------------------------------
+   ⚠️ like-pop 带过冲，是**全站第三处获批的过冲动效**
+   （前两处：角标 badge-pop、玻璃罩跨 Tab 弹动）。
+   用户 2026-09-22 点名「按这份计划实现」，故破例；
+   tailwind.config.ts 的 ease-apple-pop 注释同步记录。
+   ========================================================== */
+.animate-like-pop {
+  animation: like-pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes like-pop {
+  0% {
+    transform: scale(0.72);
+  }
+  45% {
+    transform: scale(1.28);
+  }
+  70% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-bookmark-pop {
+  animation: bookmark-pop 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes bookmark-pop {
+  0% {
+    transform: translateY(4px) scale(0.8);
+  }
+  60% {
+    transform: translateY(-2px) scale(1.15);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 新帖子插入 feed 时（UI.docx 第 30 条）。
+   结束帧写 transform: none 而不是 translateY(0)：与 page-enter 同理，
+   Chrome 会把结束帧的单位矩阵算成包含块，影响 fixed 后代。 */
+.animate-feed-enter {
+  animation: feed-enter 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes feed-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

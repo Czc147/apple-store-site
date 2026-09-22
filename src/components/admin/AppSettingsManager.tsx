@@ -13,6 +13,8 @@ const EMPTY: AppSettings = {
   announcement: '',
   payment_wechat_qr_url: '',
   payment_alipay_qr_url: '',
+  official_auto_reply: '',
+  official_reply_rules: '',
 };
 
 /** 首页全局配置：站点标题 / 首页大标题 / 副标题 / 顶部公告条 */
@@ -47,6 +49,8 @@ export default function AppSettingsManager() {
       const data = (await res.json()) as AppSettings;
       setForm({
         site_title: data.site_title ?? '',
+        official_auto_reply: data.official_auto_reply ?? '',
+        official_reply_rules: data.official_reply_rules ?? '',
         home_greeting: data.home_greeting ?? '',
         home_subtitle: data.home_subtitle ?? '',
         announcement: data.announcement ?? '',
@@ -88,6 +92,8 @@ export default function AppSettingsManager() {
           announcement: form.announcement ?? '',
           payment_wechat_qr_url: form.payment_wechat_qr_url ?? '',
           payment_alipay_qr_url: form.payment_alipay_qr_url ?? '',
+          official_auto_reply: form.official_auto_reply ?? '',
+          official_reply_rules: form.official_reply_rules ?? '',
         }),
       });
       if (!res.ok) throw new Error(await extractError(res));
@@ -225,6 +231,47 @@ export default function AppSettingsManager() {
                     }
                   />
                 </Field>
+              </div>
+
+              <div className="rounded-card border border-apple-hairline bg-apple-surface p-4">
+                <p className="text-[13.5px] font-semibold text-apple-text">
+                  探究广场 · 官方自动回复
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-apple-text-2">
+                  用户在广场「对话」里给官方留言后，小机器人会自动回一条。
+                  关键词规则优先于默认文案。
+                </p>
+
+                <div className="mt-3 space-y-4">
+                  <Field label="默认回复文案" hint="没有命中任何关键词时用这条">
+                    <textarea
+                      className={textareaCls}
+                      rows={2}
+                      maxLength={300}
+                      value={form.official_auto_reply ?? ''}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, official_auto_reply: e.target.value }))
+                      }
+                      placeholder="收到你的留言啦，官方会尽快回复你。"
+                    />
+                  </Field>
+
+                  <Field
+                    label="关键词规则"
+                    hint="每行一条「关键词=回复内容」；行首加 # 可注释掉。命中即用该条"
+                  >
+                    <textarea
+                      className={textareaCls}
+                      rows={4}
+                      maxLength={2000}
+                      value={form.official_reply_rules ?? ''}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, official_reply_rules: e.target.value }))
+                      }
+                      placeholder={'价格=价格问题请直接联系客服 QQ：3821587061\n退款=退款请提供订单号，我们会在 24 小时内处理'}
+                    />
+                  </Field>
+                </div>
               </div>
 
               <div className="rounded-card border border-apple-hairline bg-apple-surface p-4">

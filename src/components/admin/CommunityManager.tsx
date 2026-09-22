@@ -255,7 +255,7 @@ export default function CommunityManager() {
   return (
     <>
       <PageHeader
-        title="社区管理"
+        title="探究管理"
         description="发布置顶通知、管理用户帖子；7 天前的普通帖会在前台浏览时被自动清理"
         createLabel="发布置顶通知"
         onCreate={() => {
@@ -296,7 +296,7 @@ export default function CommunityManager() {
             {rows === null ? (
               <LoadingRows colSpan={7} />
             ) : rows.length === 0 ? (
-              <EmptyRow colSpan={7} text="社区还没有帖子" />
+              <EmptyRow colSpan={7} text="探究还没有帖子" />
             ) : (
               rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-apple-bg/60">
@@ -499,7 +499,7 @@ export default function CommunityManager() {
         <form id="community-create-form" onSubmit={handleCreate} className="space-y-4">
           <Field
             label="通知内容"
-            hint="发布后将置顶展示在社区顶部，前台带「置顶通知」标记"
+            hint="发布后将置顶展示在探究顶部，前台带「置顶通知」标记"
           >
             <textarea
               className={textareaCls}

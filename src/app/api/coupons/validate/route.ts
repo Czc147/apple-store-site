@@ -5,6 +5,11 @@ import { getRequestUser } from '@/lib/user-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { parseOrderItems, resolveOrderItems } from '@/lib/orders-server';
 import { validateCouponCode } from '@/lib/coupons-server';
+import {
+  computeVipDiscount,
+  loadApplicableDiscount,
+  resolveBestDiscount,
+} from '@/lib/vip-benefits';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,14 +49,38 @@ export async function POST(req: NextRequest) {
   const check = await validateCouponCode(db, code, user.id, Number(resolved.total));
   if (!check.ok) return fail(check.error, check.status);
 
+  // VIP 比价（迁移 023）：与券**不叠加，取更优**。这里只做预览，
+  // 真正的取舍在下单时再算一遍（口径共用 lib/vip-benefits.ts，两处必然一致）。
+  const original = Number(resolved.total);
+  const vip = await loadApplicableDiscount(db, user.id, parsed.orderType);
+  const vipDiscount = vip ? computeVipDiscount(vip.percent, original) : 0;
+  const best = resolveBestDiscount({
+    couponDisc: check.discount,
+    vipDisc: vipDiscount,
+  });
+
   return ok({
     code: check.claim.code,
     coupon_id: check.coupon.id,
     name: check.coupon.name,
     type: check.coupon.type,
     value: Number(check.coupon.value),
-    original_total: Number(resolved.total),
-    discount_amount: check.discount,
-    payable: check.payable,
+    original_total: original,
+    // discount_amount / payable 给的是**本单实际生效**的数：
+    // VIP 更划算时这里就是 VIP 的折扣，前端据此显示的实付与下单结果一致
+    discount_amount: best.amount,
+    payable: Math.round((original - best.amount) * 100) / 100,
+    /** 本单优惠来自券还是 VIP；为 'vip' 时这张券不会被核销 */
+    effective_source: best.source,
+    /** 这张券自己的折扣，供前端在 VIP 胜出时说明「券没被用掉」 */
+    coupon_discount_amount: check.discount,
+    /** VIP 折扣信息；没有可用折扣时为 null */
+    vip: vip
+      ? {
+          percent: vip.percent,
+          discount_amount: vipDiscount,
+          better: best.source === 'vip',
+        }
+      : null,
   });
 }

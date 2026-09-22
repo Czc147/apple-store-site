@@ -16,6 +16,9 @@ const SETTING_KEYS = [
   'announcement',
   'payment_wechat_qr_url',
   'payment_alipay_qr_url',
+  // 探究广场 · 对话板块：官方小机器人的自动回复（迁移 025/026 预置了默认值）
+  'official_auto_reply',
+  'official_reply_rules',
 ] as const;
 
 /**

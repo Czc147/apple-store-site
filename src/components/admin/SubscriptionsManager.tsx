@@ -8,7 +8,12 @@ import {
   type FormEvent,
 } from 'react';
 import {
+  CARD_STYLE_LABEL,
+  DISCOUNT_SCOPE,
+  DISCOUNT_SCOPE_LABEL,
   SUBSCRIPTION_TYPE_LABEL,
+  type CardStyle,
+  type DiscountScope,
   type Subscription,
   type SubscriptionType,
 } from '@/lib/types';
@@ -37,6 +42,21 @@ import {
   tdCls,
 } from './ui';
 
+/**
+ * ISO 时间 → `<input type="datetime-local">` 需要的本地时间串（YYYY-MM-DDTHH:mm）。
+ * 直接 slice ISO 会得到 UTC 值，比用户本地时间差几个时区，回显会看着像"填错了"。
+ */
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
 interface FormState {
   name: string;
   price: string;
@@ -47,6 +67,13 @@ interface FormState {
   type: SubscriptionType;
   unlock_duration_days: string;
   sort_order: string;
+  /** 会员卡与 VIP 折扣（迁移 023） */
+  card_style: '' | CardStyle;
+  card_text: string;
+  discount_percent: string;
+  discount_scope: DiscountScope[];
+  discount_valid_from: string;
+  discount_valid_to: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -59,6 +86,12 @@ const EMPTY_FORM: FormState = {
   type: 'normal',
   unlock_duration_days: '',
   sort_order: '0',
+  card_style: '',
+  card_text: '',
+  discount_percent: '',
+  discount_scope: [],
+  discount_valid_from: '',
+  discount_valid_to: '',
 };
 
 /** 订阅管理：名称 + 价格 + 时长徽章文案 */
@@ -128,6 +161,12 @@ export default function SubscriptionsManager() {
           ? String(row.unlock_duration_days)
           : '',
       sort_order: String(row.sort_order),
+      card_style: row.card_style ?? '',
+      card_text: row.card_text ?? '',
+      discount_percent: row.discount_percent != null ? String(row.discount_percent) : '',
+      discount_scope: row.discount_scope ?? [],
+      discount_valid_from: toLocalInput(row.discount_valid_from),
+      discount_valid_to: toLocalInput(row.discount_valid_to),
     });
     setFormError(null);
     setModalOpen(true);
@@ -154,6 +193,28 @@ export default function SubscriptionsManager() {
       durationValue = n;
     }
 
+    // 会员卡与折扣（迁移 023）。服务端还会再校验一遍（lib/vip-benefits.ts 的 parse*），
+    // 这里先做即时反馈，避免白跑一次请求。
+    const percentRaw = form.discount_percent.trim();
+    let percentValue: number | null = null;
+    if (percentRaw !== '') {
+      const n = Number(percentRaw);
+      if (!Number.isFinite(n) || n <= 0 || n >= 100) {
+        return setFormError('折扣需在 0 到 100 之间（填 20 即打 8 折）');
+      }
+      percentValue = Math.round(n * 100) / 100;
+    }
+    if (percentValue !== null && form.discount_scope.length === 0) {
+      return setFormError('填了折扣就要选至少一个适用范围');
+    }
+    if (
+      form.discount_valid_from &&
+      form.discount_valid_to &&
+      form.discount_valid_to <= form.discount_valid_from
+    ) {
+      return setFormError('优惠结束时间要晚于开始时间');
+    }
+
     setSaving(true);
     setFormError(null);
     try {
@@ -172,6 +233,13 @@ export default function SubscriptionsManager() {
             type: form.type,
             unlock_duration_days: isDaily ? durationValue : null,
             sort_order: sortOrder,
+            // 空串一律转 null，服务端按「未提供 = 不动，null = 清空」处理
+            card_style: form.card_style || null,
+            card_text: form.card_text.trim() || null,
+            discount_percent: percentValue,
+            discount_scope: form.discount_scope,
+            discount_valid_from: form.discount_valid_from || null,
+            discount_valid_to: form.discount_valid_to || null,
           }),
         },
       );
@@ -435,6 +503,131 @@ export default function SubscriptionsManager() {
               inputMode="numeric"
             />
           </Field>
+          {/* ---------- 会员卡与优惠（迁移 023） ---------- */}
+          <fieldset className="space-y-4 rounded-[12px] border border-[#E5E5EA] p-4">
+            <legend className="px-1 text-[13px] font-semibold text-[#1D1D1F]">
+              会员卡与优惠
+            </legend>
+
+            <Field
+              label="会员卡样式"
+              hint="持有本订阅的用户会在「我的库」看到这张卡；留空表示不发卡"
+            >
+              <select
+                className={selectCls}
+                value={form.card_style}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    card_style: e.target.value as '' | CardStyle,
+                  }))
+                }
+              >
+                <option value="">不发卡</option>
+                {(Object.keys(CARD_STYLE_LABEL) as CardStyle[]).map((s) => (
+                  <option key={s} value={s}>
+                    {CARD_STYLE_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            {form.card_style && (
+              <Field
+                label="卡面文案"
+                hint="显示在卡的正中间，大号字。留空则用订阅名称"
+              >
+                <input
+                  className={inputCls}
+                  value={form.card_text}
+                  maxLength={16}
+                  placeholder="如：年度会员"
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, card_text: e.target.value }))
+                  }
+                />
+              </Field>
+            )}
+
+            <Field
+              label="享受折扣"
+              hint="填减掉的百分比：填 20 即打 8 折。留空表示无折扣。与优惠券不叠加，结算时自动取更划算的那个"
+            >
+              <input
+                className={inputCls}
+                value={form.discount_percent}
+                type="number"
+                step="0.1"
+                min="0"
+                max="99.9"
+                inputMode="decimal"
+                placeholder="留空即无折扣"
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, discount_percent: e.target.value }))
+                }
+              />
+            </Field>
+
+            {form.discount_percent.trim() !== '' && (
+              <Field label="折扣范围" required hint="至少勾选一项，否则折扣不会生效">
+                <div className="flex flex-wrap gap-4 pt-1">
+                  {(Object.values(DISCOUNT_SCOPE) as DiscountScope[]).map(
+                    (scope) => (
+                      <label
+                        key={scope}
+                        className="flex items-center gap-2 text-[14px] text-[#1D1D1F]"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={form.discount_scope.includes(scope)}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              discount_scope: e.target.checked
+                                ? [...f.discount_scope, scope]
+                                : f.discount_scope.filter((s) => s !== scope),
+                            }))
+                          }
+                        />
+                        {DISCOUNT_SCOPE_LABEL[scope]}
+                      </label>
+                    ),
+                  )}
+                </div>
+              </Field>
+            )}
+
+            <div className="flex flex-wrap gap-4">
+              <Field label="优惠开始时间" hint="留空即不限">
+                <input
+                  className={inputCls}
+                  type="datetime-local"
+                  value={form.discount_valid_from}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      discount_valid_from: e.target.value,
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="优惠结束时间" hint="留空即不限">
+                <input
+                  className={inputCls}
+                  type="datetime-local"
+                  value={form.discount_valid_to}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      discount_valid_to: e.target.value,
+                    }))
+                  }
+                />
+              </Field>
+            </div>
+          </fieldset>
+
           {formError && (
             <p className="text-[13px] text-[#D70015]" role="alert">
               {formError}

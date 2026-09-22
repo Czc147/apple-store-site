@@ -57,3 +57,16 @@ export function maskTail(text: string, keep = 4): string {
   if (text.length <= keep) return '*'.repeat(Math.max(text.length, 4));
   return `****${text.slice(-keep)}`;
 }
+
+/**
+ * VIP 折扣百分比 → 中文折扣文案。
+ * 传入的是**减掉的百分比**（与 coupons.value 同口径）：20 → 「8 折」。
+ * 放在 format.ts 而不是 vip-benefits.ts，是因为 vip-benefits 依赖服务端模块
+ * （coupons-server），客户端组件不能 import 它。
+ */
+export function formatDiscountRate(percent: number): string {
+  const zhe = (100 - Number(percent)) / 10;
+  if (!Number.isFinite(zhe) || zhe <= 0) return '';
+  // 最多一位小数：7.5 折 而不是 7.500000000000001 折
+  return `${Math.round(zhe * 10) / 10} 折`;
+}

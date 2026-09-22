@@ -14,11 +14,12 @@ import EmptyState from '@/components/ui/EmptyState';
 import DataError from '@/components/ui/DataError';
 import NewPostComposer from './NewPostComposer';
 import PostCard from './PostCard';
+import PostDetailSheet from './PostDetailSheet';
 
 /** 骨架与真实布局同构（发帖框 + 帖子卡 + 作者行/正文/操作行，UI 升级 §9.5），避免加载完成跳变 */
 function CommunitySkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true" aria-live="polite" aria-label="社区加载中">
+    <div className="space-y-3" aria-busy="true" aria-live="polite" aria-label="探究加载中">
       {/* 发帖入口 */}
       <div className="rounded-card-lg bg-apple-card p-3 sm:p-4">
         <div className="skeleton h-16 w-full rounded-input" />
@@ -61,6 +62,8 @@ export default function CommunityClient() {
   const [posts, setPosts] = useState<CommunityPost[] | null>(null);
   // audit 修复：取数失败曾静默变「还没有帖子」，错误伪装成空态且无从重试
   const [loadFailed, setLoadFailed] = useState(false);
+  /** 打开详情层的那条帖子 id（存 id 而不是整条：点赞/评论后要跟着最新数据走） */
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const isLoggedIn = Boolean(user);
 
@@ -78,8 +81,47 @@ export default function CommunityClient() {
     void load();
   }, [load]);
 
-  const handlePost = async (content: string) => {
-    const created = await createPost(getAuthHeaders, content);
+  /**
+   * 滚到 hash 指向的那条帖子并闪一下高亮。
+   *
+   * 两处必须自己做：
+   * 1. 帖子的 DOM 是**取数之后**才渲染的，浏览器自带的 hash 定位在页面加载
+   *    那一刻就执行了，那时元素还不存在 → 直接扑空。
+   * 2. **已经在本页时**点「查看原帖 / 搜索结果」，地址栏只是换了 hash：
+   *    Next 的 <Link> 走 pushState，**既不触发 hashchange 也不重新取数**，
+   *    依赖 posts 的 effect 不会重跑 → 页面纹丝不动（用户报的 #2 / #4）。
+   *    所以调用方改用普通 <a>（同文档导航会触发 hashchange），这里再挂监听。
+   *
+   * 高亮用 Web Animations 直接打在元素上，不走 React state —— 免得为了一次
+   * 两秒的闪烁给整条组件链加一个 highlight prop。
+   */
+  const scrollToHash = useCallback(() => {
+    const m = window.location.hash.match(/^#post-(.+)$/);
+    if (!m) return;
+    const el = document.getElementById(`post-${m[1]}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.animate(
+      [
+        { backgroundColor: 'rgba(0, 113, 227, 0.10)' },
+        { backgroundColor: 'transparent' },
+      ],
+      { duration: 1800, easing: 'ease-out' },
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!posts || posts.length === 0) return;
+    scrollToHash();
+  }, [posts, scrollToHash]);
+
+  useEffect(() => {
+    window.addEventListener('hashchange', scrollToHash);
+    return () => window.removeEventListener('hashchange', scrollToHash);
+  }, [scrollToHash]);
+
+  const handlePost = async (content: string, images: string[] = []) => {
+    const created = await createPost(getAuthHeaders, content, images);
     if (created) await load();
     return created;
   };
@@ -176,6 +218,10 @@ export default function CommunityClient() {
     );
   }
 
+  const detailPost = detailId
+    ? posts.find((p) => p.id === detailId) ?? null
+    : null;
+
   return (
     <div className="space-y-3">
       <NewPostComposer isLoggedIn={isLoggedIn} onSubmit={handlePost} />
@@ -191,8 +237,28 @@ export default function CommunityClient() {
           onDelete={(id) => void handleDelete(id)}
           onCommentAdded={handleCommentAdded}
           onCommentDeleted={handleCommentDeleted}
+          onOpenDetail={(p) => setDetailId(p.id)}
         />
       ))}
+
+      {/* 详情层：从最新的 posts 里按 id 取，保证点赞/评论数实时同步 */}
+      {detailPost && (
+        <PostDetailSheet
+          post={detailPost}
+          onClose={() => setDetailId(null)}
+          isOwner={Boolean(user) && detailPost.user_id === user?.id}
+          currentUserId={user?.id ?? null}
+          getAuthHeaders={getAuthHeaders}
+          isLoggedIn={isLoggedIn}
+          onLike={(id, next) => void handleLike(id, next)}
+          onDelete={(id) => {
+            setDetailId(null); // 删掉了就别停在详情层上
+            void handleDelete(id);
+          }}
+          onCommentAdded={handleCommentAdded}
+          onCommentDeleted={handleCommentDeleted}
+        />
+      )}
     </div>
   );
 }

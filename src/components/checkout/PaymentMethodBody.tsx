@@ -23,7 +23,7 @@ import Button from '@/components/ui/Button';
 const PAY_BASE = cn(
   'flex h-11 flex-1 items-center justify-center rounded-btn text-base font-medium',
   'transition-[background-color,color,transform,box-shadow] duration-base ease-apple',
-  'active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+  'pressable focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
 );
 
 const PAY_SKINS = {

@@ -154,7 +154,7 @@ export default function WishlistPageClient() {
         <button
           type="button"
           onClick={handleClearClick}
-          className={`-my-1 inline-flex min-h-11 flex-none items-center rounded-btn px-1 text-sm font-medium transition-colors duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40 ${
+          className={`-my-1 inline-flex min-h-11 flex-none items-center rounded-btn px-1 text-sm font-medium pressable focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40 ${
             confirmClear
               ? 'text-apple-danger'
               : 'text-apple-text-3 hover:text-apple-text-2'

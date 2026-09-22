@@ -20,7 +20,7 @@ export default function ExternalLinkAction({ href, className, children }: Extern
       rel="noopener noreferrer"
       className={cn(
         '-my-1.5 inline-flex items-center gap-1 py-1.5 text-sm font-medium text-apple-blue',
-        'transition duration-fast ease-apple hover:text-apple-blue-hover active:scale-[0.97]',
+        'pressable hover:text-apple-blue-hover',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40 focus-visible:ring-offset-2',
         className,
       )}

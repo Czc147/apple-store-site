@@ -99,7 +99,7 @@ export default function CommentList({
                   type="button"
                   onClick={() => void remove(c.id)}
                   aria-label="删除评论"
-                  className="-my-2.5 -mr-2 ml-auto inline-flex min-h-11 items-center gap-1 rounded-btn px-2 text-2xs text-apple-text-3 transition-colors duration-fast ease-apple hover:text-apple-danger active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40"
+                  className="-my-2.5 -mr-2 ml-auto inline-flex min-h-11 items-center gap-1 rounded-btn px-2 text-2xs text-apple-text-3 pressable hover:text-apple-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-danger/40"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
                   删除
@@ -130,7 +130,7 @@ export default function CommentList({
           onClick={() => void submit()}
           disabled={!isLoggedIn || sending || !draft.trim()}
           aria-label="发送评论"
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-apple-blue text-white shadow-btn-blue transition-[background-color,transform] duration-base ease-apple hover:bg-apple-blue-hover active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-apple-border disabled:text-apple-text-3 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40 focus-visible:ring-offset-2"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-apple-blue text-white shadow-btn-blue pressable hover:bg-apple-blue-hover disabled:cursor-not-allowed disabled:bg-apple-border disabled:text-apple-text-3 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40 focus-visible:ring-offset-2"
         >
           <Send className="h-[18px] w-[18px]" aria-hidden />
         </button>

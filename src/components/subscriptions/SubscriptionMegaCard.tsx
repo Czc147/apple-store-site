@@ -8,6 +8,7 @@ import Message from '@/components/ui/Message';
 import GlassSurface from '@/components/ui/GlassSurface';
 import ExternalLinkAction from '@/components/ui/ExternalLinkAction';
 import SubscriptionPurchaseSheet from './SubscriptionPurchaseSheet';
+import VipBenefitBadges from './VipBenefitBadges';
 import { formatPrice } from '@/lib/format';
 import type { Subscription } from '@/lib/types';
 
@@ -63,6 +64,8 @@ export default function SubscriptionMegaCard({
               </Badge>
               {duration && <Badge tone="neutral">{duration}</Badge>}
               {type === 'daily_plan' && <Badge tone="neutral">每日更新</Badge>}
+              {/* 会员卡 / 会员价：购前可见，否则买完才知道自己得到了什么 */}
+              <VipBenefitBadges subscription={subscription} />
               {owned && <Badge tone="success">已拥有</Badge>}
             </div>
 

@@ -17,9 +17,18 @@ import { cn } from '@/lib/cn';
 export interface AppliedCoupon {
   code: string;
   name: string;
+  /** **本单实际生效**的优惠金额（VIP 更划算时这里是 VIP 的额度） */
   discount_amount: number;
   payable: number;
   original_total: number;
+  /**
+   * 本单优惠实际来自券还是 VIP 折扣（迁移 023：两者不叠加，取更优）。
+   * 缺省视为 'coupon'，兼容不返回该字段的旧路径。
+   */
+  effective_source?: 'coupon' | 'vip' | null;
+  /** 这张券自己的折扣额，用于 VIP 胜出时说明「券没被用掉」 */
+  coupon_discount_amount?: number;
+  vip?: { percent: number; discount_amount: number; better: boolean } | null;
 }
 
 /**
@@ -100,6 +109,9 @@ export default function CouponCodeInput({
         discount_amount: ok.discount_amount,
         payable: ok.payable,
         original_total: ok.original_total,
+        effective_source: ok.effective_source ?? 'coupon',
+        coupon_discount_amount: ok.coupon_discount_amount,
+        vip: ok.vip ?? null,
       });
       setCode('');
     } catch {
@@ -117,12 +129,45 @@ export default function CouponCodeInput({
   const available = (mine ?? []).filter((c) => c.status === 'available');
 
   if (applied) {
+    // VIP 更划算时如实说明：这单走的是会员价，填的券**没有**被核销，下次还能用。
+    // 不解释的话用户会以为"填了码怎么没减那么多"，甚至以为券被吞了。
+    const vipWins = applied.effective_source === 'vip';
+
     return (
-      <div className="flex items-center gap-2 rounded-card border border-apple-success/25 bg-apple-success-soft px-3.5 py-2.5">
-        <CheckCircle2 className="h-4 w-4 flex-none text-apple-success" aria-hidden />
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-card border px-3.5 py-2.5',
+          vipWins
+            ? 'border-apple-blue/25 bg-apple-blue-soft'
+            : 'border-apple-success/25 bg-apple-success-soft',
+        )}
+      >
+        <CheckCircle2
+          className={cn(
+            'h-4 w-4 flex-none',
+            vipWins ? 'text-apple-blue' : 'text-apple-success',
+          )}
+          aria-hidden
+        />
         <span className="min-w-0 flex-1 text-sm text-apple-text">
-          已用「{applied.name}」
-          <span className="ml-1 text-apple-success">-{formatPrice(applied.discount_amount)}</span>
+          {vipWins ? (
+            <>
+              VIP 会员价更划算
+              <span className="ml-1 text-apple-blue">
+                -{formatPrice(applied.discount_amount)}
+              </span>
+              <span className="mt-0.5 block text-xs text-apple-text-2">
+                「{applied.name}」已保留，下次还能用
+              </span>
+            </>
+          ) : (
+            <>
+              已用「{applied.name}」
+              <span className="ml-1 text-apple-success">
+                -{formatPrice(applied.discount_amount)}
+              </span>
+            </>
+          )}
         </span>
         <IconButton icon={X} label="取消优惠码" onClick={clear} className="-my-1.5 -mr-1.5" />
       </div>
@@ -177,7 +222,7 @@ export default function CouponCodeInput({
                   aria-label={`使用优惠券 ${c.coupon.name}`}
                   className={cn(
                     'inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium',
-                    'transition duration-fast ease-apple active:scale-[0.97]',
+                    'pressable',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40',
                     reached
                       ? 'border-apple-danger/30 bg-apple-danger-soft text-apple-danger hover:border-apple-danger/60'
@@ -205,13 +250,4 @@ export default function CouponCodeInput({
       )}
     </div>
   );
-}
-
-/** 应用成功的券（父组件据此调 /api/orders 的 coupon_code 与展示实付） */
-export interface AppliedCoupon {
-  code: string;
-  name: string;
-  discount_amount: number;
-  payable: number;
-  original_total: number;
 }

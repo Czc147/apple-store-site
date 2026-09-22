@@ -312,6 +312,103 @@ Premium Glass 分为三层：
 
 ---
 
+## 3.4 Liquid Glass（液态玻璃药丸）
+
+**2026-09-21 追加**，用于底部导航的 6 个独立 Tab 药丸。配方提炼自 CodePen
+「liquid glass」jh3y/EajLxJV：位移贴图 + 三通道色散 → `backdrop-filter: url()`。
+
+### 结构（三层，缺一不可）
+
+```
+.liquid-pill            仅定位/圆角，**绝不挂 backdrop-filter**
+  .liquid-pill__frost    实底白 + 高光描边 + 投影（永远生效，负责可读性）
+  .liquid-pill__refract  backdrop-filter 层（基线磨砂 → Chromium 升级为折射）
+  内容（icon / label）   必须 position:relative，否则被上面两层盖住
+```
+
+**为什么根节点不能挂 backdrop-filter：** 父级一旦有 `backdrop-filter` 会形成
+backdrop root，子层的 `backdrop-filter` 只能采样父级已绘制的背景，折射直接失效。
+
+### 关键约束
+
+- **`backdrop-filter: url()` 仅 Chromium 支持。** 其余浏览器走 `@supports` 基线磨砂；
+  滤镜链里刻意保留 `blur(6px)`，万一某浏览器解析 `url()` 却不绘制，也不至于连磨砂都丢。
+- **白色不透明度 ≥ 0.6**（沿用 §3.3 的下限铁律，防 a7863fa 变灰事故）。
+- **位移贴图必须按元素实测尺寸生成**（`ResizeObserver`）：`feImage` 会把图拉伸到滤镜
+  区域，尺寸/圆角对不上，折射 rim 就跑到元素外，看起来像没生效。
+- **挖空内矩形的圆角 = 外圆角 − 内缩量**。药丸形（radius = 高/2）沿用外框圆角会让
+  两端露出大片渐变区，折射铺满整块。
+- **模糊半径按短边等比**（`blurRatio = 0.115`）。写死 11px（demo 值）在小元素上会
+  把挖空区糊穿。
+- **位移强度按短边等比**，但系数取 **-0.94**（不是 demo 的 -1.875）。demo 的 dock
+  是 336×96（宽高比 3.5:1），药丸接近 1.2:1，照搬会让色散铺满整块呈油膜感。
+- **`yChannelSelector="B"`**。demo 的 HTML 静态写的是 `G`，但运行时被脚本覆盖为 `B`；
+  贴图的 G 通道恒为 0，用 `G` 会让 Y 位移退化成常量、整块玻璃被推走去采样远处背景。
+
+### 调参
+
+改参数后想看效果，用 `D:\claude\_lggrid.html`（隔离参数网格，63×53 真实药丸尺寸，
+一次并排多组）。别在真机上盲试 —— 背景内容会干扰判断。
+
+### 玻璃罩（激活 Tab 指示器）
+
+**2026-09-22 追加**。激活的 Tab 上罩一层比药丸四周各大 5px 的玻璃，跨 Tab 时整块
+平移过去；按住激活 Tab 时罩放大并增强色散（彩虹发散）。
+
+| 层级 | 元素 | 说明 |
+|---|---|---|
+| `z-index: 0` | `.liquid-pill__frost` / `__refract` | 药丸自己的玻璃，被罩盖住 |
+| `z-index: 1` | `.liquid-dome` | 罩，盖在按钮玻璃**之上** |
+| `z-index: 2` | 药丸的图标与文字 | 永远最上层，保证可读 |
+
+**`.liquid-pill` 绝不能加 `isolation` 或 `z-index`** —— 一旦成为独立层叠上下文，
+罩就只能整体压在药丸之上（盖住图标）或之下（只剩一圈边），插不进「玻璃」与「内容」之间。
+导航行 `.liquid-dome` 的父容器需要 `isolate` 来兜住这套层级。
+
+**两个 transform 必须分层承担**：外层 `.liquid-dome` 管跨 Tab 平移（`transition-[transform,width,height] duration-spring ease-apple-pop`），
+内层 `.liquid-dome__inner` 管按压缩放。写在同一个元素上会互相打断。
+
+**过冲是用户拍板的第二处例外**（详见 `tailwind.config.ts` 的 `ease-apple-pop` 注释）。
+
+**按下时的彩虹分两条路**：
+- Chromium：`.liquid-dome__boost`（第二个滤镜，位移强度 -2.1）淡入 —— 真实三通道色散。
+- iOS Safari / Firefox：**没有 `backdrop-filter: url()`，真折射做不出来**，
+  退回 `.liquid-dome__rainbow` —— 锥形彩虹渐变 + padding-box 遮罩做成沿边缘的一圈环。
+  用径向遮罩试过，药丸是宽扁形，径向遮罩跟不上形状，左右两端整块糊色成了彩色圆盘。
+
+---
+
+## 3.5 会员卡（Member Card）
+
+**2026-09-22 追加**。订阅产品可配置一张会员卡（银 / 金 / 黑金三档）+ 一项 VIP 折扣；
+持有该订阅权益的用户在「我的库」看到卡，「我的券」里排在所有券之后。
+
+### 数据与规则
+
+- 配置在 `subscriptions` 上（迁移 023）：`card_style` / `card_text` / `discount_percent` /
+  `discount_scope` / `discount_valid_from` / `discount_valid_to`。
+- **折扣百分比口径与 `coupons.value` 一致**：存「减掉的百分比」，20 = 打 8 折。
+  金额计算复用 `coupons-server.ts` 的 `computeDiscount()`，**不要再写第二套公式**。
+- 用户持多个订阅时**取最高档**卡；过期的权益不算。同档取到期更晚的（永久最优先）。
+- 折扣与优惠券**不叠加，取更优**（`resolveBestDiscount`）。金额相同时判给券 ——
+  用户主动填了码，按他的预期走，也保证券会被正常核销。
+- **VIP 胜出时那张券不核销**（不记 `coupon_code`、不调 `lockClaimForOrder`），
+  留给用户下次用；试算接口会提前告知，避免"填了码怎么没减那么多"。
+
+### 视觉
+
+- 组件 `src/components/member/MemberCard.tsx`，配色走 `globals.css` 的
+  `.member-card[data-variant=…]` 变量，组件里不散落色值。
+- **中心大文本用真实 HTML 而非 SVG `<text>`**：能直接吃站点字阶 token、可选中、
+  后台改文案即时反映。
+- 圆角取 `rounded-hero`(28px)，不照搬参考图比例 —— 参考图是 1512px 宽的独立海报，
+  等比缩到手机宽度后圆角会小到看不出来。
+- 两条装饰弧线的**交点在右下而不是正中**：参考图正中是空的所以交点居中好看，
+  我们的卡中心要放大文本，交点压上去会跟字打架。
+- 外圈辉光刻意压淡：页面底色是浅雾灰，辉光重了显脏也会抢焦点。
+
+---
+
 ## 4. 基础组件规范
 
 ## 4.1 Button

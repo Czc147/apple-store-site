@@ -5,6 +5,7 @@ import Badge from '@/components/ui/Badge';
 import Surface from '@/components/ui/Surface';
 import Message from '@/components/ui/Message';
 import SubscriptionPurchaseSheet from './SubscriptionPurchaseSheet';
+import VipBenefitBadges from './VipBenefitBadges';
 import { formatPrice } from '@/lib/format';
 import type { Subscription } from '@/lib/types';
 
@@ -38,6 +39,7 @@ export default function SubscriptionCard({
         {/* 徽章行 */}
         <div className="flex min-h-6 flex-wrap items-center gap-1.5">
           {duration && <Badge tone="blue">{duration}</Badge>}
+          <VipBenefitBadges subscription={subscription} />
           {owned && <Badge tone="success">已拥有</Badge>}
         </div>
 

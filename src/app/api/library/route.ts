@@ -8,6 +8,8 @@ import {
   type DailyAccessStatus,
 } from '@/lib/daily-access';
 import type { SubscriptionProduct, UserEntitlement } from '@/lib/types';
+import type { CardStyle } from '@/lib/types';
+import { pickMemberCard, type MemberCardInfo } from '@/lib/vip-benefits';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,7 +72,10 @@ export async function GET(req: NextRequest) {
         ? [...allSubEnts, { ...dailyPlan, subscription_id: dailySubId }]
         : allSubEnts;
 
-    const subscriptions = await loadSubscriptions(db, subEnts);
+    const [subscriptions, memberCard] = await Promise.all([
+      loadSubscriptions(db, subEnts),
+      loadMemberCard(db, subEnts),
+    ]);
 
     return ok({
       user: { id: user.id, email: user.email },
@@ -78,6 +83,8 @@ export async function GET(req: NextRequest) {
       daily_status: dailyStatus,
       contents,
       subscriptions,
+      // 会员卡（迁移 023）：服务端算好，客户端不用再发一次请求
+      member_card: memberCard,
     });
   } catch (e) {
     return fail(e instanceof Error ? e.message : '加载失败', 500);
@@ -96,6 +103,43 @@ function computeDailyStatus(
   if (candidates.some((e) => e.expires_at === null)) return expiryToStatus(null);
   const latestMs = Math.max(...candidates.map((e) => Date.parse(e.expires_at as string)));
   return expiryToStatus(latestMs);
+}
+
+/**
+ * 会员卡（迁移 023）：按用户持有的订阅权益挑最高档的一张。
+ * 单独一次查询而不并进 loadSubscriptions —— 后者的返回结构被客户端
+ * LibraryResponse 依赖，没必要为一个附加展示位去动它。
+ * 取数失败一律返回 null：卡是附加展示，不能因为它拖垮整个「我的库」。
+ */
+async function loadMemberCard(
+  db: ReturnType<typeof supabaseAdmin>,
+  subEnts: UserEntitlement[],
+): Promise<MemberCardInfo | null> {
+  const ids = Array.from(
+    new Set(
+      subEnts
+        .map((e) => e.subscription_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  );
+  if (ids.length === 0) return null;
+
+  const { data, error } = await db
+    .from('subscriptions')
+    .select('id, name, card_style, card_text')
+    .in('id', ids);
+  if (error) {
+    console.warn('[library] 会员卡取数失败，本次不发卡：', error.message);
+    return null;
+  }
+
+  const byId = new Map(
+    (data ?? []).map((s) => [
+      s.id as string,
+      s as { id: string; name: string; card_style: CardStyle | null; card_text: string | null },
+    ]),
+  );
+  return pickMemberCard(subEnts, byId);
 }
 
 /** 组装订阅权益组：订阅名 + 商品列表（现签媒体链接） */

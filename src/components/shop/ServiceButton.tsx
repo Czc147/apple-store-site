@@ -38,7 +38,7 @@ export default function ServiceButton() {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="联系客服"
-        className="glass fixed bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] right-4 z-panel flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/60 shadow-popover transition-transform duration-base ease-apple hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
+        className="glass fixed bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] right-4 z-panel flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/60 shadow-popover pressable hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
       >
         <Headphones className="h-6 w-6 text-apple-blue" strokeWidth={1.8} aria-hidden />
       </button>

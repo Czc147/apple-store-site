@@ -5,6 +5,9 @@
  */
 import type { SubscriptionProduct, UserEntitlement } from './types';
 import type { DailyAccessStatus } from './daily-client';
+// 只取类型：vip-benefits 依赖 coupons-server（服务端专用），
+// `import type` 编译期擦除，不会把它拖进客户端 bundle
+import type { MemberCardInfo } from './vip-benefits';
 
 /** 订阅仓库商品（含现签媒体预览链接） */
 export interface LibraryProduct extends SubscriptionProduct {
@@ -33,6 +36,8 @@ export interface LibraryResponse {
   contents: UserEntitlement[];
   /** subscription 类权益列表（含订阅商品） */
   subscriptions: LibrarySubscription[];
+  /** 会员卡（迁移 023）：按持卡权益挑出的最高档一张；无卡为 null */
+  member_card: MemberCardInfo | null;
 }
 
 /** POST /api/library/sync 的单码结果 */

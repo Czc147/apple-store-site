@@ -4,6 +4,7 @@ import {
 } from '@/lib/supabase/admin';
 import { DEMO_MAJOR_UNITS, DEMO_SUB_UNITS } from '@/lib/demo-data';
 import { toNumber } from '@/lib/format';
+import { isNetworkError } from '@/lib/network-error';
 import type { MajorUnit, SubUnit, HomeSection } from '@/lib/types';
 import DataError from '@/components/ui/DataError';
 import ShopClient from './ShopClient';
@@ -12,7 +13,7 @@ import ShopClient from './ShopClient';
  * 服务端取数组件（配合 <Suspense> 流式渲染骨架屏）。
  * - 已配置 Supabase：读取 major_units / sub_units / home_sections（各按 sort_order 升序）
  * - 未配置：降级为演示数据（isDemo=true，页面显示提示条）
- * - 查询出错：渲染 DataError（可重试）
+ * - 网络不可达：回退演示数据；查询出错：渲染 DataError（可重试）
  */
 export default async function ShopServer() {
   let majors: MajorUnit[];
@@ -61,11 +62,19 @@ export default async function ShopServer() {
         sections = [];
       }
     } catch (e) {
-      return (
-        <DataError
-          message={e instanceof Error ? e.message : '商品数据加载失败'}
-        />
-      );
+      if (isNetworkError(e)) {
+        console.warn('[shop] 数据库不可达，已回退演示数据：', e);
+        majors = DEMO_MAJOR_UNITS;
+        subs = DEMO_SUB_UNITS;
+        sections = [];
+        isDemo = true;
+      } else {
+        return (
+          <DataError
+            message={e instanceof Error ? e.message : '商品数据加载失败'}
+          />
+        );
+      }
     }
   }
 

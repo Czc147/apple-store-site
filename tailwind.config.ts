@@ -155,10 +155,17 @@ const config: Config = {
         base: '200ms',
         slow: '300ms',
         cover: '380ms', // 专辑封面 FLIP / 展开舞台（UI 升级 §9.1）
+        spring: '520ms', // 玻璃罩跨 Tab 位移（配合 ease-apple-pop 的过冲才成立）
       },
       transitionTimingFunction: {
         apple: 'cubic-bezier(0.4, 0, 0.2, 1)', // 克制快速 150–250ms
-        'apple-pop': 'cubic-bezier(0.34, 1.56, 0.64, 1)', // 角标轻微过冲（全站唯一例外）
+        // 过冲曲线。全站**仅三处**允许使用（其余动效禁 bounce/overshoot）：
+        // ① 愿望单/我的库角标 badge-pop
+        // ② 底部导航玻璃罩跨 Tab 弹动（2026-09-22 用户点名）
+        // ③ 帖子点赞 like-pop（2026-09-22 用户点名，按 UI.docx 第 14 条实现）
+        // ③ 的实现写在 globals.css 的 .animate-like-pop（自带的 keyframe 是
+        // 缩放序列，不需要这条曲线本身；这里记一笔是为了让「例外清单」在一处可查）
+        'apple-pop': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
         'apple-sheet': 'cubic-bezier(0.32, 0.72, 0, 1)', // 弹层滑入（iOS sheet 曲线，原只活在 keyframe 里）
       },
     },

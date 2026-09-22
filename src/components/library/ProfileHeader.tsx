@@ -46,7 +46,7 @@ export default function ProfileHeader({ getAuthHeaders, fallbackEmail }: Profile
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
-        className="flex min-h-11 min-w-0 items-center gap-2.5 rounded-btn text-left transition-transform duration-fast ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
+        className="pressable flex min-h-11 min-w-0 items-center gap-2.5 rounded-btn text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/40"
         aria-haspopup="dialog"
       >
         <Avatar

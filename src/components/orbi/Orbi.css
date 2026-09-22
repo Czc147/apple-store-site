@@ -1,0 +1,463 @@
+.orbi-wrapper {
+  --orbi-orange: #ff8a24;
+  --orbi-orange-dark: #e87518;
+  --orbi-orange-light: #ffb15e;
+  --orbi-face: #fff8f1;
+  --orbi-ink: #24201c;
+
+  position: relative;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  cursor: pointer;
+
+  user-select: none;
+
+  -webkit-tap-highlight-color: transparent;
+
+  animation:
+    orbi-idle-float
+    3.2s
+    ease-in-out
+    infinite;
+}
+
+.orbi-svg {
+  width: 100%;
+  height: 100%;
+
+  overflow: visible;
+
+  filter:
+    drop-shadow(
+      0 14px 18px
+      rgba(232, 117, 24, .18)
+    );
+}
+
+
+/* =====================
+   IDLE
+===================== */
+
+@keyframes orbi-idle-float {
+  0%,
+  100% {
+    transform:
+      translateY(0)
+      scale(1);
+  }
+
+  50% {
+    transform:
+      translateY(-6px)
+      scale(1.008);
+  }
+}
+
+
+/* =====================
+   ANTENNA
+===================== */
+
+.orbi-antenna {
+  transform-box: fill-box;
+
+  transform-origin: bottom center;
+
+  animation:
+    orbi-antenna-idle
+    2.8s
+    ease-in-out
+    infinite;
+}
+
+@keyframes orbi-antenna-idle {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+.orbi-antenna-light {
+  transform-box: fill-box;
+
+  transform-origin: center;
+
+  animation:
+    orbi-light-pulse
+    1.8s
+    ease-in-out
+    infinite;
+}
+
+@keyframes orbi-light-pulse {
+  0%,
+  100% {
+    opacity: .65;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+
+/* =====================
+   BLINK
+===================== */
+
+.orbi-eye {
+  transform-box: fill-box;
+
+  transform-origin: center;
+
+  animation:
+    orbi-blink
+    4.6s
+    infinite;
+}
+
+@keyframes orbi-blink {
+  0%,
+  43%,
+  46%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  44%,
+  45% {
+    transform: scaleY(.08);
+  }
+}
+
+
+/* =====================
+   ARMS
+===================== */
+
+.orbi-arm {
+  transform-box: fill-box;
+
+  transform-origin: center;
+}
+
+.orbi-arm-left {
+  animation:
+    orbi-left-arm
+    3s
+    ease-in-out
+    infinite;
+}
+
+.orbi-arm-right {
+  animation:
+    orbi-right-arm
+    3s
+    ease-in-out
+    infinite;
+}
+
+@keyframes orbi-left-arm {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  50% {
+    transform: rotate(-4deg);
+  }
+}
+
+@keyframes orbi-right-arm {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+
+/* =====================
+   CORE
+===================== */
+
+.orbi-core {
+  transform-box: fill-box;
+
+  transform-origin: center;
+
+  animation:
+    orbi-core-pulse
+    2.2s
+    ease-in-out
+    infinite;
+}
+
+@keyframes orbi-core-pulse {
+  0%,
+  100% {
+    opacity: .7;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+
+/* =====================
+   GROUND
+===================== */
+
+.orbi-ground-glow {
+  transform-box: fill-box;
+
+  transform-origin: center;
+
+  animation:
+    orbi-ground-pulse
+    3s
+    ease-in-out
+    infinite;
+}
+
+@keyframes orbi-ground-pulse {
+  0%,
+  100% {
+    opacity: .1;
+    transform: scaleX(.9);
+  }
+
+  50% {
+    opacity: .2;
+    transform: scaleX(1.08);
+  }
+}
+
+
+/* =====================
+   HAPPY
+===================== */
+
+.orbi-happy-effect,
+.orbi-sparkle {
+  opacity: 0;
+}
+
+.orbi-mood-happy .orbi-happy-effect {
+  animation:
+    orbi-heart
+    900ms
+    ease-out
+    forwards;
+}
+
+.orbi-mood-happy .orbi-sparkle {
+  animation:
+    orbi-sparkle
+    700ms
+    ease-out
+    forwards;
+}
+
+@keyframes orbi-heart {
+  0% {
+    opacity: 0;
+    transform:
+      translateY(8px)
+      scale(.6);
+  }
+
+  30% {
+    opacity: 1;
+    transform:
+      translateY(-4px)
+      scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translateY(-26px)
+      scale(.8);
+  }
+}
+
+@keyframes orbi-sparkle {
+  0% {
+    opacity: 0;
+    transform: scale(.5);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(.8);
+  }
+}
+
+
+/* =====================
+   HAPPY JUMP
+===================== */
+
+.orbi-active .orbi-svg {
+  animation:
+    orbi-happy-jump
+    650ms
+    cubic-bezier(.2, 1.45, .4, 1);
+}
+
+@keyframes orbi-happy-jump {
+  0% {
+    transform: scale(1);
+  }
+
+  25% {
+    transform:
+      translateY(-13px)
+      scale(1.08)
+      rotate(-4deg);
+  }
+
+  50% {
+    transform:
+      translateY(2px)
+      scale(.96)
+      rotate(4deg);
+  }
+
+  75% {
+    transform:
+      translateY(-4px)
+      scale(1.02)
+      rotate(-2deg);
+  }
+
+  100% {
+    transform:
+      translateY(0)
+      scale(1)
+      rotate(0);
+  }
+}
+
+
+/* =====================
+   THINKING
+===================== */
+
+.orbi-mood-thinking .orbi-antenna-light {
+  animation:
+    orbi-thinking-light
+    700ms
+    ease-in-out
+    infinite;
+}
+
+.orbi-mood-thinking .orbi-eye-left {
+  transform:
+    translateY(-2px)
+    rotate(-7deg);
+}
+
+.orbi-mood-thinking .orbi-eye-right {
+  transform:
+    translateY(-2px)
+    rotate(7deg);
+}
+
+@keyframes orbi-thinking-light {
+  0%,
+  100% {
+    transform: scale(.8);
+  }
+
+  50% {
+    transform: scale(1.3);
+  }
+}
+
+
+/* =====================
+   WAVE
+===================== */
+
+.orbi-mood-wave .orbi-arm-right {
+  animation:
+    orbi-wave
+    500ms
+    ease-in-out
+    infinite alternate;
+}
+
+@keyframes orbi-wave {
+  from {
+    transform: rotate(-12deg);
+  }
+
+  to {
+    transform: rotate(18deg);
+  }
+}
+
+
+/* =====================
+   SURPRISED
+===================== */
+
+.orbi-mood-surprised .orbi-eye {
+  /* 必须停掉眨眼：CSS 动画优先级高于普通声明，orbi-blink 一直在动
+     transform，不关掉的话下面这句 scale 完全不生效（实测只有嘴在放大，
+     眼睛纹丝不动）。停掉后由 .orbi-eye 基础规则提供 transform-box/origin，
+     缩放才是绕眼睛中心而不是 SVG 原点 */
+  animation: none;
+
+  transform: scale(1.22);
+}
+
+.orbi-mood-surprised .orbi-mouth {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.35);
+}
+
+
+/* =====================
+   ACCESSIBILITY
+===================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .orbi-wrapper,
+  .orbi-svg,
+  .orbi-eye,
+  .orbi-arm,
+  .orbi-antenna,
+  .orbi-antenna-light,
+  .orbi-core,
+  .orbi-ground-glow {
+    animation: none !important;
+  }
+}

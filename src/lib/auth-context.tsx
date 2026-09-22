@@ -41,14 +41,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 客户端环境是否配置了 Supabase（缺 NEXT_PUBLIC_ 变量时为演示模式）
-  const configured = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    return Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    );
-  }, []);
+  /**
+   * 是否配置了 Supabase（缺 NEXT_PUBLIC_ 变量时为演示模式）。
+   *
+   * ⚠️ **这里绝不能加 `typeof window === 'undefined'` 一类的服务端判断**。
+   * 原来就是那样写的，后果是服务端恒为 false、客户端为 true，
+   * 于是 `/login` 两边渲染出完全不同的 DOM（服务端「登录暂不可用」卡 vs
+   * 客户端真表单）→ React hydration 必然失败（实测控制台三条报错，
+   * 整个 Suspense 边界退化成纯客户端渲染，首屏还会闪一下）。
+   *
+   * NEXT_PUBLIC_* 在服务端与客户端都读得到（客户端是构建期内联的字面量），
+   * 所以这个布尔在两端天然一致，直接算即可。
+   */
+  const configured = useMemo(
+    () =>
+      Boolean(
+        process.env.NEXT_PUBLIC_SUPABASE_URL &&
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      ),
+    [],
+  );
 
   useEffect(() => {
     if (!configured) {

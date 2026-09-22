@@ -1,0 +1,557 @@
+.chat-page {
+  position: relative;
+
+  width: 100%;
+  height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  background: var(--chat-background);
+}
+
+
+/* Header */
+
+.chat-header {
+  position: relative;
+  z-index: 20;
+
+  height: 68px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+
+  padding: 8px 16px;
+
+  background:
+    rgba(255, 255, 255, .88);
+
+  border-bottom:
+    1px solid rgba(0, 0, 0, .05);
+
+  backdrop-filter: blur(20px);
+}
+
+.chat-header-avatar {
+  width: 46px;
+  height: 46px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-header-info h1 {
+  margin: 0;
+
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.chat-header-info span {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #929292;
+
+  font-size: 12px;
+}
+
+
+/* Message List */
+
+.message-list {
+  flex: 1;
+
+  overflow-y: auto;
+
+  overscroll-behavior: contain;
+
+  padding:
+    20px
+    12px
+    150px;
+
+  scrollbar-width: thin;
+}
+
+
+/* Message Row */
+
+.message-row {
+  display: flex;
+
+  width: 100%;
+
+  margin:
+    4px
+    0;
+
+  animation:
+    message-enter
+    220ms
+    cubic-bezier(.2, .8, .2, 1);
+}
+
+.message-row-mine {
+  justify-content: flex-end;
+}
+
+.message-row-other {
+  justify-content: flex-start;
+}
+
+@keyframes message-enter {
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(9px)
+      scale(.96);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0)
+      scale(1);
+  }
+}
+
+
+/* Bubble */
+
+.message-bubble {
+  max-width:
+    min(76%, 420px);
+
+  padding:
+    8px
+    11px
+    6px;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 1px 2px
+    rgba(0, 0, 0, .04);
+}
+
+.message-bubble-other {
+  color: #202020;
+
+  background: #FFFFFF;
+
+  border-bottom-left-radius: 5px;
+}
+
+.message-bubble-mine {
+  color: #FFFFFF;
+
+  background:
+    var(--orbi-orange);
+
+  border-bottom-right-radius: 5px;
+}
+
+.message-content {
+  font-size: 15px;
+
+  line-height: 1.42;
+
+  white-space: pre-wrap;
+
+  word-break: break-word;
+}
+
+.message-meta {
+  display: flex;
+
+  justify-content: flex-end;
+
+  align-items: center;
+
+  gap: 4px;
+
+  margin-top: 2px;
+
+  font-size: 10px;
+
+  opacity: .55;
+}
+
+.message-status {
+  letter-spacing: -2px;
+}
+
+
+/* Orbi */
+
+.orbi-floating {
+  position: absolute;
+
+  z-index: 10;
+
+  left: 50%;
+
+  bottom: 76px;
+
+  transform:
+    translateX(-50%);
+
+  pointer-events: none;
+}
+
+
+/* Input */
+
+/* 定位层：表情面板与输入条共用同一个锚点，面板从输入条正上方展开 */
+.message-input-wrap {
+  position: absolute;
+
+  z-index: 30;
+
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+}
+
+.message-input {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  min-height: 56px;
+
+  padding: 7px;
+
+  border:
+    1px solid
+    rgba(0, 0, 0, .06);
+
+  border-radius: 29px;
+
+  background:
+    rgba(255, 255, 255, .92);
+
+  box-shadow:
+    0 8px 30px
+    rgba(0, 0, 0, .08);
+
+  backdrop-filter:
+    blur(20px);
+}
+
+.message-input input {
+  flex: 1;
+
+  min-width: 0;
+
+  border: 0;
+
+  outline: none;
+
+  background: transparent;
+
+  padding:
+    9px
+    3px;
+
+  color: #222;
+
+  font-size: 16px;
+}
+
+.message-input input::placeholder {
+  color: #a2a2a2;
+}
+
+
+/* Buttons */
+
+.emoji-button,
+.send-button {
+  width: 40px;
+  height: 40px;
+
+  flex:
+    0
+    0
+    40px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 0;
+
+  border-radius: 50%;
+
+  cursor: pointer;
+
+  transition:
+    transform
+    160ms
+    ease;
+}
+
+.emoji-button {
+  background: #f0eee9;
+}
+
+.send-button {
+  color: white;
+
+  background:
+    var(--orbi-orange);
+
+  font-size: 20px;
+
+  font-weight: 600;
+}
+
+.emoji-button:active,
+.send-button:active {
+  transform:
+    scale(.88);
+}
+
+
+/* Mobile */
+
+@media (max-width: 600px) {
+  .message-list {
+    padding:
+      16px
+      9px
+      145px;
+  }
+
+  .message-bubble {
+    max-width: 80%;
+  }
+
+  .orbi-floating {
+    bottom: 75px;
+  }
+}
+
+/* Allow the floating Orbi to be tapped without blocking the rest of the chat. */
+.orbi-floating .orbi-wrapper {
+  pointer-events: auto;
+}
+
+
+/* Emoji 面板 */
+
+/* 挂在定位层里、贴着输入条上沿展开，不参与输入条自身的 flex 布局 */
+.emoji-strip {
+  position: absolute;
+
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+
+  display: flex;
+
+  justify-content: space-between;
+
+  gap: 4px;
+
+  padding: 8px 10px;
+
+  border:
+    1px solid
+    rgba(0, 0, 0, .06);
+
+  border-radius: 22px;
+
+  background:
+    rgba(255, 255, 255, .95);
+
+  box-shadow:
+    0 10px 28px
+    rgba(0, 0, 0, .1);
+
+  backdrop-filter:
+    blur(18px);
+
+  animation:
+    emoji-strip-in
+    180ms
+    ease;
+}
+
+.emoji-item {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: transparent;
+
+  font-size: 19px;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    transform
+    140ms
+    ease;
+}
+
+.emoji-item:active {
+  transform:
+    scale(.85);
+}
+
+@keyframes emoji-strip-in {
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0);
+  }
+}
+
+
+/* =====================
+   ACCESSIBILITY
+===================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .message-row,
+  .emoji-strip,
+  .emoji-item {
+    animation: none !important;
+
+    transition: none !important;
+  }
+}
+
+
+/* ==========================================================
+   本仓适配（apple-store-site）
+   ----------------------------------------------------------
+   以上为参考项目（Documents/ChatGPT/svg动画）的原样样式，
+   以下几处是为接进本站必须做的调整，与原设计不冲突：
+   ========================================================== */
+
+/* 1) 补上聊天页用到的配色变量。
+      原项目把它们定义在 :root（见 README 的复用说明），本站不往全局 :root
+      塞这套暖色，改成挂在聊天容器上，作用域更小、也不会污染站点 token。 */
+.chat-page {
+  --orbi-orange: #ff8a24;
+  --orbi-orange-dark: #e87518;
+  --orbi-orange-light: #ffb15e;
+  --orbi-face: #fff8f1;
+  --orbi-ink: #24201c;
+  --chat-background: #f4f1ed;
+  --bubble-white: #ffffff;
+
+  /* 2) 本站的聊天是全屏浮层（放在广场里），不带底部板块栏，
+        所以吃满整屏高度即可。 */
+  height: 100dvh;
+}
+
+/* 3) 输入条要避开 iPhone 底部横条。
+      原项目是独立演示页、没处理安全区；本站要。 */
+.chat-page .message-input-wrap {
+  bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+/* 4) 消息列表的底部留白。
+      原项目那 150px 是为了给悬停在输入框上方的 Orbi 让位；本站的聊天里
+      没有那只悬停的 Orbi（大 Orbi 只在空会话时当作欢迎形象，随内容滚动），
+      所以按「输入条高度 + 上下间距 + 安全区」留就够了。 */
+.chat-page .message-list {
+  padding-bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
+/* 5) 每条消息带对方/自己的小头像（原项目演示里没有头像位）。 */
+.chat-page .message-row {
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-page .message-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.chat-page .message-bubble {
+  /* 有头像后气泡要再收一点，否则一行放不下 */
+  max-width: min(72%, 420px);
+}
+
+
+/* ---- 本仓扩展：发送失败态 ----
+   参考项目是本地演示，没有"发失败"这回事；真接后端后必须有。
+   直接撤掉气泡的话，用户只看到消息凭空消失，既不知道失败了也不知道怎么办。 */
+.message-bubble-failed {
+    background: #FDECEE !important;
+    color: #B80012 !important;
+    cursor: pointer;
+}
+
+.message-failed-retry {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin-bottom: 4px;
+    border: 0;
+    border-radius: 50%;
+    background: #D70015;
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    animation: message-failed-pop 260ms cubic-bezier(.2, .8, .2, 1);
+}
+
+@keyframes message-failed-pop {
+    from {
+        opacity: 0;
+        transform: scale(.6);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .message-failed-retry {
+        animation: none;
+    }
+}
