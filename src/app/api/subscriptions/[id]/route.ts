@@ -9,7 +9,7 @@ import {
   parseDiscountPercent,
   parseDiscountScope,
 } from '@/lib/vip-benefits';
-import { SUBSCRIPTION_TYPE } from '@/lib/types';
+import { normalizeSubscriptionType, SUBSCRIPTION_TYPE } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,10 +42,8 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     if (body[key] !== undefined) patch[key] = body[key];
   }
   if (body.type !== undefined) {
-    patch.type =
-      body.type === SUBSCRIPTION_TYPE.DAILY_PLAN
-        ? SUBSCRIPTION_TYPE.DAILY_PLAN
-        : SUBSCRIPTION_TYPE.NORMAL;
+    // 归一化在 lib/types.ts 一处实现，POST 与 PUT 共用（别各写一遍白名单）
+    patch.type = normalizeSubscriptionType(body.type);
   }
   if (body.unlock_duration_days !== undefined) {
     const days = parseUnlockDurationDays(body.unlock_duration_days);

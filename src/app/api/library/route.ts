@@ -7,6 +7,7 @@ import {
   expiryToStatus,
   type DailyAccessStatus,
 } from '@/lib/daily-access';
+import { SUBSCRIPTION_TYPE } from '@/lib/types';
 import type { SubscriptionProduct, UserEntitlement } from '@/lib/types';
 import type { CardStyle } from '@/lib/types';
 import { pickMemberCard, type MemberCardInfo } from '@/lib/vip-benefits';
@@ -152,8 +153,9 @@ async function loadSubscriptions(
   const subIds = subEnts.map((e) => e.subscription_id as string);
 
   // 订阅名 + 该用户所有订阅的商品：两者互不依赖，并发查询省一次往返
+  // （带上 type：卡券订阅要从列表里排掉，见下方注释）
   const [{ data: subs }, { data: products }] = await Promise.all([
-    db.from('subscriptions').select('id, name').in('id', subIds),
+    db.from('subscriptions').select('id, name, type').in('id', subIds),
     db
       .from('subscription_products')
       .select('*')
@@ -162,8 +164,13 @@ async function loadSubscriptions(
       .order('created_at', { ascending: true }),
   ]);
   const nameById = new Map<string, string | null>();
-  for (const s of (subs ?? []) as Array<{ id: string; name: string }>) {
+  const couponSubIds = new Set<string>();
+  for (const s of (subs ?? []) as Array<{ id: string; name: string; type: string | null }>) {
     nameById.set(s.id, s.name);
+    // 卡券订阅（迁移 032）的产物落**「我的券」**，不在「我的订阅」列表里出现。
+    // ⚠️ 只排掉"给列表的这一份" —— 它授予的**会员卡仍要算**
+    //（loadMemberCard 拿的是全量 subEnts，会员卡由 MyCouponsCard 展示）。
+    if (s.type === SUBSCRIPTION_TYPE.COUPON) couponSubIds.add(s.id);
   }
 
   // 为有 media_path 的商品现签链接
@@ -183,9 +190,11 @@ async function loadSubscriptions(
     productsBySub.set(item.subscription_id, list);
   }
 
-  return subEnts.map((ent) => ({
-    entitlement: ent,
-    name: nameById.get(ent.subscription_id as string) ?? null,
-    products: productsBySub.get(ent.subscription_id as string) ?? [],
-  }));
+  return subEnts
+    .filter((ent) => !couponSubIds.has(ent.subscription_id as string))
+    .map((ent) => ({
+      entitlement: ent,
+      name: nameById.get(ent.subscription_id as string) ?? null,
+      products: productsBySub.get(ent.subscription_id as string) ?? [],
+    }));
 }

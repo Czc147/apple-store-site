@@ -45,12 +45,22 @@ export interface Activity {
   created_at: string;
 }
 
-/** 订阅类型（与迁移 008 的 subscriptions.type 对应） */
+/** 订阅类型（与迁移 008 + 032 的 subscriptions.type 对应） */
 export const SUBSCRIPTION_TYPE = {
-  /** 普通订阅：兑换内容 */
+  /** 普通订阅：兑换内容，产物落「我的订阅」 */
   NORMAL: 'normal',
-  /** 每日计划：解锁每日推荐 */
+  /**
+   * 高级订阅（原「每日计划」，用户 2026-09-24 拍板改名 + 加高级设置）。
+   * ⚠️ 底层值**仍然是 `daily_plan`**，只改了显示名 —— 这个字符串同时出现在
+   * `user_entitlements.kind`、`lib/daily-access.ts`、后台卡密表单等多处，
+   * 改值要动数据 + 约束 + 逻辑分支，收益只是"好看"。
+   */
   DAILY_PLAN: 'daily_plan',
+  /**
+   * 卡券订阅（迁移 032）：买的是"卡 + 券"（VIP 会员卡 + 优惠券），
+   * 产物落**「我的券」**而不是「我的订阅」。
+   */
+  COUPON: 'coupon',
 } as const;
 
 export type SubscriptionType =
@@ -58,8 +68,22 @@ export type SubscriptionType =
 
 export const SUBSCRIPTION_TYPE_LABEL: Record<SubscriptionType, string> = {
   normal: '普通订阅',
-  daily_plan: '每日计划',
+  // 显示名「高级订阅」：底层值还是 daily_plan，别被 API/DB 里的值迷惑
+  daily_plan: '高级订阅',
+  coupon: '卡券订阅',
 };
+
+/**
+ * 归一化订阅类型入参：只认三个已知值，其余一律回落 `normal`（未知值绝不落库）。
+ * 新建（POST）与编辑（PUT）共用一处，避免两处白名单各自漂移。
+ */
+export function normalizeSubscriptionType(raw: unknown): SubscriptionType {
+  return raw === SUBSCRIPTION_TYPE.COUPON
+    ? SUBSCRIPTION_TYPE.COUPON
+    : raw === SUBSCRIPTION_TYPE.DAILY_PLAN
+      ? SUBSCRIPTION_TYPE.DAILY_PLAN
+      : SUBSCRIPTION_TYPE.NORMAL;
+}
 
 /** 会员卡样式（迁移 023）：三档，用户持多个订阅时取最高档 */
 export const CARD_STYLE = {

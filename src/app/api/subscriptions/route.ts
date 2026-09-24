@@ -9,7 +9,11 @@ import {
   parseDiscountPercent,
   parseDiscountScope,
 } from '@/lib/vip-benefits';
-import { SUBSCRIPTION_TYPE, type SubscriptionType } from '@/lib/types';
+import {
+  normalizeSubscriptionType,
+  SUBSCRIPTION_TYPE,
+  type SubscriptionType,
+} from '@/lib/types';
 import { PUT as putById, DELETE as deleteById } from './[id]/route';
 
 export const dynamic = 'force-dynamic';
@@ -44,12 +48,11 @@ export async function POST(req: NextRequest) {
       ? body.price
       : 0;
 
-  const type: SubscriptionType =
-    body.type === SUBSCRIPTION_TYPE.DAILY_PLAN
-      ? SUBSCRIPTION_TYPE.DAILY_PLAN
-      : SUBSCRIPTION_TYPE.NORMAL;
+  // 三分类（迁移 032）：normal 普通 / daily_plan 高级 / coupon 卡券订阅。
+  // 用共用归一化函数，别再在 POST 与 PUT 各写一遍白名单（会漂移）
+  const type: SubscriptionType = normalizeSubscriptionType(body.type);
 
-  // 解锁天数仅每日计划有意义；普通订阅一律落 null，避免留脏字段
+  // 解锁天数仅高级订阅（daily_plan）有意义；普通订阅与卡券订阅一律落 null，避免留脏字段
   const days = parseUnlockDurationDays(body.unlock_duration_days);
   if (!days.ok) return fail(days.error);
   const unlockDurationDays =

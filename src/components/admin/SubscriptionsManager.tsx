@@ -11,6 +11,7 @@ import {
   CARD_STYLE_LABEL,
   DISCOUNT_SCOPE,
   DISCOUNT_SCOPE_LABEL,
+  SUBSCRIPTION_TYPE,
   SUBSCRIPTION_TYPE_LABEL,
   type CardStyle,
   type DiscountScope,
@@ -424,7 +425,13 @@ export default function SubscriptionsManager() {
           </Field>
           <Field
             label="订阅类型"
-            hint="每日计划：用户购买后拿卡密兑换即解锁每日推荐，全局最多一条"
+            hint={
+              form.type === SUBSCRIPTION_TYPE.COUPON
+                ? '卡券订阅：买的是「卡 + 券」，交付到用户的「我的券」（不会出现在「我的订阅」）'
+                : form.type === SUBSCRIPTION_TYPE.DAILY_PLAN
+                  ? '高级订阅：用户购买后解锁每日/定期内容，全局最多一条'
+                  : '普通订阅：用户购买后内容进「我的订阅」'
+            }
           >
             <select
               className={selectCls}
@@ -434,9 +441,17 @@ export default function SubscriptionsManager() {
               }
               disabled={saving}
             >
-              <option value="normal">普通订阅</option>
-              <option value="daily_plan" disabled={dailyPlanTaken}>
-                每日计划{dailyPlanTaken ? '（已存在，仅能有一条）' : ''}
+              {/* 文案一律取 SUBSCRIPTION_TYPE_LABEL —— 「高级订阅」的显示名在那里改，
+                  底层值仍是 daily_plan，别在这里硬编码中文 */}
+              <option value={SUBSCRIPTION_TYPE.NORMAL}>
+                {SUBSCRIPTION_TYPE_LABEL.normal}
+              </option>
+              <option value={SUBSCRIPTION_TYPE.DAILY_PLAN} disabled={dailyPlanTaken}>
+                {SUBSCRIPTION_TYPE_LABEL.daily_plan}
+                {dailyPlanTaken ? '（已存在，仅能有一条）' : ''}
+              </option>
+              <option value={SUBSCRIPTION_TYPE.COUPON}>
+                {SUBSCRIPTION_TYPE_LABEL.coupon}
               </option>
             </select>
           </Field>
@@ -472,28 +487,34 @@ export default function SubscriptionsManager() {
               maxLength={600}
             />
           </Field>
-          <Field label="跳转链接" hint="前台订阅卡片弹层的「了解更多」入口，选填">
-            <input
-              className={inputCls}
-              value={form.link_url}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, link_url: e.target.value }))
-              }
-              placeholder="https://…"
-              inputMode="url"
-            />
-          </Field>
-          <Field
-            label="兑换商品"
-            hint="不公开；买家在「兑换」页输入卡密成功后弹出该内容（图片 / 视频 / 文档）"
-          >
-            <FileUploader
-              value={form.redeem_image_url || null}
-              onChange={(url) =>
-                setForm((f) => ({ ...f, redeem_image_url: url ?? '' }))
-              }
-            />
-          </Field>
+          {/* 跳转链接 / 兑换商品：卡券订阅**不发内容**（它发的是卡和券），
+              这两项填了也没用 —— 按类型条件渲染隐藏掉，别让站长白填 */}
+          {form.type !== SUBSCRIPTION_TYPE.COUPON && (
+            <>
+              <Field label="跳转链接" hint="前台订阅卡片弹层的「了解更多」入口，选填">
+                <input
+                  className={inputCls}
+                  value={form.link_url}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, link_url: e.target.value }))
+                  }
+                  placeholder="https://…"
+                  inputMode="url"
+                />
+              </Field>
+              <Field
+                label="兑换商品"
+                hint="不公开；买家在「兑换」页输入卡密成功后弹出该内容（图片 / 视频 / 文档）"
+              >
+                <FileUploader
+                  value={form.redeem_image_url || null}
+                  onChange={(url) =>
+                    setForm((f) => ({ ...f, redeem_image_url: url ?? '' }))
+                  }
+                />
+              </Field>
+            </>
+          )}
           <Field label="排序" hint="数字越小越靠前">
             <input
               className={inputCls}
