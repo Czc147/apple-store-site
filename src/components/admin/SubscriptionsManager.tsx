@@ -27,6 +27,11 @@ import {
   type CouponType,
 } from '@/lib/coupon-types';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
+// 前台的 Badge（预览用）。别名导入：本文件下面还从 './ui' 导入后台自己的 Badge
+// （tone 含 'gray'，列表在用），两者重名会 Duplicate identifier，别合并。
+import PreviewBadge from '@/components/ui/Badge';
+import MemberCard from '@/components/member/MemberCard';
+import VipBenefitBadges from '@/components/subscriptions/VipBenefitBadges';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
 import FileUploader from './FileUploader';
@@ -250,6 +255,18 @@ export default function SubscriptionsManager() {
       return next;
     });
 
+  // —— 预览（P7）：复用前台的组件，保证"预览 = 实际渲染" --------------
+  /** 权益清单的已填条目（预览与提交都用它，空行自动剔除） */
+  const benefitList = form.benefits.map((b) => b.trim()).filter(Boolean);
+  const previewPercent =
+    form.discount_percent.trim() === '' ? null : Number(form.discount_percent);
+  const previewSub = {
+    card_style: form.card_style || null,
+    discount_percent:
+      previewPercent !== null && Number.isFinite(previewPercent) ? previewPercent : null,
+    discount_scope: form.discount_scope,
+  };
+
   // —— 权益清单（迁移 036）：可增删的条目列表 ——
   const addBenefit = () =>
     setForm((f) => ({ ...f, benefits: [...f.benefits, ''] }));
@@ -471,8 +488,12 @@ export default function SubscriptionsManager() {
                   <td className={tdCls}>{row.sort_order}</td>
                   <td className={`${tdCls} font-medium`}>{row.name}</td>
                   <td className={tdCls}>
-                    {row.type === 'daily_plan' ? (
+                    {/* 三分类（迁移 032）：卡券订阅单独一档琥珀色 ——
+                        别再退回两分支，否则 coupon 会被标成「普通订阅」 */}
+                    {row.type === SUBSCRIPTION_TYPE.DAILY_PLAN ? (
                       <Badge tone="blue">{SUBSCRIPTION_TYPE_LABEL.daily_plan}</Badge>
+                    ) : row.type === SUBSCRIPTION_TYPE.COUPON ? (
+                      <Badge tone="amber">{SUBSCRIPTION_TYPE_LABEL.coupon}</Badge>
                     ) : (
                       <Badge tone="gray">{SUBSCRIPTION_TYPE_LABEL.normal}</Badge>
                     )}
@@ -1012,6 +1033,74 @@ export default function SubscriptionsManager() {
               )}
             </Field>
           )}
+
+          {/* ---------- 预览（P7） ----------
+              复用前台的 Badge / VipBenefitBadges / MemberCard 组件，所以"预览即实际渲染"。
+              这一整块最容易配错（折扣范围漏勾 → 徽章写了"会员价 X 折"却打不了折；
+              券选错、等级写错），预览是成本最低的防错。 */}
+          <fieldset className="space-y-3 rounded-[12px] border border-[#E5E5EA] p-4">
+            <legend className="px-1 text-[13px] font-semibold text-[#1D1D1F]">
+              预览（用户看到的）
+            </legend>
+            <div className="rounded-[12px] bg-[#F5F5F7] p-4">
+              {/* 徽章行：角标 → 时长（蓝色徽章）→ VIP 权益徽章，与 SubscriptionCard 同款同序 */}
+              <div className="flex min-h-6 flex-wrap items-center gap-1.5">
+                {form.badge_text.trim() && (
+                  <PreviewBadge tone="danger">{form.badge_text.trim()}</PreviewBadge>
+                )}
+                {form.duration.trim() && (
+                  <PreviewBadge tone="blue">{form.duration.trim()}</PreviewBadge>
+                )}
+                <VipBenefitBadges subscription={previewSub} />
+              </div>
+
+              {/* 名称 + 价格。前台卡片上价格是第一层级、无条件显示 ——
+                  别跟着"填没填折扣"走（预览初版就是这么写错的） */}
+              <p className="mt-2 text-[15px] font-semibold leading-snug text-[#1D1D1F]">
+                {form.name.trim() || '（未填订阅名称）'}
+              </p>
+              <p className="mt-1.5 text-[17px] font-semibold leading-none tabular-nums text-[#1D1D1F]">
+                {formatPrice(form.price)}
+              </p>
+
+              {benefitList.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {benefitList.map((b, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[13px] text-[#424245]">
+                      <span
+                        className="mt-[6px] h-1.5 w-1.5 flex-none rounded-full bg-[#0071E3]"
+                        aria-hidden
+                      />
+                      <span>{b}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {form.terms_text.trim() && (
+                <p className="mt-3 whitespace-pre-line border-t border-[#E5E5EA] pt-2 text-[12px] leading-relaxed text-[#86868B]">
+                  {form.terms_text.trim()}
+                </p>
+              )}
+
+              {form.card_style && (
+                <div className="mt-3 max-w-[260px]">
+                  <MemberCard
+                    variant={form.card_style}
+                    text={form.card_text.trim() || form.name.trim() || '会员卡'}
+                  />
+                </div>
+              )}
+
+              {form.type === SUBSCRIPTION_TYPE.COUPON && (
+                <p className="mt-3 text-[12px] text-[#86868B]">
+                  购买并确认收款后，用户拿到 {selectedCouponIds.length} 张券
+                  {form.card_style ? ' + 1 张会员卡' : ''}
+                  （都进「我的券」，不出现在「我的订阅」）
+                </p>
+              )}
+            </div>
+          </fieldset>
 
           {formError && (
             <p className="text-[13px] text-[#D70015]" role="alert">
