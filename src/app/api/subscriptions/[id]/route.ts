@@ -17,14 +17,26 @@ type Ctx = { params: { id: string } };
 
 /** GET /api/subscriptions/:id */
 export async function GET(_req: NextRequest, { params }: Ctx) {
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin();
+  const { data, error } = await db
     .from('subscriptions')
     .select('*')
     .eq('id', params.id)
     .maybeSingle();
   if (error) return fail(error.message, 500);
   if (!data) return fail('订阅不存在', 404);
-  return ok(data);
+
+  // 卡券订阅的券关联（迁移 033）：后台编辑器用它回填「已加入的券」，按配置顺序返回
+  const { data: links } = await db
+    .from('subscription_coupons')
+    .select('coupon_id, sort_order')
+    .eq('subscription_id', params.id)
+    .order('sort_order', { ascending: true });
+
+  return ok({
+    ...data,
+    coupon_ids: (links ?? []).map((l) => (l as { coupon_id: string }).coupon_id),
+  });
 }
 
 /** PUT /api/subscriptions/:id — 局部更新（需登录） */
@@ -95,6 +107,35 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     return fail(error.message, 500);
   }
   if (!data) return fail('订阅不存在', 404);
+
+  // 卡券订阅的券关联（迁移 033）：给了 coupon_ids 就**整体替换**，顺序即数组顺序。
+  // 放在行更新之后：这样行本身的错误（409 每日计划重复 / 404）不会先动到关联。
+  // ⚠️ 先删后插，Supabase JS 没有多语句事务 —— 中途失败最多是"券没了"，
+  //    后台再存一次即可恢复，不会留下删一半的脏数据。
+  if (Array.isArray(body.coupon_ids)) {
+    const ids = body.coupon_ids.filter(
+      (x): x is string => typeof x === 'string' && x.length > 0,
+    );
+    const { error: delErr } = await supabaseAdmin()
+      .from('subscription_coupons')
+      .delete()
+      .eq('subscription_id', params.id);
+    if (delErr) return fail(delErr.message, 500);
+
+    if (ids.length > 0) {
+      const { error: insErr } = await supabaseAdmin()
+        .from('subscription_coupons')
+        .insert(
+          ids.map((coupon_id, i) => ({
+            subscription_id: params.id,
+            coupon_id,
+            sort_order: i,
+          })),
+        );
+      if (insErr) return fail(insErr.message, 500);
+    }
+  }
+
   return ok(data);
 }
 

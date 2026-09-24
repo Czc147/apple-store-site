@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -20,6 +21,11 @@ import {
 } from '@/lib/types';
 import { formatPrice, toNumber } from '@/lib/format';
 import { localInputToIso } from '@/lib/datetime';
+import {
+  couponThresholdText,
+  couponValueText,
+  type CouponType,
+} from '@/lib/coupon-types';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
@@ -96,6 +102,21 @@ const EMPTY_FORM: FormState = {
   discount_valid_to: '',
 };
 
+/**
+ * 「加入券」券库里的一项（GET /api/admin/coupons 的 items 元素，只取用得到的字段）。
+ * 该接口返回的是 `{ items }`，每项是券行 + activity_name + claimed_count 等统计。
+ */
+interface AdminCouponOption {
+  id: string;
+  name: string;
+  type: CouponType;
+  value: number | string;
+  min_amount: number | string;
+  valid_from: string | null;
+  valid_to: string | null;
+  enabled: boolean;
+}
+
 /** 订阅管理：名称 + 价格 + 时长徽章文案 */
 export default function SubscriptionsManager() {
   const [rows, setRows] = useState<Subscription[] | null>(null);
@@ -106,6 +127,13 @@ export default function SubscriptionsManager() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // —— 卡券订阅「加入券」（迁移 033）——
+  /** 券库：只在选中卡券订阅时懒加载一次 */
+  const [couponLib, setCouponLib] = useState<AdminCouponOption[] | null>(null);
+  /** 已加入的券 id，**顺序即展示顺序** */
+  const [selectedCouponIds, setSelectedCouponIds] = useState<string[]>([]);
+  const [couponQuery, setCouponQuery] = useState('');
 
   const [deleting, setDeleting] = useState<Subscription | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -141,10 +169,85 @@ export default function SubscriptionsManager() {
     };
   }, [load]);
 
+  // 「加入券」的券库：选中卡券订阅时才拉，拉过一次就留着（券库变动不频繁）
+  useEffect(() => {
+    if (!modalOpen || form.type !== SUBSCRIPTION_TYPE.COUPON || couponLib !== null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await adminFetch('/api/admin/coupons');
+        if (!res.ok) return;
+        const data = (await res.json()) as { items?: AdminCouponOption[] };
+        if (!cancelled) setCouponLib(Array.isArray(data.items) ? data.items : []);
+      } catch {
+        /* 静默：券库拉不到不影响表单其它字段 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modalOpen, form.type, couponLib]);
+
+  // 编辑卡券订阅时回填「已加入的券」：列表接口不带券关联，单独拉一次详情
+  useEffect(() => {
+    if (!modalOpen || !editing || form.type !== SUBSCRIPTION_TYPE.COUPON) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await adminFetch(`/api/subscriptions/${editing.id}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { coupon_ids?: string[] };
+        if (!cancelled) {
+          setSelectedCouponIds(Array.isArray(data.coupon_ids) ? data.coupon_ids : []);
+        }
+      } catch {
+        /* 静默 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modalOpen, editing, form.type]);
+
+  const couponById = useMemo(() => {
+    const m = new Map<string, AdminCouponOption>();
+    for (const c of couponLib ?? []) m.set(c.id, c);
+    return m;
+  }, [couponLib]);
+
+  /** 券库里**还没被加入**的券，按搜索词过滤 */
+  const couponCandidates = useMemo(() => {
+    const q = couponQuery.trim().toLowerCase();
+    return (couponLib ?? []).filter(
+      (c) =>
+        !selectedCouponIds.includes(c.id) &&
+        (q === '' || c.name.toLowerCase().includes(q)),
+    );
+  }, [couponLib, selectedCouponIds, couponQuery]);
+
+  const addCoupon = (id: string) =>
+    setSelectedCouponIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+
+  const removeCoupon = (id: string) =>
+    setSelectedCouponIds((prev) => prev.filter((x) => x !== id));
+
+  /** 上移/下移一位：**顺序决定发放顺序与用户看到的顺序** */
+  const moveCoupon = (index: number, delta: number) =>
+    setSelectedCouponIds((prev) => {
+      const next = [...prev];
+      const to = index + delta;
+      if (to < 0 || to >= next.length) return prev;
+      [next[index], next[to]] = [next[to], next[index]];
+      return next;
+    });
+
   const openCreate = () => {
     setEditing(null);
     setForm(EMPTY_FORM);
     setFormError(null);
+    // 券关联是订阅级的，新建时还没有 id —— 清空，保存后再回来加
+    setSelectedCouponIds([]);
+    setCouponQuery('');
     setModalOpen(true);
   };
 
@@ -171,6 +274,9 @@ export default function SubscriptionsManager() {
       discount_valid_to: toLocalInput(row.discount_valid_to),
     });
     setFormError(null);
+    // 券关联由上面那个 effect 按订阅 id 拉回来填；先清空，避免串到上一条订阅
+    setSelectedCouponIds([]);
+    setCouponQuery('');
     setModalOpen(true);
   };
 
@@ -244,6 +350,12 @@ export default function SubscriptionsManager() {
             // 也不会再出现"北京时间 10:00 被存成 18:00、折扣晚 8 小时生效"
             discount_valid_from: localInputToIso(form.discount_valid_from),
             discount_valid_to: localInputToIso(form.discount_valid_to),
+            // 卡券订阅的券关联（迁移 033）：**整体替换**，数组顺序即发放顺序。
+            // 只在编辑时提交 —— 新建还没有订阅 id，PUT 才认这个字段
+            //（新建流程：先保存，再回来「加入券」）。
+            ...(editing && form.type === SUBSCRIPTION_TYPE.COUPON
+              ? { coupon_ids: selectedCouponIds }
+              : {}),
           }),
         },
       );
@@ -651,6 +763,129 @@ export default function SubscriptionsManager() {
               </Field>
             </div>
           </fieldset>
+
+          {/* 「加入券」（卡券订阅专属，迁移 033）。
+              券关联是**订阅级**的，需要订阅已有 id —— 所以新建时只给提示，
+              保存后再打开编辑即可加入。 */}
+          {form.type === SUBSCRIPTION_TYPE.COUPON && (
+            <Field
+              label="加入券"
+              hint={
+                editing
+                  ? '用户购买这条订阅、你确认收款后，会一次性获得这里列出的全部券（在「我的券」里查看）'
+                  : '券关联要挂在已存在的订阅上：先保存这条订阅，再打开编辑即可加入券'
+              }
+            >
+              {!editing ? (
+                <p className="rounded-[8px] border border-dashed border-[#E5E5EA] px-3 py-2 text-[13px] text-[#86868B]">
+                  保存后回来编辑，即可在这里加入券。
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {/* 已加入：可排序、可移除。顺序即发放顺序 */}
+                  <div>
+                    <p className="mb-1.5 text-[12px] text-[#86868B]">
+                      已加入 {selectedCouponIds.length} 张（顺序即发放顺序）
+                    </p>
+                    {selectedCouponIds.length === 0 ? (
+                      <p className="rounded-[8px] border border-dashed border-[#E5E5EA] px-3 py-2 text-[13px] text-[#86868B]">
+                        还没有加入任何券 —— 用户购买后将获得这里列出的全部券。
+                      </p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {selectedCouponIds.map((id, idx) => {
+                          const c = couponById.get(id);
+                          return (
+                            <li
+                              key={id}
+                              className="flex items-center gap-1.5 rounded-[8px] border border-[#E5E5EA] px-2.5 py-1.5"
+                            >
+                              <span className="min-w-0 flex-1 truncate text-[13px]">
+                                {c ? c.name : '（这张券已被删除）'}
+                                {c && (
+                                  <span className="ml-1.5 text-[#86868B]">
+                                    {couponValueText(c)} · {couponThresholdText(c)}
+                                  </span>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                className={`${btnGhost} px-2`}
+                                onClick={() => moveCoupon(idx, -1)}
+                                disabled={idx === 0 || saving}
+                                aria-label="上移"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                className={`${btnGhost} px-2`}
+                                onClick={() => moveCoupon(idx, 1)}
+                                disabled={idx === selectedCouponIds.length - 1 || saving}
+                                aria-label="下移"
+                              >
+                                ↓
+                              </button>
+                              <button
+                                type="button"
+                                className={`${btnGhost} px-2 text-[#D70015]`}
+                                onClick={() => removeCoupon(id)}
+                                disabled={saving}
+                                aria-label="移除"
+                              >
+                                ✕
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* 券库：搜索 + 点一下加入 */}
+                  <div>
+                    <input
+                      className={inputCls}
+                      value={couponQuery}
+                      onChange={(e) => setCouponQuery(e.target.value)}
+                      placeholder="搜索券名，点一下加入"
+                      disabled={saving}
+                    />
+                    {couponLib === null ? (
+                      <p className="mt-1.5 text-[13px] text-[#86868B]">正在加载券库…</p>
+                    ) : couponCandidates.length === 0 ? (
+                      <p className="mt-1.5 text-[13px] text-[#86868B]">
+                        {couponQuery.trim()
+                          ? '没有匹配的券'
+                          : '没有可加入的券了（都在上面的列表里）'}
+                      </p>
+                    ) : (
+                      <ul className="mt-1.5 max-h-56 space-y-1 overflow-auto">
+                        {couponCandidates.map((c) => (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              className="w-full rounded-[8px] border border-[#E5E5EA] px-2.5 py-1.5 text-left text-[13px] transition-colors hover:border-[#0071E3] disabled:opacity-50"
+                              onClick={() => addCoupon(c.id)}
+                              disabled={saving}
+                            >
+                              <span className="font-medium">{c.name}</span>
+                              <span className="ml-1.5 text-[#86868B]">
+                                {couponValueText(c)} · {couponThresholdText(c)}
+                              </span>
+                              {!c.enabled && (
+                                <span className="ml-1.5 text-[#D70015]">已停用</span>
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Field>
+          )}
 
           {formError && (
             <p className="text-[13px] text-[#D70015]" role="alert">
