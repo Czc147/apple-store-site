@@ -8,7 +8,11 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { notifyNewOrder } from '@/lib/serverchan';
 import { parseOrderItems, resolveOrderItems } from '@/lib/orders-server';
 import { perPersonPrice } from '@/lib/group-buy-server';
-import { lockClaimForOrder, validateCouponCode } from '@/lib/coupons-server';
+import {
+  lockClaimForOrder,
+  supersedeClaimForOrder,
+  validateCouponCode,
+} from '@/lib/coupons-server';
 import {
   computeVipDiscount,
   loadApplicableDiscount,
@@ -105,13 +109,39 @@ export async function POST(req: NextRequest) {
 
   // 优惠券（可选）：服务端权威校验，但**先不锁券** —— 要跟 VIP 折扣比价后才能决定用不用它
   const couponCode = typeof body.coupon_code === 'string' ? body.coupon_code.trim() : '';
+  /** 券未被占用 → 稍后直接锁它 */
   let couponClaimId: string | null = null;
+  /** 券被**用户自己**那笔未付款旧单占用 → 券胜出时顶单（作废旧单 + 把券转过来） */
+  let couponConflict: { claimId: string; holderOrderId: string } | null = null;
+  /** 券在试算之后失效了（过期/停用…）→ 见下方说明，不拒单 */
+  let couponUnresolved: { error: string; discount: number } | null = null;
   let couponDiscount = 0;
+
   if (couponCode) {
     const check = await validateCouponCode(db, couponCode, user.id, Number(total));
-    if (!check.ok) return fail(check.error, check.status);
-    couponClaimId = check.claim.id;
-    couponDiscount = check.discount;
+    if (check.ok) {
+      couponDiscount = check.discount;
+      if (check.claim.order_id) {
+        // 券本身可用，只是被**用户自己**某笔未付款订单占着 → 券胜出时顶单
+        couponConflict = { claimId: check.claim.id, holderOrderId: check.claim.order_id };
+      } else {
+        couponClaimId = check.claim.id;
+      }
+    } else {
+      // ⚠️ 券不可用了（过期/停用/不达门槛…），但**钱已经付过了**：
+      // 真实流程是「付款在前、推送在后」（见 PaymentMethodBody 的引导文案），
+      // 所以这里**绝不能拒单** —— 拒单等于用户付了钱却推不上订单，只能转人工客服。
+      // 改为：把这张券自己的折扣照算（用户当时看到并支付的正是这个价），只是不核销它，
+      // 并留一条可供后台复查的警告。折扣公式与券是否有效无关，所以算出来的金额
+      // 与用户付款前那次试算**完全一致**（两处共用 resolveBestDiscount）。
+      couponUnresolved = { error: check.error, discount: check.discount ?? 0 };
+      couponDiscount = check.discount ?? 0;
+      console.warn(
+        '[orders] 券在推送时已不可用 —— 按用户实付金额记账、券未核销：',
+        couponCode,
+        check.error,
+      );
+    }
   }
 
   // VIP 折扣（迁移 023）：与优惠券**不叠加，取更优**（用户 2026-09-22 拍板）
@@ -124,9 +154,13 @@ export async function POST(req: NextRequest) {
   const discountAmount = best.amount;
   const discountSource = best.source;
 
-  // VIP 胜出时这张券原封不动留给用户下次用：不记 code、不锁券
+  // VIP 胜出时这张券原封不动留给用户下次用：不记 code、不锁券、**也不顶单**
+  // （券本来就没被用掉，作废用户那笔旧单属于无端破坏）
   const usedCouponCode = discountSource === 'coupon' ? couponCode : '';
-  if (discountSource !== 'coupon') couponClaimId = null;
+  if (discountSource !== 'coupon') {
+    couponClaimId = null;
+    couponConflict = null;
+  }
 
   const payable = Math.round((Number(total) - discountAmount) * 100) / 100;
 
@@ -150,12 +184,24 @@ export async function POST(req: NextRequest) {
     .single();
   if (orderErr) return fail(orderErr.message, 500);
 
-  // 下单锁券（CAS）：并发下被抢先则回滚订单（订单行尚未写入，删头即可）
-  if (couponClaimId) {
-    const locked = await lockClaimForOrder(db, couponClaimId, (order as { id: string }).id);
-    if (!locked) {
-      await db.from('orders').delete().eq('id', (order as { id: string }).id);
-      return fail('该优惠码刚被另一笔订单使用，请重新选择', 409);
+  // 下单锁券（CAS）：并发下被抢先则回滚订单（订单行尚未写入，删头即可）。
+  // 被自己未付款旧单占着的券走**顶单** —— 作废那笔旧单并把券转过来
+  // （见 lib/coupons-server.ts 的 supersedeClaimForOrder）。
+  // ⚠️ 顶单只发生在这里，也就是**只有券最终胜出时**才会动用户的旧单。
+  if (couponClaimId || couponConflict) {
+    const newOrderId = (order as { id: string }).id;
+    const applied = couponClaimId
+      ? await lockClaimForOrder(db, couponClaimId, newOrderId)
+      : await supersedeClaimForOrder(
+          db,
+          couponConflict!.claimId,
+          couponConflict!.holderOrderId,
+          user.id,
+          newOrderId,
+        );
+    if (!applied) {
+      await db.from('orders').delete().eq('id', newOrderId);
+      return fail('该优惠码状态刚发生变化，请重新提交一次', 409);
     }
   }
 
@@ -217,6 +263,14 @@ export async function POST(req: NextRequest) {
       discount_source: discountSource,
       /** VIP 折扣百分比，仅在 source='vip' 时有意义；券胜出时为 null */
       vip_percent: discountSource === 'vip' && vip ? vip.percent : null,
+      /**
+       * 有值时表示：用户提交的券在推送时已不可用，本单**按实付金额记账但券未核销**。
+       * 因为流程是「付款在前、推送在后」，此时不能拒单（详见本文件券校验处的注释）。
+       * 只在券真的参与了本单（`discountSource === 'coupon'`）时才报 ——
+       * VIP 胜出的单没用到券，金额自洽，报出来只是噪声。
+       */
+      coupon_warning:
+        couponUnresolved && discountSource === 'coupon' ? couponUnresolved.error : null,
     },
     201,
   );

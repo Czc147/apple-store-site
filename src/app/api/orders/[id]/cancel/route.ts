@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { releaseClaimForOrder } from '@/lib/coupons-server';
+import { clearMemberOrderRef } from '@/lib/group-buy-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,14 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   } catch (e) {
     // 释放失败不阻断取消：券停在占用态，后台可再次取消同一单触发重试
     console.warn('[order-cancel] 释放优惠券失败:', e instanceof Error ? e.message : e);
+  }
+
+  // 清拼单回写（2026-09-24 补）：不清的话该用户会被永久判定
+  // 「已经为这个拼单推送过订单了」，那个团从此进不去
+  try {
+    await clearMemberOrderRef(db, ctx.params.id);
+  } catch (e) {
+    console.warn('[order-cancel] 清拼单回写失败:', e instanceof Error ? e.message : e);
   }
 
   return ok({ status: 'canceled' });

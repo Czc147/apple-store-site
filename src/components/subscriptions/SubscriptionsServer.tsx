@@ -23,7 +23,9 @@ export default async function SubscriptionsServer() {
     try {
       const { data, error } = await supabaseAdmin()
         .from('subscriptions')
-        // 显式列白名单：新列不写进来，前台永远拿不到（迁移 023 的会员卡与折扣字段同此）
+        // 显式列白名单：前台只能拿到这里列出的列。**新增列必须同步加进来**，
+        // 否则前台静默拿不到（徽章/折扣会无声消失，且没有任何报错）。
+        // 迁移 023 的会员卡与折扣字段因为要购前展示，已一并列出。
         .select(
           'id, name, price, duration, description, payment_url, link_url, sort_order, card_style, card_text, discount_percent, discount_scope, discount_valid_from, discount_valid_to',
         )

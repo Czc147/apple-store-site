@@ -118,10 +118,32 @@ export default function PaymentMethodBody({
         goLogin();
         return;
       }
-      const data = (await res.json().catch(() => ({}))) as { error?: string; order_no?: string };
+      // ⚠️ 这里**不能再只取 order_no** —— 之前就是这一行把 payable / discount_amount
+      // 全丢掉，导致界面永远看不到折扣：服务端按折扣落库、用户按界面原价付款，
+      // 账实不符（多收）。2026-09-24 修。
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        order_no?: string;
+        total?: number;
+        discount_amount?: number;
+        payable?: number;
+        discount_source?: string | null;
+      };
       if (!res.ok) {
         setError(data.error ?? '推送失败，请稍后再试');
         return;
+      }
+      // 一致性自检：落库金额必须等于界面上给用户看的金额。
+      // 不一致说明「试算」与「下单」的口径又漂了 —— 立刻留下证据，别再静默多收。
+      if (typeof data.payable === 'number' && Math.abs(data.payable - total) > 0.005) {
+        console.error(
+          '[checkout] 金额不一致！界面显示 %s，服务端落库 %s（原价 %s / 优惠 %s / 来源 %s）',
+          total,
+          data.payable,
+          data.total,
+          data.discount_amount,
+          data.discount_source,
+        );
       }
       onSuccess(data.order_no ?? '');
     } catch {

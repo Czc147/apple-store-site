@@ -239,7 +239,9 @@ export default function OrdersManager() {
                     </span>
                   </td>
                   <td className={tdCls}>
-                    {/* 有优惠券时：实付加粗 + 原价划线 + 券码（前后端同一口径：实付 = total - discount） */}
+                    {/* 有优惠时：实付加粗 + 原价划线 + 优惠来源（同一口径：实付 = total - discount）。
+                        ⚠️ 按 discount_source 分支：VIP 单的 coupon_code 是 null，
+                        原来会渲染出一个空白的等宽块，让人以为有张券没填。 */}
                     {Number(row.discount_amount) > 0 ? (
                       <div className="whitespace-nowrap">
                         <span className="tabular-nums text-[14px] font-medium">
@@ -248,8 +250,12 @@ export default function OrdersManager() {
                         <span className="ml-1.5 tabular-nums text-[12px] text-apple-text-3 line-through">
                           {formatPrice(Number(row.total))}
                         </span>
-                        <span className="mt-0.5 block font-mono text-[11.5px] text-apple-text-3">
-                          {row.coupon_code}
+                        <span className="mt-0.5 block text-[11.5px] text-apple-text-3">
+                          {row.discount_source === 'vip' ? (
+                            '会员价 · 无券核销'
+                          ) : (
+                            <span className="font-mono">{row.coupon_code}</span>
+                          )}
                         </span>
                       </div>
                     ) : (
@@ -352,13 +358,28 @@ export default function OrdersManager() {
         )}
         {action && Number(action.order.discount_amount) > 0 && (
           <p className="mt-2 rounded-lg bg-apple-bg/70 px-3 py-2 text-[13px] leading-relaxed text-apple-text-2">
-            本单用了优惠券 <span className="font-mono">{action.order.coupon_code}</span>：
-            原价 {formatPrice(Number(action.order.total))}，优惠{' '}
-            {formatPrice(Number(action.order.discount_amount))}，
-            <span className="font-medium text-apple-text">
-              实付 {formatPrice(Number(action.order.total) - Number(action.order.discount_amount))}
-            </span>
-            —— 请按实付金额核对到账，确认后该券自动核销。
+            {action.order.discount_source === 'vip' ? (
+              <>
+                本单享受<span className="font-medium text-apple-text">会员价</span>：原价{' '}
+                {formatPrice(Number(action.order.total))}，优惠{' '}
+                {formatPrice(Number(action.order.discount_amount))}，
+                <span className="font-medium text-apple-text">
+                  实付 {formatPrice(Number(action.order.total) - Number(action.order.discount_amount))}
+                </span>
+                —— 请按实付金额核对到账。
+                <span className="font-medium">本单未使用优惠券，无需核销任何券。</span>
+              </>
+            ) : (
+              <>
+                本单用了优惠券 <span className="font-mono">{action.order.coupon_code}</span>：
+                原价 {formatPrice(Number(action.order.total))}，优惠{' '}
+                {formatPrice(Number(action.order.discount_amount))}，
+                <span className="font-medium text-apple-text">
+                  实付 {formatPrice(Number(action.order.total) - Number(action.order.discount_amount))}
+                </span>
+                —— 请按实付金额核对到账，确认后该券自动核销。
+              </>
+            )}
           </p>
         )}
       </Modal>

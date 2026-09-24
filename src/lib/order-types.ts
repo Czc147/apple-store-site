@@ -48,8 +48,14 @@ export interface Order {
   total: number | string;
   /** 使用的优惠券专属码快照（迁移 022）；无券为 null */
   coupon_code: string | null;
-  /** 优惠金额（元）；无券为 0 */
+  /** 优惠金额（元）；无优惠为 0 */
   discount_amount: number | string;
+  /**
+   * 这笔优惠来自哪里（迁移 023）：`'coupon'` 券 / `'vip'` 会员折扣（不核销券）/ null 无优惠。
+   * ⚠️ 后台文案必须按它分支 —— VIP 单的 `coupon_code` 是 null，
+   * 照着券单渲染会显示一个空白的券码行、并误报"本单用了优惠券"。
+   */
+  discount_source: 'coupon' | 'vip' | null;
   type: OrderType;
   payment_method: PaymentMethod;
   status: OrderStatus;

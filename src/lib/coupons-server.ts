@@ -3,6 +3,8 @@
  * ⚠️ 仅供服务端（route handler / server component）import。
  */
 import type { supabaseAdmin } from '@/lib/supabase/admin';
+import { parseLocalDateTimeCN } from '@/lib/datetime';
+import { clearMemberOrderRef } from '@/lib/group-buy-server';
 import {
   COUPON_TYPE,
   type Coupon,
@@ -62,9 +64,12 @@ export function parseCouponInput(
     return { ok: false, error: `用券门槛需在 0-${MAX_AMOUNT} 之间（0 = 无门槛）` };
   }
 
+  // ⚠️ 用 parseLocalDateTimeCN 而不是 Date.parse：后台传的是无时区裸串，
+  // 直接解析会按服务器时区（Netlify=UTC）解释，券的时间窗会整体偏 8 小时
+  // （与订阅折扣同一处坑，两边必须一起改，否则会出现"订阅按北京时间、券按 UTC"）
   const toIso = (v: unknown): string | null => {
     if (typeof v !== 'string' || !v.trim()) return null;
-    const t = Date.parse(v);
+    const t = parseLocalDateTimeCN(v);
     return Number.isFinite(t) ? new Date(t).toISOString() : null;
   };
   const validFrom = toIso(body?.valid_from);
@@ -238,15 +243,45 @@ export type CouponValidation =
   | {
       ok: true;
       coupon: CouponRow;
-      claim: { id: string; code: string; user_id: string; used_at: string | null; order_id: string | null };
+      /**
+       * `order_id` 非 null 表示这张券正被**该用户自己**某笔未付款订单占着。
+       *
+       * ⚠️ 这种情况**不算失败**（2026-09-24 改，原来直接返回 409）：试算必须放行，
+       * 用户才能把券应用到结算单上；下单时由调用方决定是**顶单**
+       * （`supersedeClaimForOrder`）还是直接锁（`lockClaimForOrder`）。
+       * 券不可能被**别人**占着 —— 前面已按 `user_id` 校验过归属。
+       * 原设计在这里返回 409，导致客户端拿不到报价 → 下单不带券码 → 顶单永远触发不了（死代码）。
+       */
+      claim: {
+        id: string;
+        code: string;
+        user_id: string;
+        used_at: string | null;
+        order_id: string | null;
+      };
       discount: number;
       payable: number;
     }
-  | { ok: false; status: number; error: string };
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      /**
+       * 这张券**本可**减多少。券不可用时也带上：真实流程是**付款在前、推送在后**
+       * （见 PaymentMethodBody 的引导文案），所以服务端在推送时才发现券失效时，
+       * 钱已经付了 —— 要按用户实际支付的价格记账才不账实不符，需要这个数。
+       */
+      discount?: number;
+    };
 
 /**
- * 结账校验专属码（服务端权威）：码存在 → 属于本人 → 未使用 → 未被其它订单占用
- * → 券可用（启用/时间窗）→ 原价满足门槛 → 优惠后实付 > 0。
+ * 结账校验专属码（服务端权威，**只读**）：
+ * 码存在 → 属于本人 → 未使用 → 券可用（启用/时间窗）→ 原价满足门槛 → 优惠后实付 > 0。
+ * 「被自己某笔订单占用」不再算失败，见 `CouponValidation.claim.order_id` 的说明。
+ *
+ * ⚠️ 本函数绝不写库 —— 只读预览接口（`/api/coupons/validate`）也调它。
+ * 锁券/顶单是独立的写操作（`lockClaimForOrder` / `supersedeClaimForOrder`）。
+ *
  * originalTotal 必须由调用方用服务端现价算好（绝不用客户端金额）。
  */
 export async function validateCouponCode(
@@ -276,30 +311,39 @@ export async function validateCouponCode(
   if (!row) return { ok: false, status: 404, error: '优惠码不存在，请核对后再试' };
   if (row.user_id !== userId) return { ok: false, status: 403, error: '该优惠码不属于当前账号' };
   if (row.used_at) return { ok: false, status: 409, error: '该优惠码已使用' };
-  if (row.order_id) return { ok: false, status: 409, error: '该优惠码已被另一笔订单占用' };
 
   const coupon = (Array.isArray(row.coupons) ? row.coupons[0] : row.coupons) as CouponRow | null;
   if (!coupon) return { ok: false, status: 404, error: '优惠券不存在' };
-  if (!coupon.enabled) return { ok: false, status: 409, error: '该优惠券已停用' };
+
+  // 先算折扣：失败分支也要带它出去（见 CouponValidation.discount 的说明）
+  const discount = computeDiscount(coupon, originalTotal);
+  const payable = Math.round((originalTotal - discount) * 100) / 100;
+
+  if (!coupon.enabled) {
+    return { ok: false, status: 409, error: '该优惠券已停用', discount };
+  }
   const now = Date.now();
   if (coupon.valid_from && now < Date.parse(coupon.valid_from)) {
-    return { ok: false, status: 409, error: '该优惠券还没到生效时间' };
+    return { ok: false, status: 409, error: '该优惠券还没到生效时间', discount };
   }
   if (coupon.valid_to && now > Date.parse(coupon.valid_to)) {
-    return { ok: false, status: 409, error: '该优惠券已过期' };
+    return { ok: false, status: 409, error: '该优惠券已过期', discount };
   }
   if (originalTotal < Number(coupon.min_amount)) {
     return {
       ok: false,
       status: 409,
       error: `该券需满 ¥${Number(coupon.min_amount).toFixed(2)} 可用，当前订单金额不足`,
+      discount,
     };
   }
-
-  const discount = computeDiscount(coupon, originalTotal);
-  const payable = Math.round((originalTotal - discount) * 100) / 100;
   if (payable <= 0) {
-    return { ok: false, status: 409, error: '使用该券后实付为 0，本单无法使用（请联系客服）' };
+    return {
+      ok: false,
+      status: 409,
+      error: '使用该券后实付为 0，本单无法使用（请联系客服）',
+      discount,
+    };
   }
 
   return {
@@ -335,6 +379,52 @@ export async function lockClaimForOrder(
     .select('id');
   if (error) throw new Error(error.message);
   return (data ?? []).length > 0;
+}
+
+/**
+ * 顶单（2026-09-24）：把用户**自己那笔未付款旧单**占着的券转到新订单上，并作废旧单。
+ *
+ * 为什么需要：券在下单那一刻就被绑到订单上（`lockClaimForOrder`），而释放它的入口
+ * 原来只有管理员（`/api/orders/[id]/cancel` 是 `checkAdmin`）。用户推了一单没付款，
+ * 那张券就永久卡死 —— 表现就是「我的券里明明有，结算时却用不了」。
+ *
+ * 为什么不做「超时自动释放」：释放后若管理员又确认了那笔旧单，
+ * `consumeClaimForOrder` 按 `order_id` 匹配会**静默空转**（券永不核销、折扣白拿），
+ * 比卡住更糟。顶单把「旧单作废」与「券转移」绑在同一次操作里，不留悬空状态。
+ *
+ * 三段 CAS，任一步不满足即返回 false（调用方应回滚刚建的订单）：
+ *   ① 旧单必须是**本人的、且仍是 pending** —— 三条过滤缺一不可
+ *   ② 清拼单回写，否则该用户会被永久判定「已经为这个拼单推送过订单了」
+ *   ③ 券从旧单转到新单
+ */
+export async function supersedeClaimForOrder(
+  db: ReturnType<typeof supabaseAdmin>,
+  claimId: string,
+  holderOrderId: string,
+  userId: string,
+  newOrderId: string,
+): Promise<boolean> {
+  const { data: cancelled, error: cancelErr } = await db
+    .from('orders')
+    .update({ status: 'canceled' })
+    .eq('id', holderOrderId)
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .select('id');
+  if (cancelErr) throw new Error(cancelErr.message);
+  if ((cancelled ?? []).length === 0) return false;
+
+  await clearMemberOrderRef(db, holderOrderId);
+
+  const { data: moved, error: moveErr } = await db
+    .from('coupon_claims')
+    .update({ order_id: newOrderId })
+    .eq('id', claimId)
+    .eq('order_id', holderOrderId)
+    .is('used_at', null)
+    .select('id');
+  if (moveErr) throw new Error(moveErr.message);
+  return (moved ?? []).length > 0;
 }
 
 /** 订单取消：释放占用的券（回到可用状态） */

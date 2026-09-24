@@ -36,7 +36,7 @@ import RegisterBanner from '@/components/ui/RegisterBanner';
 import RedeemClient from '@/components/redeem/RedeemClient';
 import NotificationBell from '@/components/library/NotificationBell';
 import MyCouponsCard from '@/components/library/MyCouponsCard';
-import MemberCard from '@/components/member/MemberCard';
+
 import ContentsView from '@/components/library/ContentsView';
 import ProfileHeader from '@/components/library/ProfileHeader';
 
@@ -227,17 +227,9 @@ export default function LibraryClient() {
         </div>
       </GlassSurface>
 
-      {/* 会员卡（迁移 023）：持有的订阅权益里配了卡才发，取最高档；无卡整块不渲染。
-          放在账号卡之后、兑换卡密之前 —— 这是账户级身份标识，比兑换/订阅列表更靠上。 */}
-      {memberCard && (
-        <section className="mb-8">
-          <MemberCard
-            variant={memberCard.style}
-            text={memberCard.text}
-            expiresAt={memberCard.expiresAt}
-          />
-        </section>
-      )}
+      {/* 会员卡**刻意不在这里渲染**（2026-09-24 用户要求）：会员卡只在「我的券」里出现一次。
+          原来账号卡下方还摆了一张，同一张卡渲染两处 —— 已删。
+          `memberCard` 数据照旧下发，传给下方的 MyCouponsCard 用。 */}
 
       {/* 兑换卡密分组（同步提示/同步结果并入本组——同属卡密语义域） */}
       <section className="mb-8">

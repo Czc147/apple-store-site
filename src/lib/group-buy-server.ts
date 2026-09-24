@@ -62,6 +62,26 @@ export async function expireStale(
 }
 
 /**
+ * 清掉某笔订单在拼单成员上的回写（`order_id` → null）。
+ *
+ * 为什么必须清：`group_buy_members.order_id` 为空表示「还没推送订单」（见迁移 029 的列注释），
+ * 下单路由靠它判断用户是否已经为该拼单推过单。订单被**取消或作废**时若不清，
+ * 该用户会被永久判定为「已经为这个拼单推送过订单了」，那个团从此进不去。
+ * （该列没有外键、取消订单也不会自动清 —— 2026-09-24 补上两个调用点：
+ * 管理员取消订单、用户自己被顶单。）
+ */
+export async function clearMemberOrderRef(
+  db: ReturnType<typeof supabaseAdmin>,
+  orderId: string,
+): Promise<void> {
+  const { error } = await db
+    .from('group_buy_members')
+    .update({ order_id: null })
+    .eq('order_id', orderId);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * 按当前成员数校正状态：满员则置 full，并从 full 退回 open（有人退出时）。
  * 只在 open/full 之间来回，不碰 closed/expired。
  */

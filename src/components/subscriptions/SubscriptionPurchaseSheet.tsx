@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import ActionSheet, { SheetItem } from '@/components/ui/ActionSheet';
 import PaymentMethodBody from '@/components/checkout/PaymentMethodBody';
-import CouponCodeInput, { type AppliedCoupon } from '@/components/checkout/CouponCodeInput';
+import CouponCodeInput, { type AppliedQuote } from '@/components/checkout/CouponCodeInput';
 import Badge from '@/components/ui/Badge';
 import { formatPrice } from '@/lib/format';
 import type { Subscription } from '@/lib/types';
@@ -34,17 +34,19 @@ export default function SubscriptionPurchaseSheet({
 }: SubscriptionPurchaseSheetProps) {
   const { name, price, duration, description, link_url } = subscription;
 
-  // 优惠券（需求 6：全场通用，含订阅）
-  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  // 结算报价（需求 6：全场通用，含订阅）。可能来自券，也可能是**不填码时的
+  // 会员价自动报价** —— 后者没有 code，下单不带 coupon_code
+  const [quote, setQuote] = useState<AppliedQuote | null>(null);
   const orderItems = [
     { ref_type: 'subscription' as const, ref_id: subscription.id, quantity: 1 },
   ];
-  const payable = coupon ? coupon.payable : price;
+  const payable = quote ? quote.payable : price;
 
   const buildBody = (method: PaymentMethod) => ({
     items: orderItems,
     payment_method: method,
-    ...(coupon ? { coupon_code: coupon.code } : {}),
+    // 只有真的填了券码才带 —— 自动报价（会员价）没有 code
+    ...(quote?.code ? { coupon_code: quote.code } : {}),
   });
 
   return (
@@ -69,21 +71,22 @@ export default function SubscriptionPurchaseSheet({
       <div className="border-t border-apple-hairline px-5 pb-3 pt-4">
         {/* 优惠码（全场通用）：试算通过后下单带上 coupon_code */}
         <div className="mb-3">
-          <CouponCodeInput items={orderItems} applied={coupon} onChange={setCoupon} orderTotal={price} />
+          <CouponCodeInput items={orderItems} applied={quote} onChange={setQuote} orderTotal={price} />
         </div>
-        {coupon && (
+        {/* 条件是「有优惠」而不是「有券」—— 只吃会员折扣（无券）时也要显示 */}
+        {quote && quote.discount_amount > 0 && (
           <div className="mb-3 space-y-1 rounded-card border border-apple-border bg-apple-bg px-3.5 py-3 text-sm">
             <div className="flex items-center justify-between text-apple-text-2">
               <span>订阅价</span>
-              <span className="tabular-nums">{formatPrice(coupon.original_total)}</span>
+              <span className="tabular-nums">{formatPrice(quote.original_total)}</span>
             </div>
             <div className="flex items-center justify-between text-apple-success">
               <span>优惠</span>
-              <span className="tabular-nums">-{formatPrice(coupon.discount_amount)}</span>
+              <span className="tabular-nums">-{formatPrice(quote.discount_amount)}</span>
             </div>
             <div className="flex items-center justify-between font-semibold text-apple-text">
               <span>实付</span>
-              <span className="tabular-nums">{formatPrice(coupon.payable)}</span>
+              <span className="tabular-nums">{formatPrice(quote.payable)}</span>
             </div>
           </div>
         )}

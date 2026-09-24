@@ -18,6 +18,7 @@ import {
   type SubscriptionType,
 } from '@/lib/types';
 import { formatPrice, toNumber } from '@/lib/format';
+import { localInputToIso } from '@/lib/datetime';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
@@ -238,8 +239,10 @@ export default function SubscriptionsManager() {
             card_text: form.card_text.trim() || null,
             discount_percent: percentValue,
             discount_scope: form.discount_scope,
-            discount_valid_from: form.discount_valid_from || null,
-            discount_valid_to: form.discount_valid_to || null,
+            // 提交带时区的 ISO（空 = 不限制）：服务端就不必猜时区，
+            // 也不会再出现"北京时间 10:00 被存成 18:00、折扣晚 8 小时生效"
+            discount_valid_from: localInputToIso(form.discount_valid_from),
+            discount_valid_to: localInputToIso(form.discount_valid_to),
           }),
         },
       );

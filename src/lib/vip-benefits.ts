@@ -11,10 +11,12 @@
  */
 import { COUPON_TYPE } from '@/lib/coupon-types';
 import { computeDiscount } from '@/lib/coupons-server';
+import { parseLocalDateTimeCN } from '@/lib/datetime';
 import type { supabaseAdmin } from '@/lib/supabase/admin';
 import { ORDER_TYPE, type OrderType } from '@/lib/order-types';
 import {
   CARD_STYLE,
+  CARD_STYLE_LABEL,
   DISCOUNT_SCOPE,
   type CardStyle,
   type DiscountScope,
@@ -22,6 +24,23 @@ import {
   type UserEntitlement,
 } from '@/lib/types';
 import type { Parsed } from '@/lib/card-redeem-fields';
+
+/** 卡档位取值守卫：DB 里 `card_style` 是 text 列，取出来只是 string，用前必须收窄 */
+function isCardStyle(v: unknown): v is CardStyle {
+  return typeof v === 'string' && (CARD_STYLE_VALUES as readonly string[]).includes(v);
+}
+
+/**
+ * 结算页展示用的卡名（如「金卡」）。
+ * 优先等级中文名 —— 用户认的是"金卡"这个档位；没档位时才退到后台填的卡面文案。
+ */
+function cardLabelOf(
+  style: string | null | undefined,
+  text: string | null | undefined,
+): string {
+  const tier = isCardStyle(style) ? CARD_STYLE_LABEL[style] : '';
+  return tier || text?.trim() || '会员卡';
+}
 
 /** 卡档位排序：黑金 > 金 > 银 */
 export const CARD_RANK: Record<CardStyle, number> = {
@@ -77,12 +96,16 @@ export function parseDiscountScope(raw: unknown): Parsed<DiscountScope[]> {
   return { ok: true, value: out.length > 0 ? out : null, specified: true };
 }
 
-/** 解析时间窗端点；空串 → null（不限） */
+/**
+ * 解析时间窗端点；空串 → null（不限）。
+ * ⚠️ 用 `parseLocalDateTimeCN` 而不是 `Date.parse` —— 后台传的是无时区裸串，
+ * 直接 Date.parse 会按服务器时区（Netlify=UTC）解释，导致折扣晚 8 小时生效。
+ */
 export function parseDateTime(raw: unknown, label: string): Parsed<string> {
   if (raw === undefined) return { ok: true, value: null, specified: false };
   if (raw === null || raw === '') return { ok: true, value: null, specified: true };
   const v = typeof raw === 'string' ? raw.trim() : '';
-  const t = Date.parse(v);
+  const t = parseLocalDateTimeCN(v);
   if (!v || Number.isNaN(t)) {
     return { ok: false, error: `${label}不是合法时间` };
   }
@@ -168,6 +191,8 @@ export interface ActiveDiscount {
   subscriptionId: string;
   percent: number;
   scope: DiscountScope[];
+  /** 展示用卡名（如「金卡」），结算页据此显示「使用会员卡 · 金卡」 */
+  cardLabel: string;
 }
 
 /** 该订阅此刻生效的折扣；不在窗口内、没配范围、没配比例都返回 null */
@@ -179,6 +204,8 @@ export function activeDiscount(
     | 'discount_scope'
     | 'discount_valid_from'
     | 'discount_valid_to'
+    | 'card_style'
+    | 'card_text'
   >,
   now: Date = new Date(),
 ): ActiveDiscount | null {
@@ -200,7 +227,12 @@ export function activeDiscount(
     if (!Number.isNaN(to) && t > to) return null;
   }
 
-  return { subscriptionId: sub.id, percent, scope };
+  return {
+    subscriptionId: sub.id,
+    percent,
+    scope,
+    cardLabel: cardLabelOf(sub.card_style, sub.card_text),
+  };
 }
 
 /**
@@ -260,7 +292,7 @@ export async function loadApplicableDiscount(
   const { data: subs, error: subErr } = await db
     .from('subscriptions')
     .select(
-      'id, discount_percent, discount_scope, discount_valid_from, discount_valid_to',
+      'id, discount_percent, discount_scope, discount_valid_from, discount_valid_to, card_style, card_text',
     )
     .in('id', ids);
   if (subErr || !subs?.length) return null;

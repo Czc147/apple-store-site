@@ -7,7 +7,7 @@ import { formatPrice } from '@/lib/format';
 import BottomSheet from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import PaymentMethodBody from '@/components/checkout/PaymentMethodBody';
-import CouponCodeInput, { type AppliedCoupon } from '@/components/checkout/CouponCodeInput';
+import CouponCodeInput, { type AppliedQuote } from '@/components/checkout/CouponCodeInput';
 
 interface CheckoutSheetProps {
   open: boolean;
@@ -31,11 +31,12 @@ export default function CheckoutSheet({
   items,
   onOrderCreated,
 }: CheckoutSheetProps) {
-  // 优惠码（需求 6）：服务端试算通过后才记下来，下单时带 coupon_code
-  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  // 结算报价（需求 6）：服务端试算通过后才记下来。可能来自券，也可能是
+  // **不填码时的会员价自动报价** —— 后者没有 code，下单不带 coupon_code
+  const [quote, setQuote] = useState<AppliedQuote | null>(null);
 
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const payable = coupon ? coupon.payable : total;
+  const payable = quote ? quote.payable : total;
 
   const orderItems = items.map((i) => ({
     ref_type: 'sub_unit' as const,
@@ -46,7 +47,8 @@ export default function CheckoutSheet({
   const buildBody = (method: PaymentMethod) => ({
     items: orderItems,
     payment_method: method,
-    ...(coupon ? { coupon_code: coupon.code } : {}),
+    // 只有真的填了券码才带 —— 自动报价（会员价）没有 code
+    ...(quote?.code ? { coupon_code: quote.code } : {}),
   });
 
   return (
@@ -71,23 +73,25 @@ export default function CheckoutSheet({
 
         {/* 优惠码（需求 6）：一人一码，服务端试算权威校验 */}
         <div className="mt-4">
-          <CouponCodeInput items={orderItems} applied={coupon} onChange={setCoupon} orderTotal={total} />
+          <CouponCodeInput items={orderItems} applied={quote} onChange={setQuote} orderTotal={total} />
         </div>
 
-        {/* 金额明细：原价 / 优惠 / 实付（无券时只显示合计，与既有版式一致） */}
-        {coupon && (
+        {/* 金额明细：原价 / 优惠 / 实付。
+            条件是「有优惠」而不是「有券」—— 只吃会员折扣（无券）时也要显示，
+            否则用户看到的合计是原价、实际按折扣付款，账实不符。 */}
+        {quote && quote.discount_amount > 0 && (
           <div className="mt-3 space-y-1 rounded-card border border-apple-border bg-apple-bg px-3.5 py-3 text-sm">
             <div className="flex items-center justify-between text-apple-text-2">
               <span>商品合计</span>
-              <span className="tabular-nums">{formatPrice(coupon.original_total)}</span>
+              <span className="tabular-nums">{formatPrice(quote.original_total)}</span>
             </div>
             <div className="flex items-center justify-between text-apple-success">
               <span>优惠</span>
-              <span className="tabular-nums">-{formatPrice(coupon.discount_amount)}</span>
+              <span className="tabular-nums">-{formatPrice(quote.discount_amount)}</span>
             </div>
             <div className="flex items-center justify-between font-semibold text-apple-text">
               <span>实付</span>
-              <span className="tabular-nums">{formatPrice(coupon.payable)}</span>
+              <span className="tabular-nums">{formatPrice(quote.payable)}</span>
             </div>
           </div>
         )}

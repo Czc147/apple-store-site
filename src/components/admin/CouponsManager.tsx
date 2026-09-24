@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
+import { localInputToIso } from '@/lib/datetime';
 import { COUPON_TYPE, COUPON_TYPE_LABEL, type Coupon, type CouponType } from '@/lib/coupon-types';
 import type { Activity } from '@/lib/types';
 import Modal from './Modal';
@@ -185,8 +186,10 @@ export default function CouponsManager() {
         type: form.type,
         value: Number(form.value),
         min_amount: form.min_amount.trim() === '' ? 0 : Number(form.min_amount),
-        valid_from: form.valid_from || null,
-        valid_to: form.valid_to || null,
+        // 提交带时区的 ISO（空 = 不限制）。与订阅折扣同一处坑，必须一起改，
+        // 否则会出现"订阅折扣按北京时间、券按 UTC"的新不一致。
+        valid_from: localInputToIso(form.valid_from),
+        valid_to: localInputToIso(form.valid_to),
         total_qty: form.total_qty.trim() === '' ? null : Number(form.total_qty),
         per_user_limit: form.per_user_limit.trim() === '' ? 1 : Number(form.per_user_limit),
         enabled: form.enabled,

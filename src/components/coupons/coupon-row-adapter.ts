@@ -5,9 +5,21 @@ export interface MyCouponItem {
   claim: Pick<CouponClaim, 'id' | 'code' | 'claimed_at' | 'used_at' | 'order_id'>;
   coupon: Pick<
     Coupon,
-    'id' | 'name' | 'type' | 'value' | 'min_amount' | 'valid_from' | 'valid_to' | 'activity_id'
+    | 'id'
+    | 'name'
+    | 'type'
+    | 'value'
+    | 'min_amount'
+    | 'valid_from'
+    | 'valid_to'
+    | 'activity_id'
+    | 'total_qty'
   >;
-  status: 'available' | 'locked' | 'used' | 'expired' | 'disabled';
+  status: 'available' | 'not_started' | 'locked' | 'used' | 'expired' | 'disabled';
+  /** 全站已领数（判「已领完」用） */
+  claimed_count: number;
+  /** 还剩多少张（null = 不限量） */
+  remaining: number | null;
 }
 
 /** 我的券 → 共用券行卡（CouponRowCard）所需的形状 */
@@ -15,24 +27,30 @@ export function toCouponRow(item: MyCouponItem): CouponWithState {
   return {
     ...item.coupon,
     enabled: item.status !== 'disabled',
-    total_qty: null,
+    // 透传真实数据（原来硬编码 null/0，「已领完」判不出来）
+    total_qty: item.coupon.total_qty,
     per_user_limit: 1,
     created_at: item.claim.claimed_at,
-    claimed_count: 0,
+    claimed_count: item.claimed_count,
     my_claim_count: 1,
-    remaining: null,
+    remaining: item.remaining,
     // used_at / order_id 已带全，徽章状态由 claimStateBadge 判定
     my_claim: item.claim,
   };
 }
 
-/** 排序：可使用 → 订单占用 → 已使用/已过期（同组内按领取时间倒序，由接口保证） */
+/**
+ * 排序权重：可使用 → 未开始 → 订单占用 → 已使用 → 已过期 → 已停用
+ * （同组内按领取时间倒序，由接口保证）。
+ * ⚠️ 新增状态必须在这里补一项，否则它会排到最后（TS 会拦，别绕过）。
+ */
 const STATUS_WEIGHT: Record<MyCouponItem['status'], number> = {
   available: 0,
-  locked: 1,
-  used: 2,
-  expired: 3,
-  disabled: 4,
+  not_started: 1,
+  locked: 2,
+  used: 3,
+  expired: 4,
+  disabled: 5,
 };
 
 export function sortMyCoupons(items: MyCouponItem[]): MyCouponItem[] {
