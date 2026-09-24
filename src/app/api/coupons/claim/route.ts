@@ -1,31 +1,18 @@
-import { randomBytes } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail, parseBody } from '@/lib/api';
 import { getRequestUser } from '@/lib/user-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { mapClaimError } from '@/lib/coupons-server';
+// 码生成抽到 lib/coupons-server 共用 —— 自助领券与「卡券订阅」发券必须是同一种码
+import { genCouponCode, mapClaimError } from '@/lib/coupons-server';
 
 export const dynamic = 'force-dynamic';
 
 const UNCONFIGURED_MSG =
   'SUPABASE_NOT_CONFIGURED：请先配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY';
 
-/** 专属码长度与字符集（去掉易混 0/O/1/I）：CP- + 12 位 */
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const CODE_LENGTH = 12;
 /** 码撞库重试次数（32^12 空间下几乎不会发生） */
 const MAX_CODE_TRIES = 5;
-
-/** 生成一码一人专属码：CP-XXXXXXXXXXXX */
-function genCouponCode(): string {
-  const bytes = randomBytes(CODE_LENGTH);
-  let s = '';
-  for (let i = 0; i < CODE_LENGTH; i++) {
-    s += CODE_CHARS[bytes[i] % CODE_CHARS.length];
-  }
-  return `CP-${s}`;
-}
 
 /**
  * POST /api/coupons/claim — 领取优惠券（登录用户，Bearer 鉴权）

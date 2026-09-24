@@ -2,6 +2,7 @@
  * 优惠券服务端工具（路由与后台接口共用）。
  * ⚠️ 仅供服务端（route handler / server component）import。
  */
+import { randomBytes } from 'node:crypto';
 import type { supabaseAdmin } from '@/lib/supabase/admin';
 import { parseLocalDateTimeCN } from '@/lib/datetime';
 import { clearMemberOrderRef } from '@/lib/group-buy-server';
@@ -425,6 +426,132 @@ export async function supersedeClaimForOrder(
     .select('id');
   if (moveErr) throw new Error(moveErr.message);
   return (moved ?? []).length > 0;
+}
+
+// ------------------------------------------------------- 卡券订阅发券（迁移 033）
+
+/** 专属码字符集（去掉易混的 0/O/1/I）与长度：CP- + 12 位 */
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 12;
+const MAX_CODE_TRIES = 5;
+
+/**
+ * 生成一码一人的专属码（`CP-XXXXXXXXXXXX`）。
+ * 32^12 的空间下撞码可忽略，但调用方仍要用唯一约束兜底重试。
+ * （从 api/coupons/claim 抽出来共用 —— 自助领券与订阅发券必须同一种码。）
+ */
+export function genCouponCode(): string {
+  const bytes = randomBytes(CODE_LENGTH);
+  let s = '';
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    s += CODE_CHARS[bytes[i] % CODE_CHARS.length];
+  }
+  return `CP-${s}`;
+}
+
+/**
+ * 卡券订阅发券（迁移 033）：把这条订阅关联的券发给这个用户。
+ * 由订单确认收款时调用，与 `grant_subscription` 并列。
+ *
+ * **幂等**：同一订阅给同一人、同一张券只发一次 —— 靠
+ * `uq_coupon_claims_from_subscription` 那条部分唯一索引兜底（重复插入撞 23505 → 跳过）。
+ *
+ * 几个刻意的选择：
+ * - **不校验 `per_user_limit` / `total_qty`**：订阅的承诺是"买了就给"，
+ *   由站长在后台配置时自己保证券够发；库存不足只记警告，不拒发。
+ * - **停用 / 已过期**的券不发（发了也用不了）；但"还没到生效时间"的照发
+ *   （用户先拿着，到点自然可用）。
+ * - **不抛异常**：发券失败绝不能把"确认收款"这件事弄失败。
+ */
+export async function grantSubscriptionCoupons(
+  db: ReturnType<typeof supabaseAdmin>,
+  subscriptionId: string,
+  userId: string,
+): Promise<{ granted: number; skipped: number }> {
+  let granted = 0;
+  let skipped = 0;
+
+  const { data: links, error: linkErr } = await db
+    .from('subscription_coupons')
+    .select('coupon_id')
+    .eq('subscription_id', subscriptionId)
+    .order('sort_order', { ascending: true });
+  if (linkErr) {
+    console.warn('[grant-coupons] 读券关联失败：', linkErr.message);
+    return { granted, skipped };
+  }
+  const couponIds = (links ?? []).map((l) => (l as { coupon_id: string }).coupon_id);
+  if (couponIds.length === 0) return { granted, skipped };
+
+  const { data: coupons, error: couponErr } = await db
+    .from('coupons')
+    .select('id, name, enabled, valid_from, valid_to, total_qty')
+    .in('id', couponIds);
+  if (couponErr) {
+    console.warn('[grant-coupons] 读券失败：', couponErr.message);
+    return { granted, skipped };
+  }
+  const byId = new Map(
+    (coupons ?? []).map((c) => [
+      (c as { id: string }).id,
+      c as {
+        id: string;
+        name: string;
+        enabled: boolean;
+        valid_from: string | null;
+        valid_to: string | null;
+        total_qty: number | null;
+      },
+    ]),
+  );
+
+  for (const couponId of couponIds) {
+    const coupon = byId.get(couponId);
+    if (!coupon) {
+      console.warn('[grant-coupons] 券不存在，跳过：', couponId);
+      skipped++;
+      continue;
+    }
+    const state = couponStateOf(coupon, 0);
+    if (state === 'disabled' || state === 'expired') {
+      console.warn(
+        `[grant-coupons] 券「${coupon.name}」当前不可用（${state}），未发放：`,
+        couponId,
+      );
+      skipped++;
+      continue;
+    }
+
+    let done = false;
+    for (let attempt = 0; attempt < MAX_CODE_TRIES && !done; attempt++) {
+      const { error } = await db.from('coupon_claims').insert({
+        coupon_id: couponId,
+        user_id: userId,
+        code: genCouponCode(),
+        source_subscription_id: subscriptionId,
+      });
+      if (!error) {
+        granted++;
+        done = true;
+        break;
+      }
+      const errCode = (error as { code?: string }).code;
+      const msg = error.message ?? '';
+      if (errCode === '23505') {
+        // 撞码 → 换码重试；已发过（幂等索引）→ 跳过
+        if (msg.includes('code')) continue;
+        skipped++;
+        done = true;
+        break;
+      }
+      console.warn('[grant-coupons] 发券失败：', msg);
+      skipped++;
+      done = true;
+      break;
+    }
+  }
+
+  return { granted, skipped };
 }
 
 /** 订单取消：释放占用的券（回到可用状态） */

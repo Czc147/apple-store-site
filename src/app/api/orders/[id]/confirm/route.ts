@@ -3,7 +3,10 @@ import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { resolveTargetContent } from '@/lib/card-targets';
-import { consumeClaimForOrder } from '@/lib/coupons-server';
+import {
+  consumeClaimForOrder,
+  grantSubscriptionCoupons,
+} from '@/lib/coupons-server';
 import { ORDER_TYPE } from '@/lib/order-types';
 import type { Order, OrderItem } from '@/lib/order-types';
 
@@ -230,4 +233,21 @@ async function grantSubscriptionEntitlement(
     p_source: 'order',
   });
   if (error) throw new Error(`写入订阅权益失败：${error.message}`);
+
+  // 卡券订阅（迁移 033）：把这条订阅关联的券发到用户的「我的券」。
+  // 只在权益写成功之后发；**发券失败不抛出** —— 确认收款不能被发券问题拖失败
+  // （发券是幂等的，后台重试一次这笔订单也不会重复发）。
+  try {
+    const { granted, skipped } = await grantSubscriptionCoupons(db, item.ref_id, userId);
+    if (granted > 0 || skipped > 0) {
+      console.log(
+        `[confirm] 卡券订阅发券：订阅 ${item.ref_id} 成功 ${granted} 张、跳过 ${skipped} 张`,
+      );
+    }
+  } catch (e) {
+    console.warn(
+      '[confirm] 发券异常（不影响确认收款）：',
+      e instanceof Error ? e.message : e,
+    );
+  }
 }
