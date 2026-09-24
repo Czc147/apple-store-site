@@ -32,7 +32,10 @@ export default function SubscriptionPurchaseSheet({
   onPushed,
   loginFrom = '/subscription',
 }: SubscriptionPurchaseSheetProps) {
-  const { name, price, duration, description, link_url } = subscription;
+  const { name, price, duration, description, link_url, benefits, terms_text } =
+    subscription;
+  // 权益清单（迁移 036）：服务端与 DB 都保证是数组，这里再兜一层防老数据为 null
+  const benefitList = Array.isArray(benefits) ? benefits : [];
 
   // 结算报价（需求 6：全场通用，含订阅）。可能来自券，也可能是**不填码时的
   // 会员价自动报价** —— 后者没有 code，下单不带 coupon_code
@@ -66,6 +69,21 @@ export default function SubscriptionPurchaseSheet({
         </p>
       ) : (
         <p className="px-6 pb-4 pt-3 text-sm text-apple-text-3">暂无详细介绍</p>
+      )}
+
+      {/* 权益清单（迁移 036）：逐条说清「你将获得什么」 */}
+      {benefitList.length > 0 && (
+        <ul className="space-y-1.5 px-6 pb-4">
+          {benefitList.map((b, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-apple-text-2">
+              <span
+                className="mt-[7px] h-1.5 w-1.5 flex-none rounded-full bg-apple-blue"
+                aria-hidden
+              />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
       )}
 
       <div className="border-t border-apple-hairline px-5 pb-3 pt-4">
@@ -103,6 +121,13 @@ export default function SubscriptionPurchaseSheet({
             subtitle="在新标签页打开链接"
             href={link_url}
           />
+        )}
+
+        {/* 购买须知 / 条款（迁移 036）：退款说明、注意事项之类 */}
+        {terms_text && (
+          <p className="mt-3 whitespace-pre-line border-t border-apple-hairline pt-3 text-xs leading-relaxed text-apple-text-3">
+            {terms_text}
+          </p>
         )}
       </div>
     </ActionSheet>

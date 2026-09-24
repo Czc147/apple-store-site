@@ -25,7 +25,7 @@ export default function SubscriptionCard({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pushedOrder, setPushedOrder] = useState<string | null>(null);
-  const { name, price, duration } = subscription;
+  const { name, price, duration, badge_text } = subscription;
 
   return (
     <>
@@ -38,6 +38,8 @@ export default function SubscriptionCard({
       >
         {/* 徽章行 */}
         <div className="flex min-h-6 flex-wrap items-center gap-1.5">
+          {/* 角标文案（迁移 036）：后台可配「热门」「限量」之类，留空不显示 */}
+          {badge_text && <Badge tone="danger">{badge_text}</Badge>}
           {duration && <Badge tone="blue">{duration}</Badge>}
           <VipBenefitBadges subscription={subscription} />
           {owned && <Badge tone="success">已拥有</Badge>}

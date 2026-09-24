@@ -78,6 +78,29 @@ export function parseDiscountPercent(raw: unknown): Parsed<number> {
   return { ok: true, value: Math.round(n * 100) / 100, specified: true };
 }
 
+/**
+ * 解析权益清单（迁移 036）：字符串数组，逐条 trim / 截断 / 去空 / 去重 / 限量 12 条。
+ *
+ * ⚠️ 服务端必须保证它**是数组**：前端直接 `.map()` 渲染，写进字符串或对象会让
+ * 购买弹层整块炸掉（DB 上有 `jsonb_typeof(benefits) = 'array'` 的 check 兜底，
+ * 这里再挡一道，避免把非法值发到数据库才报错）。
+ * 空数组一律归一成 null（"没配"比"配了空"更诚实）。
+ */
+export function parseBenefits(raw: unknown): Parsed<string[] | null> {
+  if (raw === undefined) return { ok: true, value: null, specified: false };
+  if (raw === null || raw === '') return { ok: true, value: null, specified: true };
+  if (!Array.isArray(raw)) return { ok: false, error: '权益清单必须是数组' };
+
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const s = item.trim().slice(0, 60);
+    if (s && !out.includes(s)) out.push(s);
+    if (out.length >= 12) break;
+  }
+  return { ok: true, value: out.length > 0 ? out : null, specified: true };
+}
+
 /** 解析折扣范围多选；空数组视同未设置 */
 export function parseDiscountScope(raw: unknown): Parsed<DiscountScope[]> {
   if (raw === undefined) return { ok: true, value: null, specified: false };

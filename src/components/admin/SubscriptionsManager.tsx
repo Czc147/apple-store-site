@@ -82,6 +82,11 @@ interface FormState {
   discount_scope: DiscountScope[];
   discount_valid_from: string;
   discount_valid_to: string;
+  /** 高级设置（迁移 036）：纯展示字段 */
+  badge_text: string;
+  benefits: string[];
+  terms_text: string;
+  is_featured: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -100,6 +105,10 @@ const EMPTY_FORM: FormState = {
   discount_scope: [],
   discount_valid_from: '',
   discount_valid_to: '',
+  badge_text: '',
+  benefits: [],
+  terms_text: '',
+  is_featured: false,
 };
 
 /**
@@ -241,6 +250,17 @@ export default function SubscriptionsManager() {
       return next;
     });
 
+  // —— 权益清单（迁移 036）：可增删的条目列表 ——
+  const addBenefit = () =>
+    setForm((f) => ({ ...f, benefits: [...f.benefits, ''] }));
+  const setBenefit = (i: number, v: string) =>
+    setForm((f) => ({
+      ...f,
+      benefits: f.benefits.map((b, idx) => (idx === i ? v : b)),
+    }));
+  const removeBenefit = (i: number) =>
+    setForm((f) => ({ ...f, benefits: f.benefits.filter((_, idx) => idx !== i) }));
+
   const openCreate = () => {
     setEditing(null);
     setForm(EMPTY_FORM);
@@ -272,6 +292,13 @@ export default function SubscriptionsManager() {
       discount_scope: row.discount_scope ?? [],
       discount_valid_from: toLocalInput(row.discount_valid_from),
       discount_valid_to: toLocalInput(row.discount_valid_to),
+      // 高级设置（迁移 036）
+      badge_text: row.badge_text ?? '',
+      benefits: Array.isArray(row.benefits)
+        ? row.benefits.filter((b): b is string => typeof b === 'string')
+        : [],
+      terms_text: row.terms_text ?? '',
+      is_featured: row.is_featured === true,
     });
     setFormError(null);
     // 券关联由上面那个 effect 按订阅 id 拉回来填；先清空，避免串到上一条订阅
@@ -350,6 +377,11 @@ export default function SubscriptionsManager() {
             // 也不会再出现"北京时间 10:00 被存成 18:00、折扣晚 8 小时生效"
             discount_valid_from: localInputToIso(form.discount_valid_from),
             discount_valid_to: localInputToIso(form.discount_valid_to),
+            // 高级设置（迁移 036）：纯展示字段；空串一律转 null，欠好过留空字符串
+            badge_text: form.badge_text.trim() || null,
+            benefits: form.benefits.map((b) => b.trim()).filter(Boolean),
+            terms_text: form.terms_text.trim() || null,
+            is_featured: form.is_featured,
             // 卡券订阅的券关联（迁移 033）：**整体替换**，数组顺序即发放顺序。
             // 只在编辑时提交 —— 新建还没有订阅 id，PUT 才认这个字段
             //（新建流程：先保存，再回来「加入券」）。
@@ -567,23 +599,7 @@ export default function SubscriptionsManager() {
               </option>
             </select>
           </Field>
-          {form.type === 'daily_plan' && (
-            <Field label="解锁有效天数" hint="自核销时刻起算；留空即永久有效">
-              <input
-                className={inputCls}
-                value={form.unlock_duration_days}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, unlock_duration_days: e.target.value }))
-                }
-                type="number"
-                min={1}
-                step={1}
-                inputMode="numeric"
-                placeholder="留空 = 永久"
-                disabled={saving}
-              />
-            </Field>
-          )}
+          {/* 解锁有效天数已挪进下方的「高级设置」分组（迁移 036 一并归类） */}
           <Field
             label="详细介绍"
             hint="前台点击订阅卡片后弹层展示的完整介绍，选填"
@@ -639,6 +655,116 @@ export default function SubscriptionsManager() {
               inputMode="numeric"
             />
           </Field>
+          {/* ---------- 高级设置（迁移 036） ----------
+              这一组全是**纯展示**字段，不参与任何业务判定；留空即不显示。
+              （真正的行为类设置如"到期后内容处理 / 上架时间窗 / 每人限购"不在这一批，
+                它们要改业务逻辑，得单独决策。） */}
+          <fieldset className="space-y-4 rounded-[12px] border border-[#E5E5EA] p-4">
+            <legend className="px-1 text-[13px] font-semibold text-[#1D1D1F]">
+              高级设置
+            </legend>
+
+            {form.type === 'daily_plan' && (
+              <Field label="解锁有效天数" hint="自核销时刻起算；留空即永久有效">
+                <input
+                  className={inputCls}
+                  value={form.unlock_duration_days}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, unlock_duration_days: e.target.value }))
+                  }
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  placeholder="留空 = 永久"
+                  disabled={saving}
+                />
+              </Field>
+            )}
+
+            <Field
+              label="角标文案"
+              hint="订阅卡片右上角的小标签，如「热门」「限量」；留空不显示"
+            >
+              <input
+                className={inputCls}
+                value={form.badge_text}
+                onChange={(e) => setForm((f) => ({ ...f, badge_text: e.target.value }))}
+                maxLength={8}
+                placeholder="留空 = 不显示"
+                disabled={saving}
+              />
+            </Field>
+
+            <Field label="权益清单" hint="购买弹层逐条展示「你将获得什么」；留空不显示">
+              <div className="space-y-2">
+                {form.benefits.map((b, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <input
+                      className={inputCls}
+                      value={b}
+                      onChange={(e) => setBenefit(i, e.target.value)}
+                      maxLength={60}
+                      placeholder={`第 ${i + 1} 条，如「每周三更新精选内容」`}
+                      disabled={saving}
+                    />
+                    <button
+                      type="button"
+                      className={`${btnGhost} px-2 text-[#D70015]`}
+                      onClick={() => removeBenefit(i)}
+                      disabled={saving}
+                      aria-label="删除这条"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {form.benefits.length < 12 && (
+                  <button
+                    type="button"
+                    className={btnGhost}
+                    onClick={addBenefit}
+                    disabled={saving}
+                  >
+                    ＋ 添加一条
+                  </button>
+                )}
+              </div>
+            </Field>
+
+            <Field
+              label="购买须知 / 条款"
+              hint="购买弹层底部的一段灰字（退款说明、注意事项…）；留空不显示"
+            >
+              <textarea
+                className={textareaCls}
+                value={form.terms_text}
+                onChange={(e) => setForm((f) => ({ ...f, terms_text: e.target.value }))}
+                rows={3}
+                maxLength={400}
+                placeholder="留空 = 不显示"
+                disabled={saving}
+              />
+            </Field>
+
+            <Field
+              label="作为主推大卡"
+              hint="前台订阅页最上面那张大卡；同时勾选多条时取列表第一张"
+            >
+              <label className="flex items-center gap-2 text-[13px]">
+                <input
+                  type="checkbox"
+                  checked={form.is_featured}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, is_featured: e.target.checked }))
+                  }
+                  disabled={saving}
+                />
+                把它放在订阅页顶部主推位
+              </label>
+            </Field>
+          </fieldset>
+
           {/* ---------- 会员卡与优惠（迁移 023） ---------- */}
           <fieldset className="space-y-4 rounded-[12px] border border-[#E5E5EA] p-4">
             <legend className="px-1 text-[13px] font-semibold text-[#1D1D1F]">

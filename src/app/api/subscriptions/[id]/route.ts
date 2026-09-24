@@ -4,6 +4,7 @@ import { ok, fail, parseBody, toNullableText } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { parseUnlockDurationDays } from '@/lib/card-redeem-fields';
 import {
+  parseBenefits,
   parseCardStyle,
   parseDateTime,
   parseDiscountPercent,
@@ -92,6 +93,16 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     if (!to.ok) return fail(to.error);
     patch.discount_valid_to = to.value;
   }
+
+  // 高级设置（迁移 036）：纯展示字段。同样是"未提供 = 不动，提供了空值 = 清空"
+  if (body.badge_text !== undefined) patch.badge_text = toNullableText(body.badge_text);
+  if (body.terms_text !== undefined) patch.terms_text = toNullableText(body.terms_text);
+  if (body.benefits !== undefined) {
+    const benefits = parseBenefits(body.benefits);
+    if (!benefits.ok) return fail(benefits.error);
+    patch.benefits = benefits.value;
+  }
+  if (body.is_featured !== undefined) patch.is_featured = body.is_featured === true;
   if (Object.keys(patch).length === 0) return fail('没有可更新的字段');
 
   const { data, error } = await supabaseAdmin()

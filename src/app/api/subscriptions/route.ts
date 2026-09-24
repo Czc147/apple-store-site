@@ -4,6 +4,7 @@ import { ok, fail, parseBody, toSortOrder, toNullableText } from '@/lib/api';
 import { checkAdmin } from '@/lib/auth';
 import { parseUnlockDurationDays } from '@/lib/card-redeem-fields';
 import {
+  parseBenefits,
   parseCardStyle,
   parseDateTime,
   parseDiscountPercent,
@@ -70,6 +71,10 @@ export async function POST(req: NextRequest) {
   const validTo = parseDateTime(body.discount_valid_to, '优惠结束时间');
   if (!validTo.ok) return fail(validTo.error);
 
+  // 高级设置（迁移 036）：纯展示字段
+  const benefits = parseBenefits(body.benefits);
+  if (!benefits.ok) return fail(benefits.error);
+
   const { data, error } = await supabaseAdmin()
     .from('subscriptions')
     .insert({
@@ -88,6 +93,11 @@ export async function POST(req: NextRequest) {
       discount_scope: scope.value,
       discount_valid_from: validFrom.value,
       discount_valid_to: validTo.value,
+      // 高级设置（迁移 036）：纯展示，不参与任何业务判定
+      badge_text: toNullableText(body.badge_text),
+      benefits: benefits.value,
+      terms_text: toNullableText(body.terms_text),
+      is_featured: body.is_featured === true,
       sort_order: toSortOrder(body.sort_order),
     })
     .select()

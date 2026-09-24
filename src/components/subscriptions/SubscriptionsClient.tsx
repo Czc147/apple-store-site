@@ -58,7 +58,12 @@ export default function SubscriptionsClient({
     );
   }
 
-  const [primary, ...rest] = subscriptions;
+  // 主推大卡：优先取显式标了 is_featured 的那条（迁移 036），
+  // 没标就退回列表第一张（老行为）—— 订阅页永远要有一张主推
+  const featuredIdx = subscriptions.findIndex((s) => s.is_featured === true);
+  const primaryIdx = featuredIdx === -1 ? 0 : featuredIdx;
+  const primary = subscriptions[primaryIdx] ?? subscriptions[0];
+  const rest = subscriptions.filter((_, i) => i !== primaryIdx);
 
   return (
     <div>

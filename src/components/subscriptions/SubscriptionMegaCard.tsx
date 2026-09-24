@@ -39,7 +39,8 @@ export default function SubscriptionMegaCard({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pushedOrder, setPushedOrder] = useState<string | null>(null);
-  const { name, price, duration, description, link_url, type } = subscription;
+  const { name, price, duration, description, link_url, type, badge_text } =
+    subscription;
 
   // 权益短句：介绍按行拆分（去掉空行与明显过长的段落行）
   const lines = (description ?? '')
@@ -62,6 +63,8 @@ export default function SubscriptionMegaCard({
                 <Sparkles className="h-3 w-3" aria-hidden />
                 推荐
               </Badge>
+              {/* 角标文案（迁移 036）：后台可配「热门」「限量」之类，留空不显示 */}
+              {badge_text && <Badge tone="danger">{badge_text}</Badge>}
               {duration && <Badge tone="neutral">{duration}</Badge>}
               {type === 'daily_plan' && <Badge tone="neutral">每日更新</Badge>}
               {/* 会员卡 / 会员价：购前可见，否则买完才知道自己得到了什么 */}

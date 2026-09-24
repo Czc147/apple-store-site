@@ -27,7 +27,7 @@ export default async function SubscriptionsServer() {
         // 否则前台静默拿不到（徽章/折扣会无声消失，且没有任何报错）。
         // 迁移 023 的会员卡与折扣字段因为要购前展示，已一并列出。
         .select(
-          'id, name, price, duration, description, payment_url, link_url, sort_order, card_style, card_text, discount_percent, discount_scope, discount_valid_from, discount_valid_to',
+          'id, name, price, duration, description, payment_url, link_url, sort_order, card_style, card_text, discount_percent, discount_scope, discount_valid_from, discount_valid_to, badge_text, benefits, terms_text, is_featured',
         )
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });

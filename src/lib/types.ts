@@ -126,8 +126,19 @@ export interface Subscription {
   link_url: string | null;
   /** 兑换商品：不公开，买家输入卡密兑换成功后弹出（图片 / 视频 / 文档） */
   redeem_image_url: string | null;
-  /** 订阅类型：normal 普通订阅 / daily_plan 每日计划（旧数据默认 normal） */
+  /** 订阅类型：normal 普通订阅 / daily_plan 高级订阅 / coupon 卡券订阅（旧数据默认 normal） */
   type?: SubscriptionType;
+  // —— 高级设置（迁移 036）：全部是纯展示字段，不参与业务判定 ——
+  // 刻意**可选**（与上面的 `type?` 同款）：老数据/演示数据不必逐个补齐，
+  // 读的地方一律按"缺省 = 不显示"处理。
+  /** 角标文案（「热门」「限量」）；空 = 不显示 */
+  badge_text?: string | null;
+  /** 权益清单（"你将获得什么"）；null / 空数组 = 不显示 */
+  benefits?: string[] | null;
+  /** 购买须知 / 条款；空 = 不显示 */
+  terms_text?: string | null;
+  /** 是否作为主推大卡（前台优先拿它，没有则退回列表第一张） */
+  is_featured?: boolean;
   /** 每日计划解锁有效天数（仅 daily_plan 有意义）；null = 永久 */
   unlock_duration_days?: number | null;
   /** 会员卡样式（迁移 023）：null = 该订阅不发卡 */
