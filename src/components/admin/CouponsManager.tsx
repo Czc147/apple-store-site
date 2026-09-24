@@ -28,6 +28,8 @@ import {
 /** GET /api/admin/coupons 的列表行 */
 interface CouponRowData extends Coupon {
   activity_name: string | null;
+  /** 这张券被哪几条「卡券订阅」发放（迁移 033）。空数组 = 没有订阅用它 */
+  used_by_subscriptions: string[];
   claimed_count: number;
   used_count: number;
   locked_count: number;
@@ -158,7 +160,8 @@ export default function CouponsManager() {
   const openEdit = (row: CouponRowData) => {
     setEditing(row);
     setForm({
-      activity_id: row.activity_id,
+      // 可空（迁移 035）：闲置券回填成空串，下拉里对应「不绑定活动」
+      activity_id: row.activity_id ?? '',
       name: row.name,
       type: row.type,
       value: String(Number(row.value)),
@@ -178,7 +181,7 @@ export default function CouponsManager() {
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     if (saving) return;
-    if (!form.activity_id) return setFormError('请选择所属活动');
+    // 活动从迁移 035 起可选：留空 = 闲置券（只能随订阅发放），这里不再拦
     if (!form.name.trim()) return setFormError('请填写券名称');
     if (!form.value.trim()) return setFormError('请填写面额');
 
@@ -239,6 +242,10 @@ export default function CouponsManager() {
         valid_to: row.valid_to,
         total_qty: row.total_qty,
         per_user_limit: row.per_user_limit,
+        // ⚠️ 必须带上：PUT 是 parseCouponInput + update(parsed.value) 的**整体替换**，
+        // 见不到这个字段就会写成 null —— 点一次"停用"就把「发券后 N 天」静默清掉
+        // （同一类"漏一处就丢数据"的坑，别删这一行）
+        valid_days_after_issue: row.valid_days_after_issue,
         enabled: !row.enabled,
       }),
     });
@@ -317,8 +324,15 @@ export default function CouponsManager() {
                     </td>
                     <td className={`${tdCls} max-w-[180px]`}>
                       <span className="block truncate text-apple-text-2">
-                        {row.activity_name ?? '（活动已删除）'}
+                        {row.activity_id
+                          ? (row.activity_name ?? '（活动已删除）')
+                          : '闲置（不绑活动）'}
                       </span>
+                      {row.used_by_subscriptions.length > 0 && (
+                        <span className="mt-0.5 block truncate text-[12px] text-apple-blue">
+                          订阅发放：{row.used_by_subscriptions.join('、')}
+                        </span>
+                      )}
                     </td>
                     <td className={tdCls}>
                       <Badge tone="red">{faceText(row)}</Badge>
@@ -406,14 +420,17 @@ export default function CouponsManager() {
         }
       >
         <form id="coupon-form" onSubmit={handleSave} className="space-y-4">
-          <Field label="所属活动" required hint="用户在活动页看到并领取这张券">
+          <Field
+            label="所属活动"
+            hint="绑了活动 = 用户能在活动页领到它；留空 = 闲置券，只在「卡券订阅」里发放（给订阅用户的专属券就用这个）"
+          >
             <select
               className={selectCls}
               value={form.activity_id}
               onChange={(e) => setForm((f) => ({ ...f, activity_id: e.target.value }))}
               disabled={saving}
             >
-              <option value="">请选择…</option>
+              <option value="">不绑定活动（闲置券）</option>
               {activities.map((a) => (
                 <option key={a.id} value={a.id}>
                   {activityLabel(a)}

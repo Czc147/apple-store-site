@@ -20,7 +20,8 @@ const MAX_AMOUNT = 100000;
 
 /** 券配置入参（后台新建/编辑共用） */
 export interface CouponInput {
-  activity_id: string;
+  /** 所属活动（分发渠道之一）；null = 闲置券，只能随订阅发放（迁移 035） */
+  activity_id: string | null;
   name: string;
   type: CouponType;
   value: number;
@@ -42,8 +43,9 @@ export interface CouponInput {
 export function parseCouponInput(
   body: Record<string, unknown> | null,
 ): { ok: true; value: CouponInput } | { ok: false; error: string } {
+  // 活动是**可选**的（迁移 035）：留空 = 闲置券，活动页看不到它，
+  // 只能由「卡券订阅」发放 —— 这正是"只给订阅用户"的表达方式
   const activityId = typeof body?.activity_id === 'string' ? body.activity_id.trim() : '';
-  if (!activityId) return { ok: false, error: '请选择所属活动（优惠券挂在活动下）' };
 
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
   if (!name || name.length > MAX_NAME_LEN) {
@@ -113,7 +115,7 @@ export function parseCouponInput(
   return {
     ok: true,
     value: {
-      activity_id: activityId,
+      activity_id: activityId || null,
       name,
       type,
       value: Math.round(value * 100) / 100,
@@ -286,6 +288,9 @@ export async function loadCouponsForActivities(
         : null,
       my_claim_count: mineCountByCoupon.get(c.id) ?? 0,
     };
+    // 闲置券（activity_id 为 null，迁移 035）不属于任何活动页 ——
+    // 上面的查询已经用 in(activity_id) 过滤过，这里只是类型收窄 + 防御
+    if (!c.activity_id) continue;
     const arr = map.get(c.activity_id) ?? [];
     arr.push(item);
     map.set(c.activity_id, arr);

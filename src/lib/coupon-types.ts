@@ -18,7 +18,8 @@ export const COUPON_TYPE_LABEL: Record<CouponType, string> = {
 /** 券模板 */
 export interface Coupon {
   id: string;
-  activity_id: string;
+  /** 所属活动（分发渠道之一）；**null = 闲置券**，只在「卡券订阅」里发放（迁移 035） */
+  activity_id: string | null;
   name: string;
   type: CouponType;
   /** fixed = 减免金额（元）；percent = 减免百分比 */

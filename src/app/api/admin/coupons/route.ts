@@ -37,6 +37,27 @@ export async function GET(req: NextRequest) {
     claimRows.push(...((claims ?? []) as typeof claimRows));
   }
 
+  // 这张券被哪几条「卡券订阅」发放（迁移 033）：后台要能看出"改它会波及谁"，
+  // 以及删活动时会不会把订阅要发的券一起删掉
+  const subsByCoupon = new Map<string, string[]>();
+  if (ids.length > 0) {
+    const { data: uses } = await db
+      .from('subscription_coupons')
+      .select('coupon_id, subscriptions(name)')
+      .in('coupon_id', ids);
+    for (const u of uses ?? []) {
+      const row = u as {
+        coupon_id: string;
+        subscriptions: { name: string } | Array<{ name: string }> | null;
+      };
+      const sub = Array.isArray(row.subscriptions) ? row.subscriptions[0] : row.subscriptions;
+      if (!sub?.name) continue;
+      const list = subsByCoupon.get(row.coupon_id) ?? [];
+      list.push(sub.name);
+      subsByCoupon.set(row.coupon_id, list);
+    }
+  }
+
   const items = rows.map((r) => {
     const mine = claimRows.filter((c) => c.coupon_id === r.id);
     const act = (Array.isArray(r.activities) ? r.activities[0] : r.activities) as
@@ -50,6 +71,7 @@ export async function GET(req: NextRequest) {
       ...r,
       activities: undefined,
       activity_name: activityName,
+      used_by_subscriptions: subsByCoupon.get(r.id as string) ?? [],
       claimed_count: mine.length,
       used_count: mine.filter((c) => c.used_at).length,
       locked_count: mine.filter((c) => !c.used_at && c.order_id).length,
