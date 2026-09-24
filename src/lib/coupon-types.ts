@@ -27,6 +27,12 @@ export interface Coupon {
   min_amount: number | string;
   valid_from: string | null;
   valid_to: string | null;
+  /**
+   * 发券后有效天数（迁移 034）。null = 沿用上面那个固定时间窗；
+   * 非空 = 以**领取时刻**起算 N 天（卡券订阅发的券用这个，
+   * 否则用户半年后买、拿到的券早过期了）。有效期在 claims 上现算，不存列。
+   */
+  valid_days_after_issue: number | null;
   /** 总张数；null = 不限量 */
   total_qty: number | null;
   per_user_limit: number;

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail } from '@/lib/api';
 import { getRequestUser } from '@/lib/user-auth';
-import { couponStateOf } from '@/lib/coupons-server';
+import { claimWindowOf, couponStateOf } from '@/lib/coupons-server';
 import type { Coupon, CouponClaim, CouponState } from '@/lib/coupon-types';
 
 export const dynamic = 'force-dynamic';
@@ -49,12 +49,19 @@ export interface MyCoupon {
  */
 function statusOf(
   coupon: Coupon,
-  claim: Pick<CouponClaim, 'used_at' | 'order_id'>,
+  claim: Pick<CouponClaim, 'used_at' | 'order_id' | 'claimed_at'>,
   claimedCount: number,
 ): MyCouponStatus {
   if (claim.used_at) return 'used';
   if (claim.order_id) return 'locked';
-  const state: CouponState = couponStateOf(coupon, claimedCount);
+  // 有效期按**这张券实例**算：配了"发券后 N 天"就以领取时刻起算（迁移 034），
+  // 否则沿用模板固定窗。与结算校验（validateCouponCode）同源
+  const state: CouponState = couponStateOf(
+    coupon,
+    claimedCount,
+    Date.now(),
+    claimWindowOf(coupon, claim.claimed_at),
+  );
   if (state === 'expired') return 'expired';
   if (state === 'disabled') return 'disabled';
   // 还没到生效时间：不能算「可使用」（结算时会被服务端拒），单列一档
@@ -128,6 +135,11 @@ export async function GET(req: NextRequest) {
       order_id: row.order_id,
     };
     const claimed = claimedByCoupon.get(coupon.id) ?? 0;
+    // ⚠️ 「我的券」要显示的是**这张券**的有效期：配了"发券后 N 天"时按领取时刻现算，
+    // 否则界面会显示模板那个固定日期（对用户毫无意义，甚至早就过期了）。
+    // 直接覆盖 valid_to 是为了不动 UI —— 这个接口本来就是"我的券"的视角；
+    // 不存在两种口径并存的问题，因为这里返回的每一张都是**已领到手**的券。
+    const win = claimWindowOf(coupon, claim.claimed_at);
     items.push({
       claim,
       coupon: {
@@ -136,8 +148,8 @@ export async function GET(req: NextRequest) {
         type: coupon.type,
         value: coupon.value,
         min_amount: coupon.min_amount,
-        valid_from: coupon.valid_from,
-        valid_to: coupon.valid_to,
+        valid_from: win.from === null ? null : new Date(win.from).toISOString(),
+        valid_to: win.to === null ? null : new Date(win.to).toISOString(),
         activity_id: coupon.activity_id,
         total_qty: coupon.total_qty,
       },

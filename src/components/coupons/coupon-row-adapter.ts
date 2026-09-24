@@ -27,6 +27,10 @@ export function toCouponRow(item: MyCouponItem): CouponWithState {
   return {
     ...item.coupon,
     enabled: item.status !== 'disabled',
+    // 固定传 null：`/api/coupons/mine` 已经把这**张**券的实际有效期
+    // （配了"发券后 N 天"就按领取时刻现算）折算进 valid_from / valid_to 了，
+    // 所以到这里就是"固定窗"语义。UI 不需要再看到那个 N
+    valid_days_after_issue: null,
     // 透传真实数据（原来硬编码 null/0，「已领完」判不出来）
     total_qty: item.coupon.total_qty,
     per_user_limit: 1,

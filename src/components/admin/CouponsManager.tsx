@@ -41,6 +41,8 @@ interface FormState {
   min_amount: string;
   valid_from: string;
   valid_to: string;
+  /** 发券后有效天数（迁移 034）：空 = 用上面那个固定窗 */
+  valid_days_after_issue: string;
   total_qty: string;
   per_user_limit: string;
   enabled: boolean;
@@ -54,6 +56,7 @@ const EMPTY_FORM: FormState = {
   min_amount: '0',
   valid_from: '',
   valid_to: '',
+  valid_days_after_issue: '',
   total_qty: '',
   per_user_limit: '1',
   enabled: true,
@@ -162,6 +165,8 @@ export default function CouponsManager() {
       min_amount: String(Number(row.min_amount)),
       valid_from: toLocalInput(row.valid_from),
       valid_to: toLocalInput(row.valid_to),
+      valid_days_after_issue:
+        row.valid_days_after_issue != null ? String(row.valid_days_after_issue) : '',
       total_qty: row.total_qty === null ? '' : String(row.total_qty),
       per_user_limit: String(row.per_user_limit),
       enabled: row.enabled,
@@ -190,6 +195,13 @@ export default function CouponsManager() {
         // 否则会出现"订阅折扣按北京时间、券按 UTC"的新不一致。
         valid_from: localInputToIso(form.valid_from),
         valid_to: localInputToIso(form.valid_to),
+        // 发券后有效天数（迁移 034）：空 = 用上面的固定窗。填了就以**领取时刻**起算，
+        // 模板的失效时间对已发出去的券不再适用（卡券订阅发券靠它，否则用户
+        // 半年后买、拿到的券早过期了）。
+        valid_days_after_issue:
+          form.valid_days_after_issue.trim() === ''
+            ? null
+            : Number(form.valid_days_after_issue),
         total_qty: form.total_qty.trim() === '' ? null : Number(form.total_qty),
         per_user_limit: form.per_user_limit.trim() === '' ? 1 : Number(form.per_user_limit),
         enabled: form.enabled,
@@ -492,6 +504,28 @@ export default function CouponsManager() {
               />
             </Field>
           </div>
+
+          {/* 发券后有效天数（迁移 034）：与上面的固定时间窗**二选一**。
+              卡券订阅发的券要用它 —— 否则用户半年后买，拿到的券早就过期了。 */}
+          <Field
+            label="发券后有效天数"
+            hint="填了就按「发到手上那天起算 N 天」；留空则用上面的固定生效/失效时间。卡券订阅发的券建议用这个"
+          >
+            <input
+              className={inputCls}
+              type="number"
+              min={1}
+              max={3650}
+              step={1}
+              inputMode="numeric"
+              placeholder="留空 = 用上面的固定日期"
+              value={form.valid_days_after_issue}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, valid_days_after_issue: e.target.value }))
+              }
+              disabled={saving}
+            />
+          </Field>
 
           <Field label="总张数" hint="领完即止；留空 = 不限量">
             <input

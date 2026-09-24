@@ -27,6 +27,8 @@ export interface CouponInput {
   min_amount: number;
   valid_from: string | null;
   valid_to: string | null;
+  /** 发券后有效天数（迁移 034）；null = 用上面的固定窗 */
+  valid_days_after_issue: number | null;
   total_qty: number | null;
   per_user_limit: number;
   enabled: boolean;
@@ -96,6 +98,18 @@ export function parseCouponInput(
     return { ok: false, error: '每人限领需为 1-100 的整数' };
   }
 
+  // 发券后有效天数（迁移 034）：留空 = 用固定时间窗。
+  // 与固定时间窗**互斥**：填了就以领取时刻起算，模板的 valid_to 对已发的券不再适用。
+  const rawDays = body?.valid_days_after_issue;
+  let validDaysAfterIssue: number | null = null;
+  if (rawDays !== null && rawDays !== undefined && rawDays !== '') {
+    const n = Number(rawDays);
+    if (!Number.isInteger(n) || n <= 0 || n > 3650) {
+      return { ok: false, error: '发券后有效天数需为 1-3650 的整数（留空 = 用固定日期）' };
+    }
+    validDaysAfterIssue = n;
+  }
+
   return {
     ok: true,
     value: {
@@ -106,6 +120,7 @@ export function parseCouponInput(
       min_amount: Math.round(minAmount * 100) / 100,
       valid_from: validFrom,
       valid_to: validTo,
+      valid_days_after_issue: validDaysAfterIssue,
       total_qty: totalQty,
       per_user_limit: rawLimit,
       enabled: typeof body?.enabled === 'boolean' ? body.enabled : true,
@@ -117,14 +132,53 @@ export function parseCouponInput(
 type CouponRow = Coupon;
 
 /** 券在「现在」的可用状态（余量与时间窗都算上） */
+/**
+ * 一张**券实例**（领取记录）的有效期窗口，返回时间戳；null = 那一端不限制。
+ *
+ * 券模板有两个可选口径（迁移 034）：
+ * - `valid_days_after_issue` 非空 → 以**领取时刻**起算 N 天。卡券订阅发的券用这个：
+ *   固定日期对"半年后才买到的用户"没有意义。还没发出去（claimedAt 为空）时
+ *   两端都不限制 —— 那时还不存在失效时刻。
+ * - 为空 → 沿用模板的固定 `valid_from` / `valid_to`（历史行为，一字不变）。
+ */
+export function claimWindowOf(
+  coupon: Pick<Coupon, 'valid_from' | 'valid_to' | 'valid_days_after_issue'>,
+  claimedAt: string | null | undefined,
+): { from: number | null; to: number | null } {
+  const days = Number(coupon.valid_days_after_issue);
+  if (Number.isFinite(days) && days > 0) {
+    const issued = claimedAt ? Date.parse(claimedAt) : NaN;
+    if (!Number.isFinite(issued)) return { from: null, to: null };
+    return { from: issued, to: issued + days * 86400000 };
+  }
+  const from = coupon.valid_from ? Date.parse(coupon.valid_from) : NaN;
+  const to = coupon.valid_to ? Date.parse(coupon.valid_to) : NaN;
+  return {
+    from: Number.isFinite(from) ? from : null,
+    to: Number.isFinite(to) ? to : null,
+  };
+}
+
 export function couponStateOf(
   coupon: Pick<Coupon, 'enabled' | 'valid_from' | 'valid_to' | 'total_qty'>,
   claimedCount: number,
   now: number = Date.now(),
+  /** 覆盖时间窗（券实例的有效期，见 `claimWindowOf`）；不传则用模板的固定窗 */
+  window?: { from: number | null; to: number | null },
 ): CouponState {
   if (!coupon.enabled) return 'disabled';
-  if (coupon.valid_from && now < Date.parse(coupon.valid_from)) return 'not_started';
-  if (coupon.valid_to && now > Date.parse(coupon.valid_to)) return 'expired';
+  const fromMs = window
+    ? window.from
+    : coupon.valid_from
+      ? Date.parse(coupon.valid_from)
+      : null;
+  const toMs = window
+    ? window.to
+    : coupon.valid_to
+      ? Date.parse(coupon.valid_to)
+      : null;
+  if (fromMs !== null && Number.isFinite(fromMs) && now < fromMs) return 'not_started';
+  if (toMs !== null && Number.isFinite(toMs) && now > toMs) return 'expired';
   if (coupon.total_qty !== null && claimedCount >= coupon.total_qty) return 'sold_out';
   return 'active';
 }
@@ -293,7 +347,7 @@ export async function validateCouponCode(
 ): Promise<CouponValidation> {
   const { data, error } = await db
     .from('coupon_claims')
-    .select('id, coupon_id, user_id, code, used_at, order_id, coupons(*)')
+    .select('id, coupon_id, user_id, code, used_at, order_id, claimed_at, coupons(*)')
     .eq('code', code)
     .maybeSingle();
   if (error) return { ok: false, status: 500, error: error.message };
@@ -306,6 +360,8 @@ export async function validateCouponCode(
         code: string;
         used_at: string | null;
         order_id: string | null;
+        /** 领取时刻：配了"发券后 N 天"时有效期由它起算（迁移 034） */
+        claimed_at: string;
         coupons: CouponRow | CouponRow[] | null;
       }
     | null;
@@ -323,11 +379,14 @@ export async function validateCouponCode(
   if (!coupon.enabled) {
     return { ok: false, status: 409, error: '该优惠券已停用', discount };
   }
+  // 有效期按**这张券实例**算：配了"发券后 N 天"就以领取时刻起算（迁移 034），
+  // 否则沿用模板固定窗。两处口径同源（claimWindowOf），别在这里另写一份
+  const win = claimWindowOf(coupon, row.claimed_at);
   const now = Date.now();
-  if (coupon.valid_from && now < Date.parse(coupon.valid_from)) {
+  if (win.from !== null && now < win.from) {
     return { ok: false, status: 409, error: '该优惠券还没到生效时间', discount };
   }
-  if (coupon.valid_to && now > Date.parse(coupon.valid_to)) {
+  if (win.to !== null && now > win.to) {
     return { ok: false, status: 409, error: '该优惠券已过期', discount };
   }
   if (originalTotal < Number(coupon.min_amount)) {
@@ -485,7 +544,7 @@ export async function grantSubscriptionCoupons(
 
   const { data: coupons, error: couponErr } = await db
     .from('coupons')
-    .select('id, name, enabled, valid_from, valid_to, total_qty')
+    .select('id, name, enabled, valid_from, valid_to, valid_days_after_issue, total_qty')
     .in('id', couponIds);
   if (couponErr) {
     console.warn('[grant-coupons] 读券失败：', couponErr.message);
@@ -500,6 +559,7 @@ export async function grantSubscriptionCoupons(
         enabled: boolean;
         valid_from: string | null;
         valid_to: string | null;
+        valid_days_after_issue: number | null;
         total_qty: number | null;
       },
     ]),
@@ -512,7 +572,9 @@ export async function grantSubscriptionCoupons(
       skipped++;
       continue;
     }
-    const state = couponStateOf(coupon, 0);
+    // 还没发出去（claimedAt = null）：配了"发券后 N 天"的券此时不以模板固定窗判定
+    // —— 那 N 天是从发放时刻起算的，模板的 valid_to 对它不适用
+    const state = couponStateOf(coupon, 0, Date.now(), claimWindowOf(coupon, null));
     if (state === 'disabled' || state === 'expired') {
       console.warn(
         `[grant-coupons] 券「${coupon.name}」当前不可用（${state}），未发放：`,
