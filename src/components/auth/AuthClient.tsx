@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { isNetworkError } from '@/lib/network-error';
 import Surface from '@/components/ui/Surface';
 import PremiumOrbi, { type OrbiMood } from '@/components/premium-orbi/PremiumOrbi';
 import LoginCard, { LoginField, PasswordField } from './LoginCard';
@@ -169,6 +170,8 @@ export default function AuthClient() {
         router.replace(from);
       }
     } catch (err) {
+      // 原始报文留控制台：网络类失败各浏览器文案不同，翻成中文后必须留证据可查
+      console.error('[auth] 提交失败（原始报文）:', err);
       setError(err instanceof Error ? err.message : '操作失败，请稍后再试');
     } finally {
       setBusy(false);
@@ -316,6 +319,10 @@ export default function AuthClient() {
 /** Supabase Auth 常见英文错误 → 中文文案 */
 function friendlyAuthError(msg: string): string {
   const m = msg.toLowerCase();
+  // 网络层失败必须先认出来：这一类是浏览器 fetch 直接抛的，不是 Supabase 返回的。
+  // 落进下面的兜底会让用户看到一句红色英文（安卓 Chrome 就是 `Failed to fetch`），
+  // 完全无从判断是自己密码错了还是网络被拦了 —— 2026-09-24 实测踩过这个坑。
+  if (isNetworkError(msg)) return '网络无法连接，请稍后重试';
   if (m.includes('invalid login credentials')) return '邮箱或密码不正确';
   if (m.includes('already registered') || m.includes('already been registered'))
     return '该邮箱已注册，请直接登录';

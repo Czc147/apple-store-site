@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { isNetworkError } from '@/lib/network-error';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import ListRow from '@/components/ui/ListRow';
@@ -287,11 +288,16 @@ function ChangePasswordSheet({
     const sb = supabaseBrowser();
     try {
       const { error: verifyErr } = await sb.auth.signInWithPassword({ email, password: current });
-      if (verifyErr) throw new Error('当前密码不正确');
+      if (verifyErr) {
+        // 网络层失败不能算「当前密码不正确」——那会让用户反复重试密码（2026-09-24）
+        if (isNetworkError(verifyErr.message)) throw new Error('网络无法连接，请稍后重试');
+        throw new Error('当前密码不正确');
+      }
 
       const { error: updErr } = await sb.auth.updateUser({ password: next });
       if (updErr) {
         const m = updErr.message.toLowerCase();
+        if (isNetworkError(updErr.message)) throw new Error('网络无法连接，请稍后重试');
         if (m.includes('at least')) throw new Error('新密码至少 6 位');
         if (m.includes('rate limit') || m.includes('too many'))
           throw new Error('操作过于频繁，请稍后再试');
