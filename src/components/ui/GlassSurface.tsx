@@ -13,6 +13,8 @@ interface GlassSurfaceProps {
   radius?: 'hero' | 'premium';
   /** 外层容器附加类（间距/几何） */
   className?: string;
+  /** 是否播放一次液态玻璃彩虹高光（只作用于装饰层，不影响卡片可见性） */
+  sweep?: boolean;
   children?: ReactNode;
 }
 
@@ -39,6 +41,7 @@ export default function GlassSurface({
   tint = 'prism',
   radius = 'hero',
   className,
+  sweep = false,
   children,
 }: GlassSurfaceProps) {
   return (
@@ -69,6 +72,11 @@ export default function GlassSurface({
       </div>
       {/* 玻璃层（内容层由 children 承载） */}
       <div className={cn('glass-premium shadow-premium relative', RADIUS[radius])}>{children}</div>
+      {sweep && (
+        <div aria-hidden className="glass-sweep-layer">
+          <div className="glass-sweep-bar" />
+        </div>
+      )}
     </div>
   );
 }

@@ -65,6 +65,7 @@ async function resolveTarget(
     .from(table)
     .select('name, price')
     .eq('id', item.ref_id)
+    .eq('enabled', true)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!target) return null;

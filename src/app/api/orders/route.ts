@@ -8,11 +8,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { notifyNewOrder } from '@/lib/serverchan';
 import { parseOrderItems, resolveOrderItems } from '@/lib/orders-server';
 import { perPersonPrice } from '@/lib/group-buy-server';
-import {
-  lockClaimForOrder,
-  supersedeClaimForOrder,
-  validateCouponCode,
-} from '@/lib/coupons-server';
+import { validateCouponCode } from '@/lib/coupons-server';
 import {
   computeVipDiscount,
   loadApplicableDiscount,
@@ -44,6 +40,19 @@ function genOrderNo(): string {
     `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
     `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   return `Z${ts}${randomBytes(2).toString('hex').toUpperCase()}`;
+}
+
+function mapCreateOrderError(message: string): { error: string; status: number } {
+  if (message.includes('COUPON_LOCK_FAILED')) {
+    return { error: '该优惠码状态刚发生变化，请重新提交一次', status: 409 };
+  }
+  if (message.includes('GROUP_BUY_ALREADY_ORDERED')) {
+    return { error: '你已经为这个拼单推送过订单了', status: 409 };
+  }
+  if (message.includes('GROUP_BUY_NOT_FULL')) {
+    return { error: '拼单还没满员，暂时不能按拼单价下单', status: 409 };
+  }
+  return { error: message, status: 500 };
 }
 
 /** 单个商品目标行（服务端重新落库，绝不信任客户端传的金额/名称） */
@@ -118,7 +127,7 @@ export async function POST(req: NextRequest) {
   let couponDiscount = 0;
 
   if (couponCode) {
-    const check = await validateCouponCode(db, couponCode, user.id, Number(total));
+    const check = await validateCouponCode(db, couponCode, user.id, Number(total), orderType);
     if (check.ok) {
       couponDiscount = check.discount;
       if (check.claim.order_id) {
@@ -128,16 +137,12 @@ export async function POST(req: NextRequest) {
         couponClaimId = check.claim.id;
       }
     } else {
-      // ⚠️ 券不可用了（过期/停用/不达门槛…），但**钱已经付过了**：
-      // 真实流程是「付款在前、推送在后」（见 PaymentMethodBody 的引导文案），
-      // 所以这里**绝不能拒单** —— 拒单等于用户付了钱却推不上订单，只能转人工客服。
-      // 改为：把这张券自己的折扣照算（用户当时看到并支付的正是这个价），只是不核销它，
-      // 并留一条可供后台复查的警告。折扣公式与券是否有效无关，所以算出来的金额
-      // 与用户付款前那次试算**完全一致**（两处共用 resolveBestDiscount）。
-      couponUnresolved = { error: check.error, discount: check.discount ?? 0 };
-      couponDiscount = check.discount ?? 0;
+      // 券在推送前失效时不再计入折扣，避免失效券继续造成资损。
+      // 订单按原价落库并返回警告，用户可补差或联系客服处理。
+      couponUnresolved = { error: check.error, discount: 0 };
+      couponDiscount = 0;
       console.warn(
-        '[orders] 券在推送时已不可用 —— 按用户实付金额记账、券未核销：',
+        '[orders] 券在推送时已不可用 —— 本单按原价记账、券未核销：',
         couponCode,
         check.error,
       );
@@ -164,84 +169,38 @@ export async function POST(req: NextRequest) {
 
   const payable = Math.round((Number(total) - discountAmount) * 100) / 100;
 
-  // 建单：order 头 + order_items 行 + 每行一条 card_deliveries（幂等键）
+  const itemsPayload = resolved.map((item, index) => ({
+    line_index: index,
+    line_type: item.ref_type,
+    ref_id: item.ref_id,
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    card_product_id: item.card_product_id,
+    claim_token: randomBytes(16).toString('hex'),
+  }));
+
   const orderNo = genOrderNo();
-  const { data: order, error: orderErr } = await db
-    .from('orders')
-    .insert({
-      order_no: orderNo,
-      user_id: user.id,
-      user_email: user.email,
-      total,
-      type: orderType,
-      payment_method: paymentMethod,
-      status: 'pending',
-      coupon_code: usedCouponCode || null,
-      discount_amount: discountAmount,
-      discount_source: discountSource,
-    })
-    .select()
-    .single();
-  if (orderErr) return fail(orderErr.message, 500);
-
-  // 下单锁券（CAS）：并发下被抢先则回滚订单（订单行尚未写入，删头即可）。
-  // 被自己未付款旧单占着的券走**顶单** —— 作废那笔旧单并把券转过来
-  // （见 lib/coupons-server.ts 的 supersedeClaimForOrder）。
-  // ⚠️ 顶单只发生在这里，也就是**只有券最终胜出时**才会动用户的旧单。
-  if (couponClaimId || couponConflict) {
-    const newOrderId = (order as { id: string }).id;
-    const applied = couponClaimId
-      ? await lockClaimForOrder(db, couponClaimId, newOrderId)
-      : await supersedeClaimForOrder(
-          db,
-          couponConflict!.claimId,
-          couponConflict!.holderOrderId,
-          user.id,
-          newOrderId,
-        );
-    if (!applied) {
-      await db.from('orders').delete().eq('id', newOrderId);
-      return fail('该优惠码状态刚发生变化，请重新提交一次', 409);
-    }
+  const { data: createdOrder, error: orderErr } = await db.rpc('create_order', {
+    p_order_no: orderNo,
+    p_user_id: user.id,
+    p_user_email: user.email,
+    p_total: total,
+    p_order_type: orderType,
+    p_payment_method: paymentMethod,
+    p_coupon_code: usedCouponCode || null,
+    p_discount_amount: discountAmount,
+    p_discount_source: discountSource,
+    p_items: itemsPayload,
+    p_coupon_claim_id: couponClaimId ?? couponConflict?.claimId ?? null,
+    p_coupon_holder_order_id: couponConflict?.holderOrderId ?? null,
+    p_group_buy_id: groupBuyId || null,
+  });
+  if (orderErr) {
+    const mapped = mapCreateOrderError(orderErr.message ?? '');
+    return fail(mapped.error, mapped.status);
   }
-
-  for (let i = 0; i < resolved.length; i++) {
-    const r = resolved[i];
-    const deliveryOrderId = `${orderNo}:${i}`;
-    const claimToken = randomBytes(16).toString('hex');
-
-    const { error: itemErr } = await db.from('order_items').insert({
-      order_id: (order as { id: string }).id,
-      line_index: i,
-      line_type: r.ref_type,
-      ref_id: r.ref_id,
-      name: r.name,
-      price: r.price,
-      quantity: r.quantity,
-      card_product_id: r.card_product_id,
-    });
-    if (itemErr) return fail(itemErr.message, 500);
-
-    const { error: delErr } = await db.from('card_deliveries').insert({
-      order_id: deliveryOrderId,
-      card_product_id: r.card_product_id,
-      quantity: r.quantity,
-      claim_token: claimToken,
-    });
-    if (delErr) return fail(delErr.message, 500);
-  }
-
-  // 拼单：把订单号回写到成员行（"等待每个人推送订单后即可付款"靠它判断谁推过了）
-  if (groupBuyId) {
-    const { error: gbErr } = await db
-      .from('group_buy_members')
-      .update({ order_id: (order as { id: string }).id })
-      .eq('group_buy_id', groupBuyId)
-      .eq('user_id', user.id);
-    // 回写失败不阻断下单：订单已经成立，后台照样能核收款；
-    // 只是该成员在拼单里会显示"未推送"，可以人工处理
-    if (gbErr) console.warn('[orders] 拼单订单号回写失败：', gbErr.message);
-  }
+  if (!createdOrder) return fail('订单创建失败，请稍后再试', 500);
 
   // 新订单通知（Server酱 → 微信）：后台配置了 SendKey 才发；失败静默，不阻塞下单成功
   try {
@@ -263,14 +222,8 @@ export async function POST(req: NextRequest) {
       discount_source: discountSource,
       /** VIP 折扣百分比，仅在 source='vip' 时有意义；券胜出时为 null */
       vip_percent: discountSource === 'vip' && vip ? vip.percent : null,
-      /**
-       * 有值时表示：用户提交的券在推送时已不可用，本单**按实付金额记账但券未核销**。
-       * 因为流程是「付款在前、推送在后」，此时不能拒单（详见本文件券校验处的注释）。
-       * 只在券真的参与了本单（`discountSource === 'coupon'`）时才报 ——
-       * VIP 胜出的单没用到券，金额自洽，报出来只是噪声。
-       */
-      coupon_warning:
-        couponUnresolved && discountSource === 'coupon' ? couponUnresolved.error : null,
+      /** 有值时表示：用户提交的券在推送时已不可用，本单按原价记账且券未核销。 */
+      coupon_warning: couponUnresolved ? couponUnresolved.error : null,
     },
     201,
   );
@@ -330,6 +283,7 @@ async function resolveGroupBuyOrder(
     .from('sub_units')
     .select('price')
     .eq('id', gb.sub_unit_id)
+    .eq('enabled', true)
     .maybeSingle();
   if (!sub) return { ok: false, error: '该商品已下架', status: 404 };
 

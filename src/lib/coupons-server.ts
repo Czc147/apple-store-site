@@ -5,16 +5,19 @@
 import { randomBytes } from 'node:crypto';
 import type { supabaseAdmin } from '@/lib/supabase/admin';
 import { parseLocalDateTimeCN } from '@/lib/datetime';
-import { clearMemberOrderRef } from '@/lib/group-buy-server';
 import {
+  COUPON_SCOPE,
   COUPON_TYPE,
   type Coupon,
+  type CouponScope,
   type CouponState,
   type CouponType,
   type CouponWithState,
 } from '@/lib/coupon-types';
+import type { OrderType } from '@/lib/order-types';
 
 const VALID_COUPON_TYPES: CouponType[] = Object.values(COUPON_TYPE);
+const VALID_COUPON_SCOPES: CouponScope[] = Object.values(COUPON_SCOPE);
 const MAX_NAME_LEN = 60;
 const MAX_AMOUNT = 100000;
 
@@ -22,6 +25,7 @@ const MAX_AMOUNT = 100000;
 export interface CouponInput {
   /** 所属活动（分发渠道之一）；null = 闲置券，只能随订阅发放（迁移 035） */
   activity_id: string | null;
+  allowed_scopes: CouponScope[];
   name: string;
   type: CouponType;
   value: number;
@@ -32,6 +36,10 @@ export interface CouponInput {
   valid_days_after_issue: number | null;
   total_qty: number | null;
   per_user_limit: number;
+  risk_override_enabled: boolean;
+  risk_device_limit: number | null;
+  risk_ip_limit: number | null;
+  risk_new_account_cooldown_hours: number | null;
   enabled: boolean;
 }
 
@@ -46,6 +54,17 @@ export function parseCouponInput(
   // 活动是**可选**的（迁移 035）：留空 = 闲置券，活动页看不到它，
   // 只能由「卡券订阅」发放 —— 这正是"只给订阅用户"的表达方式
   const activityId = typeof body?.activity_id === 'string' ? body.activity_id.trim() : '';
+
+  const rawScopes = Array.isArray(body?.allowed_scopes) ? body.allowed_scopes : [];
+  const allowedScopes = rawScopes.filter(
+    (scope): scope is CouponScope => VALID_COUPON_SCOPES.includes(scope as CouponScope),
+  );
+  if (rawScopes.length > 0 && allowedScopes.length !== rawScopes.length) {
+    return { ok: false, error: '可使用范围仅支持小单元 / 订阅' };
+  }
+  if (rawScopes.length > 0 && allowedScopes.length === 0) {
+    return { ok: false, error: '请至少勾选一个可使用范围' };
+  }
 
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
   if (!name || name.length > MAX_NAME_LEN) {
@@ -112,10 +131,36 @@ export function parseCouponInput(
     validDaysAfterIssue = n;
   }
 
+  const parseRiskNumber = (
+    raw: unknown,
+    label: string,
+    min: number,
+    max: number,
+  ): number | null | string => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < min || n > max) {
+      return `${label}需为 ${min}-${max} 的整数`;
+    }
+    return n;
+  };
+  const riskDeviceLimit = parseRiskNumber(body?.risk_device_limit, '设备领取阈值', 1, 1000);
+  if (typeof riskDeviceLimit === 'string') return { ok: false, error: riskDeviceLimit };
+  const riskIpLimit = parseRiskNumber(body?.risk_ip_limit, 'IP 领取阈值', 1, 1000);
+  if (typeof riskIpLimit === 'string') return { ok: false, error: riskIpLimit };
+  const riskCooldown = parseRiskNumber(
+    body?.risk_new_account_cooldown_hours,
+    '新账号冷却小时',
+    0,
+    720,
+  );
+  if (typeof riskCooldown === 'string') return { ok: false, error: riskCooldown };
+
   return {
     ok: true,
     value: {
       activity_id: activityId || null,
+      allowed_scopes: allowedScopes.length > 0 ? allowedScopes : VALID_COUPON_SCOPES,
       name,
       type,
       value: Math.round(value * 100) / 100,
@@ -125,6 +170,12 @@ export function parseCouponInput(
       valid_days_after_issue: validDaysAfterIssue,
       total_qty: totalQty,
       per_user_limit: rawLimit,
+      risk_override_enabled: typeof body?.risk_override_enabled === 'boolean'
+        ? body.risk_override_enabled
+        : false,
+      risk_device_limit: riskDeviceLimit,
+      risk_ip_limit: riskIpLimit,
+      risk_new_account_cooldown_hours: riskCooldown,
       enabled: typeof body?.enabled === 'boolean' ? body.enabled : true,
     },
   };
@@ -219,6 +270,10 @@ export function mapClaimError(message: string): string {
   if (message.includes('COUPON_EXPIRED')) return '该优惠券已过期';
   if (message.includes('COUPON_SOLD_OUT')) return '该优惠券已被领完';
   if (message.includes('COUPON_LIMIT_REACHED')) return '你已达到该券的领取上限';
+  if (message.includes('COUPON_IP_LIMIT_REACHED')) return '同一网络领取过于频繁，请明天再试';
+  if (message.includes('COUPON_DEVICE_LIMIT_REACHED')) return '同一设备领取过于频繁，请明天再试';
+  if (message.includes('COUPON_ACCOUNT_COOLDOWN')) return '新账号暂处领券冷却期，请稍后再试';
+  if (message.includes('COUPON_CLAIM_BLOCKED')) return '当前设备或网络暂时无法领取该券，请稍后再试';
   return message;
 }
 
@@ -349,6 +404,7 @@ export async function validateCouponCode(
   code: string,
   userId: string,
   originalTotal: number,
+  orderType: OrderType,
 ): Promise<CouponValidation> {
   const { data, error } = await db
     .from('coupon_claims')
@@ -376,6 +432,15 @@ export async function validateCouponCode(
 
   const coupon = (Array.isArray(row.coupons) ? row.coupons[0] : row.coupons) as CouponRow | null;
   if (!coupon) return { ok: false, status: 404, error: '优惠券不存在' };
+
+  const scopes = coupon.allowed_scopes?.length ? coupon.allowed_scopes : VALID_COUPON_SCOPES;
+  if (!scopes.includes(orderType)) {
+    return {
+      ok: false,
+      status: 409,
+      error: '该优惠券不支持当前购买范围',
+    };
+  }
 
   // 先算折扣：失败分支也要带它出去（见 CouponValidation.discount 的说明）
   const discount = computeDiscount(coupon, originalTotal);
@@ -469,27 +534,14 @@ export async function supersedeClaimForOrder(
   userId: string,
   newOrderId: string,
 ): Promise<boolean> {
-  const { data: cancelled, error: cancelErr } = await db
-    .from('orders')
-    .update({ status: 'canceled' })
-    .eq('id', holderOrderId)
-    .eq('user_id', userId)
-    .eq('status', 'pending')
-    .select('id');
-  if (cancelErr) throw new Error(cancelErr.message);
-  if ((cancelled ?? []).length === 0) return false;
-
-  await clearMemberOrderRef(db, holderOrderId);
-
-  const { data: moved, error: moveErr } = await db
-    .from('coupon_claims')
-    .update({ order_id: newOrderId })
-    .eq('id', claimId)
-    .eq('order_id', holderOrderId)
-    .is('used_at', null)
-    .select('id');
-  if (moveErr) throw new Error(moveErr.message);
-  return (moved ?? []).length > 0;
+  const { data, error } = await db.rpc('supersede_coupon_for_order', {
+    p_claim_id: claimId,
+    p_holder_order_id: holderOrderId,
+    p_user_id: userId,
+    p_new_order_id: newOrderId,
+  });
+  if (error) throw new Error(error.message);
+  return data === true;
 }
 
 // ------------------------------------------------------- 卡券订阅发券（迁移 033）
@@ -521,8 +573,7 @@ export function genCouponCode(): string {
  * `uq_coupon_claims_from_subscription` 那条部分唯一索引兜底（重复插入撞 23505 → 跳过）。
  *
  * 几个刻意的选择：
- * - **不校验 `per_user_limit` / `total_qty`**：订阅的承诺是"买了就给"，
- *   由站长在后台配置时自己保证券够发；库存不足只记警告，不拒发。
+ * - **校验 `per_user_limit` / `total_qty` / 可使用范围**：发券与领券共用同一套限额。
  * - **停用 / 已过期**的券不发（发了也用不了）；但"还没到生效时间"的照发
  *   （用户先拿着，到点自然可用）。
  * - **不抛异常**：发券失败绝不能把"确认收款"这件事弄失败。
@@ -591,11 +642,11 @@ export async function grantSubscriptionCoupons(
 
     let done = false;
     for (let attempt = 0; attempt < MAX_CODE_TRIES && !done; attempt++) {
-      const { error } = await db.from('coupon_claims').insert({
-        coupon_id: couponId,
-        user_id: userId,
-        code: genCouponCode(),
-        source_subscription_id: subscriptionId,
+      const { error } = await db.rpc('grant_subscription_coupon', {
+        p_subscription_id: subscriptionId,
+        p_coupon_id: couponId,
+        p_user_id: userId,
+        p_code: genCouponCode(),
       });
       if (!error) {
         granted++;
@@ -605,8 +656,12 @@ export async function grantSubscriptionCoupons(
       const errCode = (error as { code?: string }).code;
       const msg = error.message ?? '';
       if (errCode === '23505') {
-        // 撞码 → 换码重试；已发过（幂等索引）→ 跳过
         if (msg.includes('code')) continue;
+        if (msg.includes('uq_coupon_claims_from_subscription')) {
+          skipped++;
+          done = true;
+          break;
+        }
         skipped++;
         done = true;
         break;

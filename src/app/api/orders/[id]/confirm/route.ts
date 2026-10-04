@@ -74,6 +74,9 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   if (orderErr) return fail(orderErr.message, 500);
   if (!order) return fail('订单不存在', 404);
   if (order.status === 'canceled') return fail('订单已取消，无法确认', 409);
+  if (order.status === 'paid') {
+    return ok({ order_no: (order as Order).order_no, status: 'paid', delivered_count: 0 });
+  }
 
   const { data: items, error: itemsErr } = await db
     .from('order_items')
@@ -156,11 +159,16 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   }
 
   // 全部行成功 → 置为已确认
-  const { error: paidErr } = await db
+  const { data: paidOrder, error: paidErr } = await db
     .from('orders')
     .update({ status: 'paid', paid_at: new Date().toISOString() })
-    .eq('id', orderId);
+    .eq('id', orderId)
+    .eq('status', 'pending')
+    .select('id');
   if (paidErr) return fail(paidErr.message, 500);
+  if ((paidOrder ?? []).length === 0) {
+    return fail('订单状态刚发生变化，请刷新后重试', 409);
+  }
 
   // 核销本单占用的优惠券（写 used_at；失败不阻断确认，可在订单页重试确认）
   if ((order as Order).coupon_code) {
@@ -224,15 +232,17 @@ async function grantSubscriptionEntitlement(
   durationBySub: Map<string, number | null>,
 ) {
   const duration = durationBySub.get(item.ref_id) ?? null;
-  const { error } = await db.rpc('grant_subscription', {
-    p_user_id: userId,
-    p_user_email: userEmail,
-    p_subscription_id: item.ref_id,
-    p_card_key_id: delivered[0].id,
-    p_duration_days: duration,
-    p_source: 'order',
-  });
-  if (error) throw new Error(`写入订阅权益失败：${error.message}`);
+  for (const key of delivered) {
+    const { error } = await db.rpc('grant_subscription', {
+      p_user_id: userId,
+      p_user_email: userEmail,
+      p_subscription_id: item.ref_id,
+      p_card_key_id: key.id,
+      p_duration_days: duration,
+      p_source: 'order',
+    });
+    if (error) throw new Error(`写入订阅权益失败：${error.message}`);
+  }
 
   // 卡券订阅（迁移 033）：把这条订阅关联的券发到用户的「我的券」。
   // 只在权益写成功之后发；**发券失败不抛出** —— 确认收款不能被发券问题拖失败

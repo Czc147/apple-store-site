@@ -41,6 +41,8 @@ interface LiquidTabBarProps {
   reducedMotion?: boolean;
   /** 行尾额外挂的圆形动作钮（探究广场的搜索胶囊，形态与文字 Tab 不同） */
   action?: LiquidTabAction;
+  /** 主 TabBar 标记：账号中心打开时由全局样式临时隐藏 */
+  dataMainTabBar?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export default function LiquidTabBar({
   ariaLabel,
   reducedMotion = false,
   action,
+  dataMainTabBar = false,
 }: LiquidTabBarProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLElement | null)[]>([]);
@@ -159,6 +162,7 @@ export default function LiquidTabBar({
   return (
     <nav
       aria-label={ariaLabel}
+      data-main-tabbar={dataMainTabBar ? 'true' : undefined}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-overlay"
     >
       {/* 液态玻璃位移贴图：尺寸来自实测，未量到前不渲染

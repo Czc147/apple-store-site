@@ -139,6 +139,7 @@ export async function loadSubUnits(
   const { data, error } = await db
     .from('sub_units')
     .select('id, name, price')
+    .eq('enabled', true)
     .in('id', uniq);
   if (error) {
     // 取数失败时别静默返回空 map：上层会显示成"已下架 / ¥0"，比报错更难查

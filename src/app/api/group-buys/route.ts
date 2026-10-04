@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
 
   const rows = (data ?? []) as GroupBuyRow[];
   const subMap = await loadSubUnits(db, rows.map((r) => r.sub_unit_id));
+  const visibleRows = rows.filter((row) => subMap.has(row.sub_unit_id));
 
   // 成员：一次查完，按团分组（避免 N+1）
   const ids = rows.map((r) => r.id);
@@ -83,7 +84,7 @@ export async function GET(req: NextRequest) {
   }
 
   return ok({
-    items: rows.map((r) => {
+    items: visibleRows.map((r) => {
       const sub = subMap.get(r.sub_unit_id);
       const unitPrice = sub ? Number(sub.price) : 0;
       const members = membersByGroup.get(r.id) ?? [];
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
     .from('sub_units')
     .select('id, price')
     .eq('id', subUnitId)
+    .eq('enabled', true)
     .maybeSingle();
   if (!sub) return fail('该小单元不存在', 404);
   if (Number(sub.price) <= 0) {

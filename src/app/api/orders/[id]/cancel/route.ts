@@ -30,11 +30,16 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   if (order.status === 'paid') return fail('订单已确认收款，无法取消', 409);
   if (order.status === 'canceled') return ok({ status: 'canceled' });
 
-  const { error: updErr } = await db
+  const { data: canceledOrder, error: updErr } = await db
     .from('orders')
     .update({ status: 'canceled' })
-    .eq('id', ctx.params.id);
+    .eq('id', ctx.params.id)
+    .eq('status', 'pending')
+    .select('id');
   if (updErr) return fail(updErr.message, 500);
+  if ((canceledOrder ?? []).length === 0) {
+    return fail('订单状态刚发生变化，无法取消', 409);
+  }
 
   // 释放该单占用的优惠券（未核销的才放回；已核销的不动）
   try {

@@ -36,6 +36,7 @@ export default async function DailyPickServer() {
       const { data, error } = await supabaseAdmin()
         .from('daily_picks')
         .select('*')
+        .eq('enabled', true)
         .order('pick_date', { ascending: false })
         .limit(1);
       if (error) throw new Error(error.message);

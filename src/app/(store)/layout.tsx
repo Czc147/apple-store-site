@@ -1,4 +1,6 @@
 import TabBar from '@/components/layout/TabBar';
+import AccountHub from '@/components/layout/AccountHub';
+import ReferralCapture from '@/components/referral/ReferralCapture';
 import PageFade from '@/components/ui/PageFade';
 import { AuthProvider } from '@/lib/auth-context';
 
@@ -16,6 +18,8 @@ export default function StoreLayout({
       <main className="mx-auto min-h-dvh max-w-page pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] pt-safe">
         <PageFade>{children}</PageFade>
       </main>
+      <ReferralCapture />
+      <AccountHub />
       <TabBar />
     </AuthProvider>
   );

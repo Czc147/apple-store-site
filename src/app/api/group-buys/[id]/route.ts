@@ -32,43 +32,21 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const db = supabaseAdmin();
   await expireStale(db);
 
-  const { data: gb } = await db
-    .from('group_buys')
-    .select('id, status, target_count, initiator_id, expires_at')
-    .eq('id', params.id)
-    .maybeSingle();
-  if (!gb) return fail('拼单不存在', 404);
-  if (gb.status === 'expired') return fail('该拼单已过期', 409);
-  if (gb.status === 'closed') return fail('该拼单已关闭', 409);
-
-  const { data: mine } = await db
-    .from('group_buy_members')
-    .select('id')
-    .eq('group_buy_id', params.id)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (mine) return fail('你已经在这个拼单里了', 409);
-
-  const { count } = await db
-    .from('group_buy_members')
-    .select('id', { count: 'exact', head: true })
-    .eq('group_buy_id', params.id);
-  if ((count ?? 0) >= (gb.target_count as number)) {
-    // 顺手把状态校正过来，省得下一个人再撞一次
-    await syncStatus(db, params.id);
-    return fail('该拼单已满员', 409);
-  }
-
-  const { error } = await db
-    .from('group_buy_members')
-    .insert({ group_buy_id: params.id, user_id: user.id });
+  const { error } = await db.rpc('join_group_buy', {
+    p_group_buy_id: params.id,
+    p_user_id: user.id,
+  });
   if (error) {
-    // 唯一索引兜底：并发双击时只有一次能进
-    if (error.code === '23505') return fail('你已经在这个拼单里了', 409);
-    return fail(error.message, 500);
+    const message = error.message ?? '';
+    if (message.includes('GROUP_BUY_NOT_FOUND')) return fail('拼单不存在', 404);
+    if (message.includes('GROUP_BUY_ALREADY_MEMBER')) {
+      return fail('你已经在这个拼单里了', 409);
+    }
+    if (message.includes('GROUP_BUY_FULL')) return fail('该拼单已满员', 409);
+    if (message.includes('GROUP_BUY_EXPIRED')) return fail('该拼单已过期', 409);
+    if (message.includes('GROUP_BUY_CLOSED')) return fail('该拼单已关闭', 409);
+    return fail(message, 500);
   }
-
-  await syncStatus(db, params.id);
   return ok({ joined: true }, 201);
 }
 

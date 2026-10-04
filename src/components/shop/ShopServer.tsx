@@ -37,6 +37,7 @@ export default async function ShopServer() {
         db
           .from('sub_units')
           .select('id, major_unit_id, name, sort_order, price, payment_url')
+          .eq('enabled', true)
           .order('sort_order', { ascending: true }),
       ]);
       if (majorsRes.error) throw new Error(majorsRes.error.message);

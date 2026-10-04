@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       .from('daily_picks')
       .select('pick_date, title, description, media_path, link_url')
       .eq('pick_date', body.pick_date)
+      .eq('enabled', true)
       .maybeSingle();
     if (error) return fail(error.message, 500);
     if (!pick) return fail('该日期暂无每日推荐', 404);

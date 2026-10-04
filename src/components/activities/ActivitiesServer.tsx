@@ -27,6 +27,7 @@ export default async function ActivitiesServer() {
       const { data, error } = await supabaseAdmin()
         .from('activities')
         .select('id, title, image_url, description, link_url, sort_order')
+        .eq('enabled', true)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
       if (error) throw new Error(error.message);

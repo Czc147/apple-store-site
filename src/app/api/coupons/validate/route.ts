@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   // 券（可选）：没填码就完全不碰券
   const couponCheck = code
-    ? await validateCouponCode(db, code, user.id, original)
+    ? await validateCouponCode(db, code, user.id, original, parsed.orderType)
     : null;
   if (couponCheck && !couponCheck.ok) return fail(couponCheck.error, couponCheck.status);
   const coupon = couponCheck && couponCheck.ok ? couponCheck : null;

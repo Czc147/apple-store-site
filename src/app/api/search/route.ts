@@ -76,6 +76,7 @@ export async function GET(req: NextRequest) {
     db
       .from('sub_units')
       .select('id, name, price, major_unit_id')
+      .eq('enabled', true)
       .ilike('name', like)
       .limit(GROUP_LIMIT),
     // 聊天记录：只搜我参与的（发出去 + 收到的）

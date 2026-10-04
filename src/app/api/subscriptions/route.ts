@@ -20,15 +20,23 @@ import { PUT as putById, DELETE as deleteById } from './[id]/route';
 export const dynamic = 'force-dynamic';
 
 /** GET /api/subscriptions — 订阅套餐列表（sort_order 升序） */
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return fail('SUPABASE_NOT_CONFIGURED：请先配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY', 503);
   }
-  const { data, error } = await supabaseAdmin()
+  const admin = checkAdmin(req);
+  let query = supabaseAdmin()
     .from('subscriptions')
-    .select('*')
+    .select(
+      admin
+        ? '*'
+        : 'id, name, price, duration, description, payment_url, link_url, type, sort_order, card_style, card_text, discount_percent, discount_scope, discount_valid_from, discount_valid_to, badge_text, benefits, terms_text, is_featured, created_at',
+    )
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
+  if (!admin) query = query.eq('enabled', true);
+
+  const { data, error } = await query;
   if (error) return fail(error.message, 500);
   return ok(data);
 }

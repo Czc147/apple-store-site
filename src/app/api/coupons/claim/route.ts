@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
 import { ok, fail, parseBody } from '@/lib/api';
 import { getRequestUser } from '@/lib/user-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { claimFingerprint } from '@/lib/claim-fingerprint';
 // 码生成抽到 lib/coupons-server 共用 —— 自助领券与「卡券订阅」发券必须是同一种码
 import { genCouponCode, mapClaimError } from '@/lib/coupons-server';
 
@@ -36,8 +37,22 @@ export async function POST(req: NextRequest) {
   const body = await parseBody(req);
   const couponId = typeof body?.coupon_id === 'string' ? body.coupon_id.trim() : '';
   if (!couponId) return fail('coupon_id 为必填字段');
+  const deviceId = typeof body?.device_id === 'string' ? body.device_id.trim() : '';
+  if (!deviceId || deviceId.length > 128) {
+    return fail('请刷新页面后重新领取');
+  }
+  const fingerprint = claimFingerprint(req, deviceId);
 
   const db = supabaseAdmin();
+
+  const { data: restricted, error: restrictionError } = await db.rpc('has_active_account_restriction', {
+    p_user_id: user.id,
+    p_scope: 'coupon',
+  });
+  if (restrictionError) {
+    return fail(`领券风控检查失败：${restrictionError.message}`, 500);
+  }
+  if (restricted === true) return fail('账号已被限制领取优惠券，如有疑问请联系客服', 403);
 
   const { data: coupon, error: couponErr } = await db
     .from('coupons')
@@ -54,6 +69,8 @@ export async function POST(req: NextRequest) {
       p_coupon_id: couponId,
       p_user_id: user.id,
       p_code: code,
+      p_ip_hash: fingerprint.ipHash,
+      p_device_hash: fingerprint.deviceHash,
     });
     if (!error) {
       const row = claim as { id: string; code: string; claimed_at: string } | null;
@@ -66,9 +83,16 @@ export async function POST(req: NextRequest) {
 
     const isLimit = msg.includes('COUPON_LIMIT_REACHED');
     const isSoldOut = msg.includes('COUPON_SOLD_OUT');
+    const isBlocked = msg.includes('COUPON_CLAIM_BLOCKED');
     return fail(
       mapClaimError(msg),
-      isLimit || isSoldOut ? 409 : msg.includes('COUPON_NOT_FOUND') ? 404 : 409,
+      isBlocked
+        ? 429
+        : isLimit || isSoldOut
+          ? 409
+          : msg.includes('COUPON_NOT_FOUND')
+            ? 404
+            : 409,
     );
   }
 

@@ -29,6 +29,8 @@ export interface SubUnit {
   /** 兑换商品：不公开，买家输入卡密兑换成功后弹出（图片 / 视频 / 文档） */
   redeem_image_url: string | null;
   created_at: string;
+  /** 预上线状态：false 时前台列表、详情与搜索均不可见 */
+  enabled?: boolean;
 }
 
 /** 活动 */
@@ -43,6 +45,8 @@ export interface Activity {
   redeem_image_url: string | null;
   sort_order: number;
   created_at: string;
+  /** 预上线状态：false 时前台列表、详情与搜索均不可见 */
+  enabled?: boolean;
 }
 
 /** 订阅类型（与迁移 008 + 032 的 subscriptions.type 对应） */
@@ -155,6 +159,8 @@ export interface Subscription {
   discount_valid_to?: string | null;
   sort_order: number;
   created_at: string;
+  /** 预上线状态：false 时前台订阅列表与下单均不可见 */
+  enabled?: boolean;
 }
 
 /** 每日推荐（与迁移 005 的 daily_picks 对应）：一天一条；封面公开、内容文件在私有桶 */
@@ -177,6 +183,8 @@ export interface DailyPick {
   accent_color?: string | null;
   created_at: string;
   updated_at: string;
+  /** 预上线状态：false 时选购页 Hero 与正文接口均不可见 */
+  enabled?: boolean;
 }
 
 /** 每日推荐前台 teaser（未解锁也可见；不含任何私有内容字段） */

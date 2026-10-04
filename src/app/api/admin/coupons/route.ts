@@ -96,13 +96,15 @@ export async function POST(req: NextRequest) {
   const input = parsed.value;
 
   const db = supabaseAdmin();
-  const { data: act, error: actErr } = await db
-    .from('activities')
-    .select('id')
-    .eq('id', input.activity_id)
-    .maybeSingle();
-  if (actErr) return fail(actErr.message, 500);
-  if (!act) return fail('所属活动不存在', 404);
+  if (input.activity_id) {
+    const { data: act, error: actErr } = await db
+      .from('activities')
+      .select('id')
+      .eq('id', input.activity_id)
+      .maybeSingle();
+    if (actErr) return fail(actErr.message, 500);
+    if (!act) return fail('所属活动不存在', 404);
+  }
 
   const { data, error } = await db.from('coupons').insert(input).select().single();
   if (error) return fail(error.message, 500);

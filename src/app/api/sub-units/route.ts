@@ -12,11 +12,13 @@ export async function GET(req: NextRequest) {
     return fail('SUPABASE_NOT_CONFIGURED：请先配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY', 503);
   }
   const majorUnitId = req.nextUrl.searchParams.get('major_unit_id');
+  const admin = checkAdmin(req);
   let query = supabaseAdmin()
     .from('sub_units')
-    .select('*')
+    .select(admin ? '*' : 'id, major_unit_id, name, sort_order, price, payment_url, created_at')
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
+  if (!admin) query = query.eq('enabled', true);
   if (majorUnitId) query = query.eq('major_unit_id', majorUnitId);
 
   const { data, error } = await query;

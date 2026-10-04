@@ -10,6 +10,18 @@ export const COUPON_TYPE = {
 
 export type CouponType = (typeof COUPON_TYPE)[keyof typeof COUPON_TYPE];
 
+export const COUPON_SCOPE = {
+  SUB_UNIT: 'sub_unit',
+  SUBSCRIPTION: 'subscription',
+} as const;
+
+export type CouponScope = (typeof COUPON_SCOPE)[keyof typeof COUPON_SCOPE];
+
+export const COUPON_SCOPE_LABEL: Record<CouponScope, string> = {
+  sub_unit: '小单元',
+  subscription: '订阅',
+};
+
 export const COUPON_TYPE_LABEL: Record<CouponType, string> = {
   fixed: '满减',
   percent: '折扣',
@@ -20,6 +32,8 @@ export interface Coupon {
   id: string;
   /** 所属活动（分发渠道之一）；**null = 闲置券**，只在「卡券订阅」里发放（迁移 035） */
   activity_id: string | null;
+  /** 可使用范围：小单元 / 订阅（不支持活动） */
+  allowed_scopes: CouponScope[];
   name: string;
   type: CouponType;
   /** fixed = 减免金额（元）；percent = 减免百分比 */
@@ -37,6 +51,10 @@ export interface Coupon {
   /** 总张数；null = 不限量 */
   total_qty: number | null;
   per_user_limit: number;
+  risk_override_enabled: boolean;
+  risk_device_limit: number | null;
+  risk_ip_limit: number | null;
+  risk_new_account_cooldown_hours: number | null;
   enabled: boolean;
   created_at: string;
 }

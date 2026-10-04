@@ -7,13 +7,18 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: { id: string } };
 
-/** GET /api/sub-units/:id */
-export async function GET(_req: NextRequest, { params }: Ctx) {
-  const { data, error } = await supabaseAdmin()
+/** GET /api/sub-units/:id — 管理员可看隐藏内容，公开请求只返回已上线小单元 */
+export async function GET(req: NextRequest, { params }: Ctx) {
+  if (!isSupabaseConfigured()) {
+    return fail('SUPABASE_NOT_CONFIGURED：请先配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY', 503);
+  }
+  let query = supabaseAdmin()
     .from('sub_units')
     .select('*')
-    .eq('id', params.id)
-    .maybeSingle();
+    .eq('id', params.id);
+  if (!checkAdmin(req)) query = query.eq('enabled', true);
+
+  const { data, error } = await query.maybeSingle();
   if (error) return fail(error.message, 500);
   if (!data) return fail('小单元不存在', 404);
   return ok(data);

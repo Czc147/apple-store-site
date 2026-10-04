@@ -36,6 +36,7 @@ import RegisterBanner from '@/components/ui/RegisterBanner';
 import RedeemClient from '@/components/redeem/RedeemClient';
 import NotificationBell from '@/components/library/NotificationBell';
 import MyCouponsCard from '@/components/library/MyCouponsCard';
+import RecentOrdersCard from '@/components/library/RecentOrdersCard';
 
 import ContentsView from '@/components/library/ContentsView';
 import ProfileHeader from '@/components/library/ProfileHeader';
@@ -209,23 +210,25 @@ export default function LibraryClient() {
   return (
     <div className="px-page pb-4">
       {/* 账号分组（§8.6 个人资料卡：轻玻璃，可读优先）：头像/昵称 + 通知铃 + 退出 */}
-      <GlassSurface tint="neutral" radius="hero" className="mb-8">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <ProfileHeader getAuthHeaders={getAuthHeaders} fallbackEmail={email} />
-          <div className="flex shrink-0 items-center">
-            <NotificationBell />
-            <Button
-              variant="secondary"
-              size="sm"
-              className="ml-1"
-              onClick={() => void handleSignOut()}
-            >
-              <LogOut className="h-3.5 w-3.5" aria-hidden />
-              退出
-            </Button>
+      <div id="profile" className="mb-8">
+        <GlassSurface tint="neutral" radius="hero">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <ProfileHeader getAuthHeaders={getAuthHeaders} fallbackEmail={email} />
+            <div className="flex shrink-0 items-center">
+              <NotificationBell />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="ml-1"
+                onClick={() => void handleSignOut()}
+              >
+                <LogOut className="h-3.5 w-3.5" aria-hidden />
+                退出
+              </Button>
+            </div>
           </div>
-        </div>
-      </GlassSurface>
+        </GlassSurface>
+      </div>
 
       {/* 会员卡**刻意不在这里渲染**（2026-09-24 用户要求）：会员卡只在「我的券」里出现一次。
           原来账号卡下方还摆了一张，同一张卡渲染两处 —— 已删。
@@ -311,7 +314,11 @@ export default function LibraryClient() {
       </section>
 
       {/* 我的券（横放卡片，点击展开；没领过券时组件自身不渲染） */}
-      <MyCouponsCard memberCard={memberCard} />
+      <section id="coupons" className="mb-8">
+        <MyCouponsCard memberCard={memberCard} />
+      </section>
+
+      <RecentOrdersCard getAuthHeaders={getAuthHeaders} />
 
       {fetching && !data ? (
         <div className="space-y-4" aria-busy="true" aria-live="polite">
@@ -328,7 +335,7 @@ export default function LibraryClient() {
         <>
           {/* 订阅仓库 */}
           {subscriptions.length > 0 && (
-            <section>
+            <section id="subscriptions">
               <SectionHeader size="lg" title="我的订阅" count={subscriptions.length} />
               <div className="space-y-4">
                 {subscriptions.map((sub) => (
@@ -340,7 +347,7 @@ export default function LibraryClient() {
 
           {/* 我的内容（登录态带删除入口；订阅不支持删，故只在内容区给） */}
           {contents.length > 0 && (
-            <section className={subscriptions.length > 0 ? 'mt-10' : ''}>
+            <section id="contents" className={subscriptions.length > 0 ? 'mt-10' : ''}>
               <SectionHeader title="我的内容" count={contents.length} />
               <ContentsView contents={contents} onDelete={handleDeleteContent} />
             </section>

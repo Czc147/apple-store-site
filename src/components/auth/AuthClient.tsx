@@ -1,21 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import { getClaimDeviceId } from '@/lib/device-id';
+import { clearStoredReferralCode, getStoredReferralCode } from '@/lib/referral-client';
 import Surface from '@/components/ui/Surface';
 import PremiumOrbi, { type OrbiMood } from '@/components/premium-orbi/PremiumOrbi';
 import LoginCard, { LoginField, PasswordField } from './LoginCard';
 
-/** 登录页四种模式 */
-type Mode = 'login' | 'register' | 'forgot' | 'reset';
+/** 登录页五种模式 */
+type Mode = 'login' | 'register' | 'forgot' | 'old-reset' | 'reset';
 
 const MODE_TITLE: Record<Mode, string> = {
   login: '登录',
   register: '注册账号',
   forgot: '找回密码',
+  'old-reset': '旧密码修改',
   reset: '设置新密码',
 };
 
@@ -23,7 +27,8 @@ const MODE_TITLE: Record<Mode, string> = {
 const MODE_HINT: Record<Mode, string> = {
   login: '用邮箱与密码登录',
   register: '用邮箱与密码创建账号',
-  forgot: '输入注册邮箱，接收重置链接',
+  forgot: '选择旧密码修改，或交给客服机器人核身',
+  'old-reset': '验证旧密码后设置新密码',
   reset: '设置新的登录密码',
 };
 
@@ -31,8 +36,7 @@ const MODE_HINT: Record<Mode, string> = {
  * 登录 / 注册 / 找回密码 / 重置密码（Supabase Auth · 邮箱+密码）。
  * - 未配置 NEXT_PUBLIC_SUPABASE_* 时整体提示不可用（演示模式）。
  * - 已登录自动跳回 from（或 /library）。
- * - 「忘记密码」走 Supabase 恢复邮件；恢复链接打开站点后 supabase-js
- *   触发 PASSWORD_RECOVERY，自动切到「设置新密码」。
+ * - 「忘记密码」不再依赖邮箱：旧密码直接修改，或交给客服机器人自动核身后发放临时密码。
  *
  * Phase 10 收敛：输入框 → TextField（focus 方案 A 唯一标准）；裸 hex
  * 错误/成功文字 → Message；提交钮手抄类串 → Button；模式切换钮命中扩到 44pt。
@@ -49,9 +53,17 @@ export default function AuthClient() {
   const from = searchParams.get('from') || '/library';
   const { user, loading, configured } = useAuth();
 
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<Mode>(() => {
+    const requestedMode = searchParams.get('mode');
+    return requestedMode === 'register' ||
+      requestedMode === 'forgot' ||
+      requestedMode === 'old-reset'
+      ? requestedMode
+      : 'login';
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [oldPassword, setOldPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -67,6 +79,7 @@ export default function AuthClient() {
     setNotice('');
     setPassword('');
     setPassword2('');
+    setOldPassword('');
   }, []);
 
   // 恢复会话（邮件链接回跳）→ 进入「设置新密码」
@@ -81,7 +94,7 @@ export default function AuthClient() {
 
   // 已登录（且不在重置密码流程）→ 跳回目标页
   useEffect(() => {
-    if (!loading && user && mode !== 'reset') {
+    if (!loading && user && mode !== 'reset' && mode !== 'old-reset') {
       router.replace(from);
     }
   }, [loading, user, mode, from, router]);
@@ -129,29 +142,60 @@ export default function AuthClient() {
       setError('两次输入的密码不一致');
       return;
     }
+    if (mode === 'old-reset' && !oldPassword) {
+      setError('请输入旧密码');
+      return;
+    }
+    if (mode === 'old-reset' && password !== password2) {
+      setError('两次输入的新密码不一致');
+      return;
+    }
 
     setBusy(true);
     const sb = supabaseBrowser();
     try {
       if (mode === 'login') {
-        const { error: err } = await sb.auth.signInWithPassword({ email: em, password });
+        const { data, error: err } = await sb.auth.signInWithPassword({ email: em, password });
         if (err) throw new Error(friendlyAuthError(err.message));
-        router.replace(from);
+        await recordLoginEvent(data.session?.access_token);
+        const status = await enforceAccountStatus(data.session?.access_token);
+        if (status.mustChangePassword) {
+          setNotice('请先设置新密码');
+          setMode('reset');
+        } else {
+          router.replace(from);
+        }
       } else if (mode === 'register') {
         const { data, error: err } = await sb.auth.signUp({ email: em, password });
         if (err) throw new Error(friendlyAuthError(err.message));
-        // 关闭邮箱确认时直接返回 session → 已登录，由上方 effect 跳转；
-        // 开启邮箱确认时返回用户但无 session → 提示去查收邮件
-        if (!data.session) {
-          setNotice('注册成功！请前往邮箱完成确认后再登录。');
+        if (data.session) {
+          await bindReferralAfterSignup(data.user?.id, em, data.session.access_token);
+          await recordLoginEvent(data.session.access_token);
+          await enforceAccountStatus(data.session.access_token);
+          router.replace(from);
+        } else {
+          setNotice('注册成功，请直接登录。');
           setMode('login');
         }
       } else if (mode === 'forgot') {
-        const { error: err } = await sb.auth.resetPasswordForEmail(em, {
-          redirectTo: typeof window !== 'undefined' ? window.location.origin + '/login' : undefined,
+        setMode('old-reset');
+      } else if (mode === 'old-reset') {
+        const { data, error: signInError } = await sb.auth.signInWithPassword({
+          email: em,
+          password: oldPassword,
         });
-        if (err) throw new Error(friendlyAuthError(err.message));
-        setNotice('重置邮件已发送，请前往邮箱点击链接设置新密码。');
+        if (signInError) throw new Error(friendlyAuthError(signInError.message));
+        await recordLoginEvent(data.session?.access_token);
+        await enforceAccountStatus(data.session?.access_token);
+        const { error: updateError } = await sb.auth.updateUser({ password });
+        if (updateError) throw new Error(friendlyAuthError(updateError.message));
+        await clearMustChangePassword(data.session?.access_token);
+        await sb.auth.signOut();
+        setNotice('密码已修改，请使用新密码登录。');
+        setMode('login');
+        setPassword('');
+        setPassword2('');
+        setOldPassword('');
       } else if (mode === 'reset') {
         if (password.length < 6) {
           setError('新密码至少 6 位');
@@ -165,6 +209,8 @@ export default function AuthClient() {
         }
         const { error: err } = await sb.auth.updateUser({ password });
         if (err) throw new Error(friendlyAuthError(err.message));
+        const { data: sessionData } = await sb.auth.getSession();
+        await clearMustChangePassword(sessionData.session?.access_token);
         setNotice('密码已更新，正在进入…');
         router.replace(from);
       }
@@ -172,6 +218,93 @@ export default function AuthClient() {
       setError(err instanceof Error ? err.message : '操作失败，请稍后再试');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const recordLoginEvent = async (accessToken: string | null | undefined) => {
+    if (!accessToken) return;
+    try {
+      await fetch('/api/auth/login-events', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+    } catch {
+      /* 登录记录失败不阻断登录 */
+    }
+  };
+
+  const enforceAccountStatus = async (accessToken: string | null | undefined) => {
+    if (!accessToken) return { mustChangePassword: false };
+    const response = await fetch('/api/account/status', {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      await supabaseBrowser().auth.signOut();
+      throw new Error('账号状态检查失败，请稍后再试');
+    }
+    const payload = (await response.json()) as {
+      restrictions?: Array<{
+        scope: 'login' | 'coupon' | 'referral';
+        kind: 'temporary' | 'permanent';
+        reason: string;
+        ends_at: string | null;
+      }>;
+      must_change_password?: boolean;
+    };
+    const loginRestriction = payload.restrictions?.find((item) => item.scope === 'login');
+    if (loginRestriction) {
+      await supabaseBrowser().auth.signOut();
+      const until = loginRestriction.ends_at
+        ? `，解除时间：${new Date(loginRestriction.ends_at).toLocaleString('zh-CN')}`
+        : '';
+      throw new Error(
+        `账号已被限制登录${until}。原因：${loginRestriction.reason}。如有疑问请联系客服。`,
+      );
+    }
+    return { mustChangePassword: Boolean(payload.must_change_password) };
+  };
+
+  const clearMustChangePassword = async (accessToken: string | null | undefined) => {
+    if (!accessToken) return;
+    try {
+      await fetch('/api/account/status', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: 'password_changed' }),
+      });
+    } catch {
+      /* 标记清理失败不阻断已完成的密码修改 */
+    }
+  };
+
+  const bindReferralAfterSignup = async (
+    userId: string | undefined,
+    email: string,
+    accessToken: string | null,
+  ) => {
+    if (!userId) return;
+    const code = getStoredReferralCode();
+    if (!code) return;
+    try {
+      const response = await fetch('/api/referrals/bind', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          code,
+          invitee_id: userId,
+          invitee_email: email,
+          device_id: getClaimDeviceId(),
+        }),
+      });
+      if (response.ok) clearStoredReferralCode();
+    } catch {
+      /* 推广归因失败不影响注册本身 */
     }
   };
 
@@ -197,14 +330,16 @@ export default function AuthClient() {
       ? '登录'
       : mode === 'register'
         ? '创建账号'
-        : mode === 'forgot'
-          ? '发送重置邮件'
+        : mode === 'old-reset'
+          ? '修改密码'
           : '设置新密码';
 
   /** 必填项没填就禁掉提交（文档版是 `!email || !password`，这里按模式取） */
   const canSubmit =
+    mode !== 'forgot' &&
     (mode === 'reset' || email.trim().length > 0) &&
-    (mode === 'forgot' || password.length > 0);
+    password.length > 0 &&
+    (mode !== 'old-reset' || (oldPassword.length > 0 && password === password2));
 
   return (
     <div className="login-stage">
@@ -219,6 +354,7 @@ export default function AuthClient() {
         error={error}
         notice={notice}
         submitLabel={submitLabel}
+        hideSubmit={mode === 'forgot'}
         submitDisabled={!canSubmit}
         onSubmit={() => void handleSubmit()}
         footer={
@@ -280,9 +416,11 @@ export default function AuthClient() {
         {mode !== 'forgot' && (
           <PasswordField
             id="login-password"
-            label={mode === 'reset' ? '新密码' : '密码'}
+            label={mode === 'reset' || mode === 'old-reset' ? '新密码' : '密码'}
             value={password}
-            placeholder={mode === 'reset' ? '设置新密码（至少 6 位）' : '输入你的密码'}
+            placeholder={
+              mode === 'reset' || mode === 'old-reset' ? '设置新密码（至少 6 位）' : '输入你的密码'
+            }
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             disabled={busy}
             show={showPassword}
@@ -293,7 +431,23 @@ export default function AuthClient() {
           />
         )}
 
-        {(mode === 'register' || mode === 'reset') && (
+        {mode === 'old-reset' && (
+          <PasswordField
+            id="login-old-password"
+            label="旧密码"
+            value={oldPassword}
+            placeholder="输入当前密码"
+            autoComplete="current-password"
+            disabled={busy}
+            show={showPassword}
+            onToggleShow={() => setShowPassword((v) => !v)}
+            onChange={setOldPassword}
+            onFocus={() => setField('password')}
+            onBlur={() => setField(null)}
+          />
+        )}
+
+        {(mode === 'register' || mode === 'reset' || mode === 'old-reset') && (
           <PasswordField
             id="login-password2"
             label="确认密码"
@@ -308,6 +462,24 @@ export default function AuthClient() {
             onBlur={() => setField(null)}
           />
         )}
+
+        {mode === 'forgot' && (
+          <div className="space-y-3">
+            <button
+              type="button"
+              className="login-submit"
+              onClick={() => setMode('old-reset')}
+            >
+              记得旧密码，直接修改
+            </button>
+            <Link href="/password-reset" className="login-linkbtn block text-center">
+              忘记旧密码，联系客服机器人
+            </Link>
+            <p className="text-center text-[12px] leading-relaxed text-apple-text-3">
+              机器人会核对账号、常用设备类型和登录地区，通过后自动发放临时密码。
+            </p>
+          </div>
+        )}
       </LoginCard>
     </div>
   );
@@ -316,10 +488,13 @@ export default function AuthClient() {
 /** Supabase Auth 常见英文错误 → 中文文案 */
 function friendlyAuthError(msg: string): string {
   const m = msg.toLowerCase();
+  if (m.includes('banned') || m.includes('ban_duration'))
+    return '账号已被限制登录，如有疑问请联系客服处理';
   if (m.includes('invalid login credentials')) return '邮箱或密码不正确';
   if (m.includes('already registered') || m.includes('already been registered'))
     return '该邮箱已注册，请直接登录';
-  if (m.includes('email not confirmed')) return '邮箱尚未验证，请先查收验证邮件';
+  if (m.includes('email not confirmed'))
+    return '登录暂不可用，请稍后再试或联系客服处理';
   if (m.includes('rate limit') || m.includes('too many')) return '尝试次数过多，请稍后再试';
   if (m.includes('password should be at least')) return '密码至少 6 位';
   if (m.includes('invalid email') || m.includes('unable to validate email'))

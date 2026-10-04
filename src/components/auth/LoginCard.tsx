@@ -24,6 +24,8 @@ interface LoginCardProps {
   loading: boolean;
   error: string;
   submitLabel: string;
+  /** 选择页（忘记密码）不需要主提交按钮 */
+  hideSubmit?: boolean;
   /** 额外禁用条件（如必填项没填） */
   submitDisabled?: boolean;
   onSubmit: () => void;
@@ -40,6 +42,7 @@ export default function LoginCard({
   loading,
   error,
   submitLabel,
+  hideSubmit = false,
   submitDisabled = false,
   onSubmit,
   footer,
@@ -76,24 +79,26 @@ export default function LoginCard({
           {error || ' '}
         </div>
 
-        <button
-          type="submit"
-          className="login-submit"
-          disabled={loading || submitDisabled}
-        >
-          {loading ? (
-            <>
-              <span className="login-loading" aria-hidden>
-                <span />
-                <span />
-                <span />
-              </span>
-              <span>处理中</span>
-            </>
-          ) : (
-            submitLabel
-          )}
-        </button>
+        {!hideSubmit && (
+          <button
+            type="submit"
+            className="login-submit"
+            disabled={loading || submitDisabled}
+          >
+            {loading ? (
+              <>
+                <span className="login-loading" aria-hidden>
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <span>处理中</span>
+              </>
+            ) : (
+              submitLabel
+            )}
+          </button>
+        )}
       </form>
 
       {footer && <div className="login-footer">{footer}</div>}

@@ -7,15 +7,19 @@ import { PUT as putById, DELETE as deleteById } from './[id]/route';
 export const dynamic = 'force-dynamic';
 
 /** GET /api/activities — 活动列表（sort_order 升序） */
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return fail('SUPABASE_NOT_CONFIGURED：请先配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY', 503);
   }
-  const { data, error } = await supabaseAdmin()
+  const admin = checkAdmin(req);
+  let query = supabaseAdmin()
     .from('activities')
-    .select('*')
+    .select(admin ? '*' : 'id, title, image_url, description, link_url, sort_order, created_at')
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
+  if (!admin) query = query.eq('enabled', true);
+
+  const { data, error } = await query;
   if (error) return fail(error.message, 500);
   return ok(data);
 }

@@ -428,9 +428,71 @@
   .animate-prism-sweep {
     animation: prism-sweep 280ms cubic-bezier(0.4, 0, 0.2, 1) 1 both;
   }
+  /* 后台二级菜单：grid-row 动画比 max-height 更稳，不会因内容数量跳动 */
+  .admin-submenu {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition:
+      grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .admin-submenu > div {
+    overflow: hidden;
+    min-height: 0;
+  }
+  .admin-submenu.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  /* GlassSurface 专用高光：只扫装饰层，绝不能挂到卡片外层（否则整卡会淡出） */
+  .glass-sweep-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  .glass-sweep-bar {
+    position: absolute;
+    inset: -20% -35%;
+    background: linear-gradient(
+      115deg,
+      transparent 32%,
+      rgba(255, 255, 255, 0.34) 45%,
+      rgba(103, 232, 249, 0.20) 50%,
+      rgba(196, 181, 253, 0.24) 55%,
+      rgba(255, 255, 255, 0.30) 63%,
+      transparent 72%
+    );
+    opacity: 0;
+    transform: translate3d(-85%, 0, 0) skewX(-12deg);
+    animation: glass-sweep 1500ms cubic-bezier(0.22, 1, 0.36, 1) 220ms both;
+  }
   /* 编辑式区块「滚动出现」（UI 升级 §9.4）：进入视口播一次，不循环 */
   .animate-rise {
     animation: rise-in 300ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+
+  /* 账号抽屉：遮罩 / 玻璃面板 / 内容三级编排（打开 460ms、关闭 280ms） */
+  .account-scrim-in {
+    animation: account-scrim-in 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .account-scrim-out {
+    animation: account-scrim-out 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .account-drawer-in {
+    animation: account-drawer-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .account-drawer-out {
+    animation: account-drawer-out 280ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .account-item {
+    animation: account-item-in 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
 }
 
@@ -495,6 +557,20 @@
   }
 }
 
+@keyframes glass-sweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(-85%, 0, 0) skewX(-12deg);
+  }
+  22% {
+    opacity: 0.82;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(85%, 0, 0) skewX(-12deg);
+  }
+}
+
 /* 滚动出现：淡入 + 8px 上移（§9.4） */
 @keyframes rise-in {
   from {
@@ -507,6 +583,133 @@
   }
 }
 
+@keyframes account-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes account-scrim-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes account-drawer-in {
+  from {
+    opacity: 0.35;
+    transform: translate3d(calc(100% + 1.25rem), 0, 0) scale(0.985);
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes account-drawer-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(calc(100% + 0.75rem), 0, 0) scale(0.99);
+  }
+}
+
+@keyframes account-item-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes account-glint {
+  from {
+    opacity: 0;
+    transform: translate3d(-45%, 0, 0);
+  }
+  30% {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(45%, 0, 0);
+  }
+}
+
+/* 液态玻璃抽屉本体：左侧高光 + 打开时一道彩虹折射扫过，不承载任何交互 */
+.account-drawer {
+  position: absolute;
+  overflow: hidden;
+  border-left: 1px solid rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(
+      105deg,
+      rgba(255, 255, 255, 0.97) 0%,
+      rgba(255, 255, 255, 0.89) 48%,
+      rgba(255, 255, 255, 0.95) 100%
+    );
+  box-shadow:
+    0 48px 110px -36px rgba(15, 23, 42, 0.32),
+    0 18px 48px -24px rgba(15, 23, 42, 0.18),
+    inset 1px 0 0 rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(28px) saturate(1.75);
+  -webkit-backdrop-filter: blur(28px) saturate(1.75);
+  will-change: transform, opacity;
+}
+
+.account-drawer::before {
+  content: '';
+  position: absolute;
+  inset: -15% -25%;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 38%,
+    rgba(0, 113, 227, 0.12) 45%,
+    rgba(52, 199, 89, 0.10) 50%,
+    rgba(255, 204, 0, 0.12) 55%,
+    rgba(191, 90, 242, 0.11) 61%,
+    transparent 68%
+  );
+  animation: account-glint 900ms 130ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.account-drawer::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(255, 255, 255, 0.92),
+    rgba(0, 113, 227, 0.22),
+    rgba(191, 90, 242, 0.18),
+    transparent
+  );
+}
+
+body.account-hub-open [data-main-tabbar='true'] {
+  opacity: 0;
+  transform: translateY(120%);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.account-drawer-out::before,
+.account-drawer-out::after {
+  animation: none;
+  opacity: 0;
+}
+
 /* 尊重系统「减弱动态效果」（§9.6）：
    页面切换仅保留淡入、弹层直接显示、封面不飞行、不播彩虹、骨架减弱 */
 @media (prefers-reduced-motion: reduce) {
@@ -517,6 +720,27 @@
   .animate-badge-pop,
   .animate-prism-sweep {
     animation: none;
+  }
+  .glass-sweep-bar {
+    animation: none;
+    opacity: 0;
+  }
+  .admin-submenu,
+  .admin-submenu.open {
+    transition: none;
+    transform: none;
+  }
+  .account-scrim-in,
+  .account-scrim-out,
+  .account-drawer-in,
+  .account-drawer-out,
+  .account-item,
+  .account-drawer::before {
+    animation: none;
+  }
+  .account-drawer::before,
+  .account-drawer::after {
+    opacity: 0;
   }
   /* 按压的位移也关掉：颜色/底色反馈保留（否则按下去毫无反馈），只去掉缩放 */
   .pressable:active,
@@ -624,5 +848,76 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* 推广复制按钮：黑底液态玻璃 + 克制彩虹折射 */
+.referral-rainbow-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #fff;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 32%, rgba(0, 0, 0, 0.28)),
+    #0b0d10;
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow:
+    0 14px 34px -18px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.referral-rainbow-button::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 150deg,
+    rgba(255, 255, 255, 0.75),
+    rgba(0, 113, 227, 0.75),
+    rgba(52, 199, 89, 0.65),
+    rgba(255, 204, 0, 0.72),
+    rgba(191, 90, 242, 0.72),
+    rgba(255, 255, 255, 0.75)
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.referral-rainbow-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 32%,
+    rgba(255, 255, 255, 0.38) 46%,
+    rgba(255, 255, 255, 0.08) 58%,
+    transparent 72%
+  );
+  transform: translateX(-130%);
+  transition: transform 720ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.referral-rainbow-button:hover::after,
+.referral-rainbow-button:focus-visible::after {
+  transform: translateX(130%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .referral-rainbow-button::after {
+    transform: none;
+    transition: none;
   }
 }

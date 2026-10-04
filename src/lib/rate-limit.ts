@@ -49,7 +49,9 @@ export function rateLimit(
 
 /** 从请求头尽力解析客户端 IP（Netlify 环境） */
 export function getClientIp(req: NextRequest | Request): string {
+  const direct = req.headers.get('x-nf-client-ip');
+  if (direct) return direct;
   const fwd = req.headers.get('x-forwarded-for');
   if (fwd) return fwd.split(',')[0].trim();
-  return req.headers.get('x-nf-client-ip') ?? 'unknown';
+  return 'unknown';
 }

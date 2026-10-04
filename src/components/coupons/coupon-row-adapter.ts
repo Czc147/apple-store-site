@@ -14,6 +14,11 @@ export interface MyCouponItem {
     | 'valid_to'
     | 'activity_id'
     | 'total_qty'
+    | 'allowed_scopes'
+    | 'risk_override_enabled'
+    | 'risk_device_limit'
+    | 'risk_ip_limit'
+    | 'risk_new_account_cooldown_hours'
   >;
   status: 'available' | 'not_started' | 'locked' | 'used' | 'expired' | 'disabled';
   /** 全站已领数（判「已领完」用） */
@@ -31,6 +36,7 @@ export function toCouponRow(item: MyCouponItem): CouponWithState {
     // （配了"发券后 N 天"就按领取时刻现算）折算进 valid_from / valid_to 了，
     // 所以到这里就是"固定窗"语义。UI 不需要再看到那个 N
     valid_days_after_issue: null,
+    allowed_scopes: item.coupon.allowed_scopes ?? ['sub_unit', 'subscription'],
     // 透传真实数据（原来硬编码 null/0，「已领完」判不出来）
     total_qty: item.coupon.total_qty,
     per_user_limit: 1,

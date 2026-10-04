@@ -4,7 +4,15 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import { localInputToIso } from '@/lib/datetime';
-import { COUPON_TYPE, COUPON_TYPE_LABEL, type Coupon, type CouponType } from '@/lib/coupon-types';
+import {
+  COUPON_SCOPE,
+  COUPON_SCOPE_LABEL,
+  COUPON_TYPE,
+  COUPON_TYPE_LABEL,
+  type Coupon,
+  type CouponScope,
+  type CouponType,
+} from '@/lib/coupon-types';
 import type { Activity } from '@/lib/types';
 import Modal from './Modal';
 import ConfirmDialog from './ConfirmDialog';
@@ -35,8 +43,21 @@ interface CouponRowData extends Coupon {
   locked_count: number;
 }
 
+interface CouponRiskSettings {
+  enabled: boolean;
+  window_hours: number;
+  device_limit: number;
+  ip_limit: number;
+  new_account_cooldown_hours: number;
+  first_strike_hours: number;
+  second_strike_days: number;
+  permanent_strikes: number;
+  allow_coupon_override: boolean;
+}
+
 interface FormState {
   activity_id: string;
+  allowed_scopes: CouponScope[];
   name: string;
   type: CouponType;
   value: string;
@@ -47,11 +68,16 @@ interface FormState {
   valid_days_after_issue: string;
   total_qty: string;
   per_user_limit: string;
+  risk_override_enabled: boolean;
+  risk_device_limit: string;
+  risk_ip_limit: string;
+  risk_new_account_cooldown_hours: string;
   enabled: boolean;
 }
 
 const EMPTY_FORM: FormState = {
   activity_id: '',
+  allowed_scopes: Object.values(COUPON_SCOPE),
   name: '',
   type: COUPON_TYPE.FIXED,
   value: '',
@@ -61,6 +87,10 @@ const EMPTY_FORM: FormState = {
   valid_days_after_issue: '',
   total_qty: '',
   per_user_limit: '1',
+  risk_override_enabled: false,
+  risk_device_limit: '',
+  risk_ip_limit: '',
+  risk_new_account_cooldown_hours: '',
   enabled: true,
 };
 
@@ -113,6 +143,8 @@ export default function CouponsManager() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [riskForm, setRiskForm] = useState<CouponRiskSettings | null>(null);
+  const [riskSaving, setRiskSaving] = useState(false);
 
   const [deleting, setDeleting] = useState<CouponRowData | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -129,14 +161,16 @@ export default function CouponsManager() {
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [couponsRes, actsRes] = await Promise.all([
+      const [couponsRes, actsRes, riskRes] = await Promise.all([
         adminFetch('/api/admin/coupons'),
         adminFetch('/api/activities'),
+        adminFetch('/api/admin/coupon-risk'),
       ]);
       if (!couponsRes.ok) throw new Error(await extractError(couponsRes));
       const data = (await couponsRes.json()) as { items: CouponRowData[] };
       setRows(data.items ?? []);
       if (actsRes.ok) setActivities((await actsRes.json()) as Activity[]);
+      if (riskRes.ok) setRiskForm((await riskRes.json()) as CouponRiskSettings);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : '加载失败');
       setRows(null);
@@ -162,6 +196,7 @@ export default function CouponsManager() {
     setForm({
       // 可空（迁移 035）：闲置券回填成空串，下拉里对应「不绑定活动」
       activity_id: row.activity_id ?? '',
+      allowed_scopes: row.allowed_scopes?.length ? row.allowed_scopes : Object.values(COUPON_SCOPE),
       name: row.name,
       type: row.type,
       value: String(Number(row.value)),
@@ -172,6 +207,13 @@ export default function CouponsManager() {
         row.valid_days_after_issue != null ? String(row.valid_days_after_issue) : '',
       total_qty: row.total_qty === null ? '' : String(row.total_qty),
       per_user_limit: String(row.per_user_limit),
+      risk_override_enabled: row.risk_override_enabled,
+      risk_device_limit: row.risk_device_limit == null ? '' : String(row.risk_device_limit),
+      risk_ip_limit: row.risk_ip_limit == null ? '' : String(row.risk_ip_limit),
+      risk_new_account_cooldown_hours:
+        row.risk_new_account_cooldown_hours == null
+          ? ''
+          : String(row.risk_new_account_cooldown_hours),
       enabled: row.enabled,
     });
     setFormError(null);
@@ -190,6 +232,7 @@ export default function CouponsManager() {
     try {
       const body = {
         activity_id: form.activity_id,
+        allowed_scopes: form.allowed_scopes,
         name: form.name.trim(),
         type: form.type,
         value: Number(form.value),
@@ -207,6 +250,14 @@ export default function CouponsManager() {
             : Number(form.valid_days_after_issue),
         total_qty: form.total_qty.trim() === '' ? null : Number(form.total_qty),
         per_user_limit: form.per_user_limit.trim() === '' ? 1 : Number(form.per_user_limit),
+        risk_override_enabled: form.risk_override_enabled,
+        risk_device_limit:
+          form.risk_device_limit.trim() === '' ? null : Number(form.risk_device_limit),
+        risk_ip_limit: form.risk_ip_limit.trim() === '' ? null : Number(form.risk_ip_limit),
+        risk_new_account_cooldown_hours:
+          form.risk_new_account_cooldown_hours.trim() === ''
+            ? null
+            : Number(form.risk_new_account_cooldown_hours),
         enabled: form.enabled,
       };
       const res = await adminFetch(
@@ -228,12 +279,32 @@ export default function CouponsManager() {
     }
   };
 
+  const saveRisk = async () => {
+    if (!riskForm || riskSaving) return;
+    setRiskSaving(true);
+    try {
+      const res = await adminFetch('/api/admin/coupon-risk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(riskForm),
+      });
+      if (!res.ok) throw new Error(await extractError(res));
+      setRiskForm((await res.json()) as CouponRiskSettings);
+      showNotice(true, '领券风控已保存');
+    } catch (err) {
+      showNotice(false, err instanceof Error ? err.message : '保存失败');
+    } finally {
+      setRiskSaving(false);
+    }
+  };
+
   const toggleEnabled = async (row: CouponRowData) => {
     const res = await adminFetch(`/api/admin/coupons/${row.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         activity_id: row.activity_id,
+        allowed_scopes: row.allowed_scopes ?? Object.values(COUPON_SCOPE),
         name: row.name,
         type: row.type,
         value: Number(row.value),
@@ -246,6 +317,10 @@ export default function CouponsManager() {
         // 见不到这个字段就会写成 null —— 点一次"停用"就把「发券后 N 天」静默清掉
         // （同一类"漏一处就丢数据"的坑，别删这一行）
         valid_days_after_issue: row.valid_days_after_issue,
+        risk_override_enabled: row.risk_override_enabled,
+        risk_device_limit: row.risk_device_limit,
+        risk_ip_limit: row.risk_ip_limit,
+        risk_new_account_cooldown_hours: row.risk_new_account_cooldown_hours,
         enabled: !row.enabled,
       }),
     });
@@ -282,6 +357,130 @@ export default function CouponsManager() {
         createLabel="新建优惠券"
         onCreate={openCreate}
       />
+
+      <section className="mb-6 rounded-card border border-apple-border bg-apple-card p-5 shadow-card">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[16px] font-semibold text-apple-text">领券风控</h2>
+            <p className="mt-1 text-[12.5px] text-apple-text-2">
+              控制同设备、同 IP 与新账号领券阈值；违规后按次数冷却。
+            </p>
+          </div>
+          <button type="button" className={btnPrimary} disabled={riskSaving} onClick={() => void saveRisk()}>
+            {riskSaving ? '保存中…' : '保存风控'}
+          </button>
+        </div>
+
+        {riskForm ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Field label="统计窗口（小时）">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={720}
+                value={riskForm.window_hours}
+                onChange={(e) => setRiskForm({ ...riskForm, window_hours: Number(e.target.value) })}
+                disabled={riskSaving}
+              />
+            </Field>
+            <Field label="同设备领取上限">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={1000}
+                value={riskForm.device_limit}
+                onChange={(e) => setRiskForm({ ...riskForm, device_limit: Number(e.target.value) })}
+                disabled={riskSaving}
+              />
+            </Field>
+            <Field label="同 IP 领取上限">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={1000}
+                value={riskForm.ip_limit}
+                onChange={(e) => setRiskForm({ ...riskForm, ip_limit: Number(e.target.value) })}
+                disabled={riskSaving}
+              />
+            </Field>
+            <Field label="新账号冷却（小时）">
+              <input
+                className={inputCls}
+                type="number"
+                min={0}
+                max={720}
+                value={riskForm.new_account_cooldown_hours}
+                onChange={(e) =>
+                  setRiskForm({ ...riskForm, new_account_cooldown_hours: Number(e.target.value) })
+                }
+                disabled={riskSaving}
+              />
+            </Field>
+            <Field label="第 1 次违规冷却（小时）">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={720}
+                value={riskForm.first_strike_hours}
+                onChange={(e) => setRiskForm({ ...riskForm, first_strike_hours: Number(e.target.value) })}
+                disabled={riskSaving}
+              />
+            </Field>
+            <Field label="第 2 次违规冷却（天）">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={60}
+                value={riskForm.second_strike_days}
+                onChange={(e) => setRiskForm({ ...riskForm, second_strike_days: Number(e.target.value) })}
+                disabled={riskSaving}
+              />
+            </Field>
+            <Field label="永久封禁次数">
+              <input
+                className={inputCls}
+                type="number"
+                min={2}
+                max={10}
+                value={riskForm.permanent_strikes}
+                onChange={(e) => setRiskForm({ ...riskForm, permanent_strikes: Number(e.target.value) })}
+                disabled={riskSaving}
+              />
+            </Field>
+            <div className="space-y-2.5 pt-6">
+              <label className="flex cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={riskForm.enabled}
+                  onChange={(e) => setRiskForm({ ...riskForm, enabled: e.target.checked })}
+                  className="h-4 w-4 accent-apple-blue"
+                  disabled={riskSaving}
+                />
+                <span className="text-[14px] text-apple-text">启用全局风控</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={riskForm.allow_coupon_override}
+                  onChange={(e) =>
+                    setRiskForm({ ...riskForm, allow_coupon_override: e.target.checked })
+                  }
+                  className="h-4 w-4 accent-apple-blue"
+                  disabled={riskSaving}
+                />
+                <span className="text-[14px] text-apple-text">允许单券覆盖全局阈值</span>
+              </label>
+            </div>
+          </div>
+        ) : (
+          <div className="skeleton h-24 rounded-xl" />
+        )}
+      </section>
 
       {loadError ? (
         <div className="rounded-card border border-apple-border bg-apple-card p-6 text-center shadow-card">
@@ -333,6 +532,11 @@ export default function CouponsManager() {
                           订阅发放：{row.used_by_subscriptions.join('、')}
                         </span>
                       )}
+                      <span className="mt-0.5 block truncate text-[12px] text-apple-text-3">
+                        可用于：{(row.allowed_scopes ?? Object.values(COUPON_SCOPE))
+                          .map((scope) => COUPON_SCOPE_LABEL[scope])
+                          .join(' / ')}
+                      </span>
                     </td>
                     <td className={tdCls}>
                       <Badge tone="red">{faceText(row)}</Badge>
@@ -437,6 +641,29 @@ export default function CouponsManager() {
                 </option>
               ))}
             </select>
+          </Field>
+
+          <Field label="可使用范围" required hint="勾选后该券才能用于对应订单；活动不是使用范围">
+            <div className="flex gap-4">
+              {Object.values(COUPON_SCOPE).map((scope) => (
+                <label key={scope} className="flex cursor-pointer items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={form.allowed_scopes.includes(scope)}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        allowed_scopes: e.target.checked
+                          ? [...f.allowed_scopes, scope]
+                          : f.allowed_scopes.filter((x) => x !== scope),
+                      }))
+                    }
+                    disabled={saving}
+                  />
+                  <span className="text-sm text-apple-text">{COUPON_SCOPE_LABEL[scope]}</span>
+                </label>
+              ))}
+            </div>
           </Field>
 
           <Field label="券名称" required hint="用户看到的名称，如「新客立减 10 元」">
@@ -554,6 +781,60 @@ export default function CouponsManager() {
               disabled={saving}
             />
           </Field>
+
+          <div className="rounded-xl border border-apple-border bg-apple-bg/50 p-3.5">
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={form.risk_override_enabled}
+                onChange={(e) => setForm((f) => ({ ...f, risk_override_enabled: e.target.checked }))}
+                className="h-4 w-4 accent-apple-blue"
+                disabled={saving || !riskForm?.allow_coupon_override}
+              />
+              <span className="text-[14px] text-apple-text">
+                覆盖全局领券风控{riskForm && !riskForm.allow_coupon_override ? '（未开放）' : ''}
+              </span>
+            </label>
+            {form.risk_override_enabled && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <Field label="设备上限">
+                  <input
+                    className={inputCls}
+                    value={form.risk_device_limit}
+                    onChange={(e) => setForm((f) => ({ ...f, risk_device_limit: e.target.value }))}
+                    inputMode="numeric"
+                    placeholder="留空 = 全局"
+                    disabled={saving}
+                  />
+                </Field>
+                <Field label="IP 上限">
+                  <input
+                    className={inputCls}
+                    value={form.risk_ip_limit}
+                    onChange={(e) => setForm((f) => ({ ...f, risk_ip_limit: e.target.value }))}
+                    inputMode="numeric"
+                    placeholder="留空 = 全局"
+                    disabled={saving}
+                  />
+                </Field>
+                <Field label="新账号冷却（小时）">
+                  <input
+                    className={inputCls}
+                    value={form.risk_new_account_cooldown_hours}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        risk_new_account_cooldown_hours: e.target.value,
+                      }))
+                    }
+                    inputMode="numeric"
+                    placeholder="留空 = 全局"
+                    disabled={saving}
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
 
           <label className="flex cursor-pointer items-center gap-2.5">
             <input

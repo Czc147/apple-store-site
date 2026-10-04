@@ -14,14 +14,17 @@ function toLayout(v: unknown): 'carousel' | 'grid' {
   return v === 'grid' ? 'grid' : 'carousel';
 }
 
-/** GET /api/home-sections — 首页板块列表（sort_order 升序；无敏感数据，公开） */
-export async function GET() {
+/** GET /api/home-sections — 首页板块列表（管理员可看隐藏板块） */
+export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) return fail(UNCONFIGURED_MSG, 503);
-  const { data, error } = await supabaseAdmin()
+  let query = supabaseAdmin()
     .from('home_sections')
     .select('*')
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
+  if (!checkAdmin(req)) query = query.eq('enabled', true);
+
+  const { data, error } = await query;
   if (error) return fail(error.message, 500);
   return ok(data);
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Ticket } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { getClaimDeviceId } from '@/lib/device-id';
 import type { CouponWithState } from '@/lib/coupon-types';
 import Button from '@/components/ui/Button';
 import Message from '@/components/ui/Message';
@@ -39,7 +40,7 @@ export default function CouponClaimList({
       const res = await fetch('/api/coupons/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ coupon_id: coupon.id }),
+        body: JSON.stringify({ coupon_id: coupon.id, device_id: getClaimDeviceId() }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
