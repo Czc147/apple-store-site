@@ -29,6 +29,8 @@ type InviteStatus = 'registered' | 'review' | 'rewarded' | 'rejected';
 interface ReferralSettings {
   enabled: boolean;
   reward_coupon_id: string | null;
+  /** 前台「当前奖励」显示的自定义文案（迁移 044）；留空 = 前台按奖励券自动拼 */
+  reward_text: string | null;
   reward_delay_hours: number;
   require_first_order: boolean;
   min_order_amount: number;
@@ -337,6 +339,21 @@ export default function ReferralsManager() {
                     ))}
                   </select>
                 </Field>
+                <div className="md:col-span-2">
+                  <Field
+                    label="奖励文案（用户看到的「当前奖励」）"
+                    hint="直接写用户能看懂的一句话，例如「好友首单满 30 元后，你得一张 8 折券」。留空则由前台按上面这张券自动拼（例如「新人回馈券 · 立减 20%（满 ¥100 可用）」）。最多 120 字。"
+                  >
+                    <textarea
+                      value={form.reward_text ?? ''}
+                      onChange={(event) => update({ reward_text: event.target.value || null })}
+                      maxLength={120}
+                      rows={2}
+                      className={textareaCls}
+                      placeholder="留空 = 前台自动按奖励券拼一句"
+                    />
+                  </Field>
+                </div>
                 <Field label="奖励延迟（小时）" required hint="建议 24–72 小时，先观察账号是否异常。">
                   <input
                     type="number"

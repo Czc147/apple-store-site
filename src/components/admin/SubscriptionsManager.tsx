@@ -131,6 +131,36 @@ interface AdminCouponOption {
   enabled: boolean;
 }
 
+/** 「加入券」里的一条：券 id + 购买时发几张（迁移 044） */
+interface SelectedCoupon {
+  id: string;
+  quantity: number;
+}
+
+/** 单张券单次购买的发放上限，与迁移 044 的 check 约束一致 */
+const MAX_COUPON_QUANTITY = 999;
+
+/** 详情接口 → 表单里的「已加入的券」（兼容只返回 coupon_ids 的旧格式） */
+function normalizeSelectedCoupons(
+  coupons: Array<{ coupon_id: string; quantity?: number }> | undefined,
+  couponIds: string[] | undefined,
+): SelectedCoupon[] {
+  if (Array.isArray(coupons)) {
+    return coupons
+      .filter((c) => typeof c?.coupon_id === 'string' && c.coupon_id.length > 0)
+      .map((c) => {
+        const n = Math.floor(Number(c.quantity));
+        return {
+          id: c.coupon_id,
+          quantity: Number.isFinite(n) && n > 0 ? Math.min(n, MAX_COUPON_QUANTITY) : 1,
+        };
+      });
+  }
+  return (couponIds ?? [])
+    .filter((id) => typeof id === 'string' && id.length > 0)
+    .map((id) => ({ id, quantity: 1 }));
+}
+
 /** 订阅管理：名称 + 价格 + 时长徽章文案 */
 export default function SubscriptionsManager() {
   const [rows, setRows] = useState<Subscription[] | null>(null);
@@ -142,11 +172,11 @@ export default function SubscriptionsManager() {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // —— 卡券订阅「加入券」（迁移 033）——
-  /** 券库：只在选中卡券订阅时懒加载一次 */
+  // —— 订阅挂券「加入券」（迁移 033 / 044）——
+  /** 券库：打开编辑器时懒加载一次 */
   const [couponLib, setCouponLib] = useState<AdminCouponOption[] | null>(null);
-  /** 已加入的券 id，**顺序即展示顺序** */
-  const [selectedCouponIds, setSelectedCouponIds] = useState<string[]>([]);
+  /** 已加入的券 + 每张发几张，**顺序即发放顺序** */
+  const [selectedCoupons, setSelectedCoupons] = useState<SelectedCoupon[]>([]);
   const [couponQuery, setCouponQuery] = useState('');
 
   const [deleting, setDeleting] = useState<Subscription | null>(null);
@@ -183,9 +213,9 @@ export default function SubscriptionsManager() {
     };
   }, [load]);
 
-  // 「加入券」的券库：选中卡券订阅时才拉，拉过一次就留着（券库变动不频繁）
+  // 「加入券」的券库：打开编辑器就拉，拉过一次就留着（券库变动不频繁）
   useEffect(() => {
-    if (!modalOpen || form.type !== SUBSCRIPTION_TYPE.COUPON || couponLib !== null) return;
+    if (!modalOpen || couponLib !== null) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -200,19 +230,22 @@ export default function SubscriptionsManager() {
     return () => {
       cancelled = true;
     };
-  }, [modalOpen, form.type, couponLib]);
+  }, [modalOpen, couponLib]);
 
-  // 编辑卡券订阅时回填「已加入的券」：列表接口不带券关联，单独拉一次详情
+  // 编辑时回填「已加入的券」与数量：列表接口不带券关联，单独拉一次详情
   useEffect(() => {
-    if (!modalOpen || !editing || form.type !== SUBSCRIPTION_TYPE.COUPON) return;
+    if (!modalOpen || !editing) return;
     let cancelled = false;
     void (async () => {
       try {
         const res = await adminFetch(`/api/subscriptions/${editing.id}`);
         if (!res.ok) return;
-        const data = (await res.json()) as { coupon_ids?: string[] };
+        const data = (await res.json()) as {
+          coupons?: Array<{ coupon_id: string; quantity?: number }>;
+          coupon_ids?: string[];
+        };
         if (!cancelled) {
-          setSelectedCouponIds(Array.isArray(data.coupon_ids) ? data.coupon_ids : []);
+          setSelectedCoupons(normalizeSelectedCoupons(data.coupons, data.coupon_ids));
         }
       } catch {
         /* 静默 */
@@ -221,7 +254,7 @@ export default function SubscriptionsManager() {
     return () => {
       cancelled = true;
     };
-  }, [modalOpen, editing, form.type]);
+  }, [modalOpen, editing]);
 
   const couponById = useMemo(() => {
     const m = new Map<string, AdminCouponOption>();
@@ -234,20 +267,33 @@ export default function SubscriptionsManager() {
     const q = couponQuery.trim().toLowerCase();
     return (couponLib ?? []).filter(
       (c) =>
-        !selectedCouponIds.includes(c.id) &&
+        !selectedCoupons.some((s) => s.id === c.id) &&
         (q === '' || c.name.toLowerCase().includes(q)),
     );
-  }, [couponLib, selectedCouponIds, couponQuery]);
+  }, [couponLib, selectedCoupons, couponQuery]);
 
   const addCoupon = (id: string) =>
-    setSelectedCouponIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setSelectedCoupons((prev) =>
+      prev.some((s) => s.id === id) ? prev : [...prev, { id, quantity: 1 }],
+    );
 
   const removeCoupon = (id: string) =>
-    setSelectedCouponIds((prev) => prev.filter((x) => x !== id));
+    setSelectedCoupons((prev) => prev.filter((s) => s.id !== id));
+
+  /** 改某张券的发放数量；空输入 / 非法输入保持原值（受控输入会回弹） */
+  const setCouponQuantity = (id: string, raw: string) =>
+    setSelectedCoupons((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        const n = Math.floor(Number(raw));
+        if (!Number.isFinite(n) || n < 1) return s;
+        return { ...s, quantity: Math.min(n, MAX_COUPON_QUANTITY) };
+      }),
+    );
 
   /** 上移/下移一位：**顺序决定发放顺序与用户看到的顺序** */
   const moveCoupon = (index: number, delta: number) =>
-    setSelectedCouponIds((prev) => {
+    setSelectedCoupons((prev) => {
       const next = [...prev];
       const to = index + delta;
       if (to < 0 || to >= next.length) return prev;
@@ -258,14 +304,20 @@ export default function SubscriptionsManager() {
   // —— 预览（P7）：复用前台的组件，保证"预览 = 实际渲染" --------------
   /** 权益清单的已填条目（预览与提交都用它，空行自动剔除） */
   const benefitList = form.benefits.map((b) => b.trim()).filter(Boolean);
+  // 不发卡 = 不给 VIP 折扣：折扣四项在不发卡时既不显示、不校验，也不提交
+  const hasCard = form.card_style !== '';
   const previewPercent =
-    form.discount_percent.trim() === '' ? null : Number(form.discount_percent);
+    !hasCard || form.discount_percent.trim() === ''
+      ? null
+      : Number(form.discount_percent);
   const previewSub = {
     card_style: form.card_style || null,
     discount_percent:
       previewPercent !== null && Number.isFinite(previewPercent) ? previewPercent : null,
-    discount_scope: form.discount_scope,
+    discount_scope: hasCard ? form.discount_scope : [],
   };
+  /** 挂券总张数（预览与提示文案共用） */
+  const couponTotal = selectedCoupons.reduce((sum, s) => sum + s.quantity, 0);
 
   // —— 权益清单（迁移 036）：可增删的条目列表 ——
   const addBenefit = () =>
@@ -283,7 +335,7 @@ export default function SubscriptionsManager() {
     setForm(EMPTY_FORM);
     setFormError(null);
     // 券关联是订阅级的，新建时还没有 id —— 清空，保存后再回来加
-    setSelectedCouponIds([]);
+    setSelectedCoupons([]);
     setCouponQuery('');
     setModalOpen(true);
   };
@@ -319,7 +371,7 @@ export default function SubscriptionsManager() {
     });
     setFormError(null);
     // 券关联由上面那个 effect 按订阅 id 拉回来填；先清空，避免串到上一条订阅
-    setSelectedCouponIds([]);
+    setSelectedCoupons([]);
     setCouponQuery('');
     setModalOpen(true);
   };
@@ -347,7 +399,8 @@ export default function SubscriptionsManager() {
 
     // 会员卡与折扣（迁移 023）。服务端还会再校验一遍（lib/vip-benefits.ts 的 parse*），
     // 这里先做即时反馈，避免白跑一次请求。
-    const percentRaw = form.discount_percent.trim();
+    // 不发卡时折扣整组不参与校验（提交时一律写 null，见下面的 payload）
+    const percentRaw = hasCard ? form.discount_percent.trim() : '';
     let percentValue: number | null = null;
     if (percentRaw !== '') {
       const n = Number(percentRaw);
@@ -360,6 +413,7 @@ export default function SubscriptionsManager() {
       return setFormError('填了折扣就要选至少一个适用范围');
     }
     if (
+      hasCard &&
       form.discount_valid_from &&
       form.discount_valid_to &&
       form.discount_valid_to <= form.discount_valid_from
@@ -387,23 +441,29 @@ export default function SubscriptionsManager() {
             sort_order: sortOrder,
             // 空串一律转 null，服务端按「未提供 = 不动，null = 清空」处理
             card_style: form.card_style || null,
-            card_text: form.card_text.trim() || null,
+            card_text: hasCard ? form.card_text.trim() || null : null,
             discount_percent: percentValue,
-            discount_scope: form.discount_scope,
+            discount_scope: hasCard ? form.discount_scope : [],
             // 提交带时区的 ISO（空 = 不限制）：服务端就不必猜时区，
             // 也不会再出现"北京时间 10:00 被存成 18:00、折扣晚 8 小时生效"
-            discount_valid_from: localInputToIso(form.discount_valid_from),
-            discount_valid_to: localInputToIso(form.discount_valid_to),
+            discount_valid_from: hasCard ? localInputToIso(form.discount_valid_from) : null,
+            discount_valid_to: hasCard ? localInputToIso(form.discount_valid_to) : null,
             // 高级设置（迁移 036）：纯展示字段；空串一律转 null，欠好过留空字符串
             badge_text: form.badge_text.trim() || null,
             benefits: form.benefits.map((b) => b.trim()).filter(Boolean),
             terms_text: form.terms_text.trim() || null,
             is_featured: form.is_featured,
-            // 卡券订阅的券关联（迁移 033）：**整体替换**，数组顺序即发放顺序。
+            // 订阅挂券（迁移 033 / 044）：**整体替换**，数组顺序即发放顺序，
+            // quantity = 这张券发几张。三种订阅类型都允许挂券。
             // 只在编辑时提交 —— 新建还没有订阅 id，PUT 才认这个字段
             //（新建流程：先保存，再回来「加入券」）。
-            ...(editing && form.type === SUBSCRIPTION_TYPE.COUPON
-              ? { coupon_ids: selectedCouponIds }
+            ...(editing
+              ? {
+                  coupons: selectedCoupons.map((s) => ({
+                    coupon_id: s.id,
+                    quantity: s.quantity,
+                  })),
+                }
               : {}),
           }),
         },
@@ -592,10 +652,10 @@ export default function SubscriptionsManager() {
             label="订阅类型"
             hint={
               form.type === SUBSCRIPTION_TYPE.COUPON
-                ? '卡券订阅：买的是「卡 + 券」，交付到用户的「我的券」（不会出现在「我的订阅」）'
+                ? '卡券订阅：买的是「卡 + 券」，券交付到「我的券」（订阅本身不出现在「我的订阅」）'
                 : form.type === SUBSCRIPTION_TYPE.DAILY_PLAN
-                  ? '高级订阅：用户购买后解锁每日/定期内容，全局最多一条'
-                  : '普通订阅：用户购买后内容进「我的订阅」'
+                  ? '高级订阅：用户购买后解锁每日/定期内容，全局最多一条；也可以在下面挂券'
+                  : '普通订阅：用户购买后内容进「我的订阅」；也可以在下面挂券'
             }
           >
             <select
@@ -794,7 +854,7 @@ export default function SubscriptionsManager() {
 
             <Field
               label="会员卡样式"
-              hint="持有本订阅的用户会在「我的库」看到这张卡；留空表示不发卡"
+              hint="持有本订阅的用户会在「我的库」看到这张卡；选「不发卡」则这条订阅不带会员卡，也不给 VIP 折扣（已配的折扣会被清掉）"
             >
               <select
                 className={selectCls}
@@ -803,6 +863,17 @@ export default function SubscriptionsManager() {
                   setForm((f) => ({
                     ...f,
                     card_style: e.target.value as '' | CardStyle,
+                    // 切到「不发卡」时把卡面文案与折扣四项一起清掉：
+                    // 不留看不见的配置，保存时这几项一律写 null
+                    ...(e.target.value === ''
+                      ? {
+                          card_text: '',
+                          discount_percent: '',
+                          discount_scope: [] as DiscountScope[],
+                          discount_valid_from: '',
+                          discount_valid_to: '',
+                        }
+                      : {}),
                   }))
                 }
               >
@@ -832,207 +903,228 @@ export default function SubscriptionsManager() {
               </Field>
             )}
 
-            <Field
-              label="享受折扣"
-              hint="填减掉的百分比：填 20 即打 8 折。留空表示无折扣。与优惠券不叠加，结算时自动取更划算的那个"
-            >
-              <input
-                className={inputCls}
-                value={form.discount_percent}
-                type="number"
-                step="0.1"
-                min="0"
-                max="99.9"
-                inputMode="decimal"
-                placeholder="留空即无折扣"
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, discount_percent: e.target.value }))
-                }
-              />
-            </Field>
+            {hasCard ? (
+              <>
+                <Field
+                  label="享受折扣"
+                  hint="填减掉的百分比：填 20 即打 8 折。留空表示无折扣。与优惠券不叠加，结算时自动取更划算的那个"
+                >
+                  <input
+                    className={inputCls}
+                    value={form.discount_percent}
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="99.9"
+                    inputMode="decimal"
+                    placeholder="留空即无折扣"
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, discount_percent: e.target.value }))
+                    }
+                  />
+                </Field>
 
-            {form.discount_percent.trim() !== '' && (
-              <Field label="折扣范围" required hint="至少勾选一项，否则折扣不会生效">
-                <div className="flex flex-wrap gap-4 pt-1">
-                  {(Object.values(DISCOUNT_SCOPE) as DiscountScope[]).map(
-                    (scope) => (
-                      <label
-                        key={scope}
-                        className="flex items-center gap-2 text-[14px] text-[#1D1D1F]"
-                      >
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4"
-                          checked={form.discount_scope.includes(scope)}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              discount_scope: e.target.checked
-                                ? [...f.discount_scope, scope]
-                                : f.discount_scope.filter((s) => s !== scope),
-                            }))
-                          }
-                        />
-                        {DISCOUNT_SCOPE_LABEL[scope]}
-                      </label>
-                    ),
-                  )}
-                </div>
-              </Field>
-            )}
+                {form.discount_percent.trim() !== '' && (
+                  <Field label="折扣范围" required hint="至少勾选一项，否则折扣不会生效">
+                    <div className="flex flex-wrap gap-4 pt-1">
+                      {(Object.values(DISCOUNT_SCOPE) as DiscountScope[]).map((scope) => (
+                        <label
+                          key={scope}
+                          className="flex items-center gap-2 text-[14px] text-[#1D1D1F]"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={form.discount_scope.includes(scope)}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                discount_scope: e.target.checked
+                                  ? [...f.discount_scope, scope]
+                                  : f.discount_scope.filter((s) => s !== scope),
+                              }))
+                            }
+                          />
+                          {DISCOUNT_SCOPE_LABEL[scope]}
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                )}
 
-            <div className="flex flex-wrap gap-4">
-              <Field label="优惠开始时间" hint="留空即不限">
-                <input
-                  className={inputCls}
-                  type="datetime-local"
-                  value={form.discount_valid_from}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      discount_valid_from: e.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="优惠结束时间" hint="留空即不限">
-                <input
-                  className={inputCls}
-                  type="datetime-local"
-                  value={form.discount_valid_to}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      discount_valid_to: e.target.value,
-                    }))
-                  }
-                />
-              </Field>
-            </div>
-          </fieldset>
-
-          {/* 「加入券」（卡券订阅专属，迁移 033）。
-              券关联是**订阅级**的，需要订阅已有 id —— 所以新建时只给提示，
-              保存后再打开编辑即可加入。 */}
-          {form.type === SUBSCRIPTION_TYPE.COUPON && (
-            <Field
-              label="加入券"
-              hint={
-                editing
-                  ? '用户购买这条订阅、你确认收款后，会一次性获得这里列出的全部券（在「我的券」里查看）。⚠️ 想只给订阅用户？去券编辑器把那张券的「所属活动」留空即可 —— 否则它同时还能被任何人在活动页免费领。'
-                  : '券关联要挂在已存在的订阅上：先保存这条订阅，再打开编辑即可加入券'
-              }
-            >
-              {!editing ? (
-                <p className="rounded-[8px] border border-dashed border-[#E5E5EA] px-3 py-2 text-[13px] text-[#86868B]">
-                  保存后回来编辑，即可在这里加入券。
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {/* 已加入：可排序、可移除。顺序即发放顺序 */}
-                  <div>
-                    <p className="mb-1.5 text-[12px] text-[#86868B]">
-                      已加入 {selectedCouponIds.length} 张（顺序即发放顺序）
-                    </p>
-                    {selectedCouponIds.length === 0 ? (
-                      <p className="rounded-[8px] border border-dashed border-[#E5E5EA] px-3 py-2 text-[13px] text-[#86868B]">
-                        还没有加入任何券 —— 用户购买后将获得这里列出的全部券。
-                      </p>
-                    ) : (
-                      <ul className="space-y-1.5">
-                        {selectedCouponIds.map((id, idx) => {
-                          const c = couponById.get(id);
-                          return (
-                            <li
-                              key={id}
-                              className="flex items-center gap-1.5 rounded-[8px] border border-[#E5E5EA] px-2.5 py-1.5"
-                            >
-                              <span className="min-w-0 flex-1 truncate text-[13px]">
-                                {c ? c.name : '（这张券已被删除）'}
-                                {c && (
-                                  <span className="ml-1.5 text-[#86868B]">
-                                    {couponValueText(c)} · {couponThresholdText(c)}
-                                  </span>
-                                )}
-                              </span>
-                              <button
-                                type="button"
-                                className={`${btnGhost} px-2`}
-                                onClick={() => moveCoupon(idx, -1)}
-                                disabled={idx === 0 || saving}
-                                aria-label="上移"
-                              >
-                                ↑
-                              </button>
-                              <button
-                                type="button"
-                                className={`${btnGhost} px-2`}
-                                onClick={() => moveCoupon(idx, 1)}
-                                disabled={idx === selectedCouponIds.length - 1 || saving}
-                                aria-label="下移"
-                              >
-                                ↓
-                              </button>
-                              <button
-                                type="button"
-                                className={`${btnGhost} px-2 text-[#D70015]`}
-                                onClick={() => removeCoupon(id)}
-                                disabled={saving}
-                                aria-label="移除"
-                              >
-                                ✕
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-
-                  {/* 券库：搜索 + 点一下加入 */}
-                  <div>
+                <div className="flex flex-wrap gap-4">
+                  <Field label="优惠开始时间" hint="留空即不限">
                     <input
                       className={inputCls}
-                      value={couponQuery}
-                      onChange={(e) => setCouponQuery(e.target.value)}
-                      placeholder="搜索券名，点一下加入"
-                      disabled={saving}
+                      type="datetime-local"
+                      value={form.discount_valid_from}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          discount_valid_from: e.target.value,
+                        }))
+                      }
                     />
-                    {couponLib === null ? (
-                      <p className="mt-1.5 text-[13px] text-[#86868B]">正在加载券库…</p>
-                    ) : couponCandidates.length === 0 ? (
-                      <p className="mt-1.5 text-[13px] text-[#86868B]">
-                        {couponQuery.trim()
-                          ? '没有匹配的券'
-                          : '没有可加入的券了（都在上面的列表里）'}
-                      </p>
-                    ) : (
-                      <ul className="mt-1.5 max-h-56 space-y-1 overflow-auto">
-                        {couponCandidates.map((c) => (
-                          <li key={c.id}>
+                  </Field>
+                  <Field label="优惠结束时间" hint="留空即不限">
+                    <input
+                      className={inputCls}
+                      type="datetime-local"
+                      value={form.discount_valid_to}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          discount_valid_to: e.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
+              </>
+            ) : (
+              <p className="rounded-[8px] border border-dashed border-[#E5E5EA] px-3 py-2 text-[13px] text-[#86868B]">
+                不发卡：这条订阅不带会员卡，也不给 VIP 折扣 —— 折扣整组已隐藏，保存时会一并清空。
+                想要会员折扣就先在上面选一个卡样式。
+              </p>
+            )}
+          </fieldset>
+
+          {/* 「加入券」（迁移 033 / 044）：三种订阅类型都能挂券。
+              券关联是**订阅级**的，需要订阅已有 id —— 所以新建时只给提示，
+              保存后再打开编辑即可加入。 */}
+          <Field
+            label="加入券"
+            hint={
+              editing
+                ? '用户购买这条订阅、你确认收款后，会按下面的数量一次性拿到全部券（在「我的券」里查看）。数量超过券本身的「每人限领」时，超出部分不会发出。⚠️ 想只给订阅用户？去券编辑器把那张券的「所属活动」留空即可 —— 否则它同时还能被任何人在活动页免费领。'
+                : '券关联要挂在已存在的订阅上：先保存这条订阅，再打开编辑即可加入券'
+            }
+          >
+            {!editing ? (
+              <p className="rounded-[8px] border border-dashed border-[#E5E5EA] px-3 py-2 text-[13px] text-[#86868B]">
+                保存后回来编辑，即可在这里加入券。
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {/* 已加入：可排序、可改数量、可移除。顺序即发放顺序 */}
+                <div>
+                  <p className="mb-1.5 text-[12px] text-[#86868B]">
+                    已加入 {selectedCoupons.length} 种 / 共 {couponTotal} 张（顺序即发放顺序）
+                  </p>
+                  {selectedCoupons.length === 0 ? (
+                    <p className="rounded-[8px] border border-dashed border-[#E5E5EA] px-3 py-2 text-[13px] text-[#86868B]">
+                      还没有加入任何券 —— 用户购买后将拿到这里列出的全部券。
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {selectedCoupons.map((selected, idx) => {
+                        const c = couponById.get(selected.id);
+                        return (
+                          <li
+                            key={selected.id}
+                            className="flex flex-wrap items-center gap-1.5 rounded-[8px] border border-[#E5E5EA] px-2.5 py-1.5"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-[13px]">
+                              {c ? c.name : '（这张券已被删除）'}
+                              {c && (
+                                <span className="ml-1.5 text-[#86868B]">
+                                  {couponValueText(c)} · {couponThresholdText(c)}
+                                </span>
+                              )}
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 text-[12px] text-[#86868B]">
+                              数量
+                              <input
+                                className={`${inputCls} h-7 w-16 px-1 py-0 text-center text-[13px]`}
+                                type="number"
+                                min={1}
+                                max={MAX_COUPON_QUANTITY}
+                                step={1}
+                                inputMode="numeric"
+                                value={selected.quantity}
+                                disabled={saving}
+                                aria-label={`${c?.name ?? '这张券'} 发放数量`}
+                                onChange={(e) => setCouponQuantity(selected.id, e.target.value)}
+                              />
+                              张
+                            </span>
                             <button
                               type="button"
-                              className="w-full rounded-[8px] border border-[#E5E5EA] px-2.5 py-1.5 text-left text-[13px] transition-colors hover:border-[#0071E3] disabled:opacity-50"
-                              onClick={() => addCoupon(c.id)}
-                              disabled={saving}
+                              className={`${btnGhost} px-2`}
+                              onClick={() => moveCoupon(idx, -1)}
+                              disabled={idx === 0 || saving}
+                              aria-label="上移"
                             >
-                              <span className="font-medium">{c.name}</span>
-                              <span className="ml-1.5 text-[#86868B]">
-                                {couponValueText(c)} · {couponThresholdText(c)}
-                              </span>
-                              {!c.enabled && (
-                                <span className="ml-1.5 text-[#D70015]">已停用</span>
-                              )}
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              className={`${btnGhost} px-2`}
+                              onClick={() => moveCoupon(idx, 1)}
+                              disabled={idx === selectedCoupons.length - 1 || saving}
+                              aria-label="下移"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              className={`${btnGhost} px-2 text-[#D70015]`}
+                              onClick={() => removeCoupon(selected.id)}
+                              disabled={saving}
+                              aria-label="移除"
+                            >
+                              ✕
                             </button>
                           </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
-              )}
-            </Field>
-          )}
+
+                {/* 券库：搜索 + 点一下加入（默认 1 张，加进来再改数量） */}
+                <div>
+                  <input
+                    className={inputCls}
+                    value={couponQuery}
+                    onChange={(e) => setCouponQuery(e.target.value)}
+                    placeholder="搜索券名，点一下加入"
+                    disabled={saving}
+                  />
+                  {couponLib === null ? (
+                    <p className="mt-1.5 text-[13px] text-[#86868B]">正在加载券库…</p>
+                  ) : couponCandidates.length === 0 ? (
+                    <p className="mt-1.5 text-[13px] text-[#86868B]">
+                      {couponQuery.trim()
+                        ? '没有匹配的券'
+                        : '没有可加入的券了（都在上面的列表里）'}
+                    </p>
+                  ) : (
+                    <ul className="mt-1.5 max-h-56 space-y-1 overflow-auto">
+                      {couponCandidates.map((c) => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            className="w-full rounded-[8px] border border-[#E5E5EA] px-2.5 py-1.5 text-left text-[13px] transition-colors hover:border-[#0071E3] disabled:opacity-50"
+                            onClick={() => addCoupon(c.id)}
+                            disabled={saving}
+                          >
+                            <span className="font-medium">{c.name}</span>
+                            <span className="ml-1.5 text-[#86868B]">
+                              {couponValueText(c)} · {couponThresholdText(c)}
+                            </span>
+                            {!c.enabled && (
+                              <span className="ml-1.5 text-[#D70015]">已停用</span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </Field>
 
           {/* ---------- 预览（P7） ----------
               复用前台的 Badge / VipBenefitBadges / MemberCard 组件，所以"预览即实际渲染"。
@@ -1092,11 +1184,11 @@ export default function SubscriptionsManager() {
                 </div>
               )}
 
-              {form.type === SUBSCRIPTION_TYPE.COUPON && (
+              {selectedCoupons.length > 0 && (
                 <p className="mt-3 text-[12px] text-[#86868B]">
-                  购买并确认收款后，用户拿到 {selectedCouponIds.length} 张券
+                  购买并确认收款后，用户拿到 {couponTotal} 张券
                   {form.card_style ? ' + 1 张会员卡' : ''}
-                  （都进「我的券」，不出现在「我的订阅」）
+                  （券都进「我的券」）
                 </p>
               )}
             </div>

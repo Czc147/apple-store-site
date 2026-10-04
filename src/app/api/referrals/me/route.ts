@@ -15,6 +15,8 @@ interface ReferralOverview {
     require_first_order?: boolean;
     min_order_amount?: number;
     manual_review?: boolean;
+    /** 后台自定义的「当前奖励」文案（迁移 044），原样透传给前台 */
+    reward_text?: string | null;
   };
   recent?: Array<{ id: string; rejection_reason?: string | null }>;
 }

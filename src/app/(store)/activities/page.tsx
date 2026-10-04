@@ -15,7 +15,8 @@ export const dynamic = 'force-dynamic';
 export default function ActivitiesPage() {
   return (
     <>
-      <PageHeader title="活动" subtitle="限时活动与精彩企划，轻点卡片了解更多" />
+      {/* 标题下的小字副标题按需求去掉（2026-10-04） */}
+      <PageHeader title="活动" />
 
       <Suspense fallback={<ActivitiesSkeleton />}>
         <ActivitiesServer />

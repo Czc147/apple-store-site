@@ -148,6 +148,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
         (order as Order).user_id,
         userEmail,
         durationBySub,
+        orderId,
       );
     }
 
@@ -230,6 +231,7 @@ async function grantSubscriptionEntitlement(
   userId: string,
   userEmail: string | null,
   durationBySub: Map<string, number | null>,
+  orderId: string,
 ) {
   const duration = durationBySub.get(item.ref_id) ?? null;
   for (const key of delivered) {
@@ -244,14 +246,20 @@ async function grantSubscriptionEntitlement(
     if (error) throw new Error(`写入订阅权益失败：${error.message}`);
   }
 
-  // 卡券订阅（迁移 033）：把这条订阅关联的券发到用户的「我的券」。
+  // 订阅挂券（迁移 033 / 044）：把这条订阅关联的券按配置数量发到用户的「我的券」。
+  // 三种订阅类型都适用（普通 / 高级 / 卡券），后台在订阅编辑器里挂券即可。
   // 只在权益写成功之后发；**发券失败不抛出** —— 确认收款不能被发券问题拖失败
-  // （发券是幂等的，后台重试一次这笔订单也不会重复发）。
+  // （发券按「订单 + 第几张」幂等，后台重试同一笔订单不会重复发）。
   try {
-    const { granted, skipped } = await grantSubscriptionCoupons(db, item.ref_id, userId);
+    const { granted, skipped } = await grantSubscriptionCoupons(
+      db,
+      item.ref_id,
+      userId,
+      orderId,
+    );
     if (granted > 0 || skipped > 0) {
       console.log(
-        `[confirm] 卡券订阅发券：订阅 ${item.ref_id} 成功 ${granted} 张、跳过 ${skipped} 张`,
+        `[confirm] 订阅发券：订阅 ${item.ref_id} 成功 ${granted} 张、跳过 ${skipped} 张`,
       );
     }
   } catch (e) {

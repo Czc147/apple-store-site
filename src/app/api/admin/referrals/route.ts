@@ -14,6 +14,8 @@ interface ReferralSettings {
   id: 1;
   enabled: boolean;
   reward_coupon_id: string | null;
+  /** 前台「当前奖励」展示的自定义文案（迁移 044）；null = 前台按奖励券自动拼一句 */
+  reward_text: string | null;
   reward_delay_hours: number;
   require_email_verified: boolean;
   require_first_order: boolean;
@@ -50,6 +52,13 @@ function intOf(value: unknown, min: number, max: number, fallback: number): numb
 function amountOf(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100000 ? parsed : fallback;
+}
+
+/** 文案类字段：trim 后截断；空串一律落 null（前台据此回退到自动文案） */
+function textOf(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
 }
 
 function friendlyInviteError(message: string): string {
@@ -149,6 +158,7 @@ export async function PATCH(req: NextRequest) {
     .update({
       enabled: boolOf(body.enabled, true),
       reward_coupon_id: rewardCouponId,
+      reward_text: textOf(body.reward_text, 120),
       reward_delay_hours: intOf(body.reward_delay_hours, 0, 720, 72),
       require_email_verified: false,
       require_first_order: boolOf(body.require_first_order, false),

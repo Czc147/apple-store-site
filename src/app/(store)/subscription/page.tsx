@@ -15,7 +15,8 @@ export const dynamic = 'force-dynamic';
 export default function SubscriptionPage() {
   return (
     <>
-      <PageHeader title="订阅" subtitle="灵活套餐随心选，轻点「立即订阅」即可开通" />
+      {/* 标题下的小字副标题按需求去掉（2026-10-04） */}
+      <PageHeader title="订阅" />
 
       <Suspense fallback={<SubscriptionsSkeleton />}>
         <SubscriptionsServer />

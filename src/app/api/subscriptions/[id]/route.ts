@@ -27,17 +27,69 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   if (error) return fail(error.message, 500);
   if (!data) return fail('订阅不存在', 404);
 
-  // 卡券订阅的券关联（迁移 033）：后台编辑器用它回填「已加入的券」，按配置顺序返回
+  // 订阅挂券（迁移 033 / 044）：回填「已加入的券」与每张的数量，按配置顺序返回
   const { data: links } = await db
     .from('subscription_coupons')
-    .select('coupon_id, sort_order')
+    .select('coupon_id, sort_order, quantity')
     .eq('subscription_id', params.id)
     .order('sort_order', { ascending: true });
 
+  const couponLinks = (links ?? []).map((l) => {
+    const row = l as { coupon_id: string; quantity?: number | string | null };
+    const qty = Math.floor(Number(row.quantity));
+    return {
+      coupon_id: row.coupon_id,
+      quantity: Number.isFinite(qty) && qty > 0 ? Math.min(qty, MAX_COUPON_QUANTITY) : 1,
+    };
+  });
+
   return ok({
     ...data,
-    coupon_ids: (links ?? []).map((l) => (l as { coupon_id: string }).coupon_id),
+    coupons: couponLinks,
+    // 兼容只读 id 的旧调用方
+    coupon_ids: couponLinks.map((c) => c.coupon_id),
   });
+}
+
+/** 单次购买每张券最多发几张（与迁移 044 的 check 约束一致） */
+const MAX_COUPON_QUANTITY = 999;
+
+/**
+ * 归一化后台提交的券关联。
+ * 新格式 `coupons: [{ coupon_id, quantity }]`；旧格式 `coupon_ids: string[]` 按每张 1 张处理。
+ * 两个字段都没给 → null（表示这次不动券关联）；给了空数组 → 清空。
+ * 同一张券重复出现只保留第一条（主键是 subscription_id + coupon_id）。
+ */
+function normalizeCouponLinks(
+  coupons: unknown,
+  couponIds: unknown,
+): Array<{ coupon_id: string; quantity: number }> | null {
+  const raw: Array<{ id: unknown; qty: unknown }> = [];
+  if (Array.isArray(coupons)) {
+    for (const item of coupons) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      raw.push({ id: row.coupon_id ?? row.id, qty: row.quantity });
+    }
+  } else if (Array.isArray(couponIds)) {
+    for (const id of couponIds) raw.push({ id, qty: 1 });
+  } else {
+    return null;
+  }
+
+  const seen = new Set<string>();
+  const out: Array<{ coupon_id: string; quantity: number }> = [];
+  for (const { id, qty } of raw) {
+    if (typeof id !== 'string' || id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+    const parsed = Math.floor(Number(qty));
+    out.push({
+      coupon_id: id,
+      quantity:
+        Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, MAX_COUPON_QUANTITY) : 1,
+    });
+  }
+  return out;
 }
 
 /** PUT /api/subscriptions/:id — 局部更新（需登录） */
@@ -119,27 +171,27 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   }
   if (!data) return fail('订阅不存在', 404);
 
-  // 卡券订阅的券关联（迁移 033）：给了 coupon_ids 就**整体替换**，顺序即数组顺序。
+  // 订阅挂券（迁移 033 / 044）：给了 coupons（或旧字段 coupon_ids）就**整体替换**，
+  // 数组顺序即发放顺序，quantity = 这张券发几张。三种订阅类型都允许挂券。
   // 放在行更新之后：这样行本身的错误（409 每日计划重复 / 404）不会先动到关联。
   // ⚠️ 先删后插，Supabase JS 没有多语句事务 —— 中途失败最多是"券没了"，
   //    后台再存一次即可恢复，不会留下删一半的脏数据。
-  if (Array.isArray(body.coupon_ids)) {
-    const ids = body.coupon_ids.filter(
-      (x): x is string => typeof x === 'string' && x.length > 0,
-    );
+  const couponLinks = normalizeCouponLinks(body.coupons, body.coupon_ids);
+  if (couponLinks) {
     const { error: delErr } = await supabaseAdmin()
       .from('subscription_coupons')
       .delete()
       .eq('subscription_id', params.id);
     if (delErr) return fail(delErr.message, 500);
 
-    if (ids.length > 0) {
+    if (couponLinks.length > 0) {
       const { error: insErr } = await supabaseAdmin()
         .from('subscription_coupons')
         .insert(
-          ids.map((coupon_id, i) => ({
+          couponLinks.map((link, i) => ({
             subscription_id: params.id,
-            coupon_id,
+            coupon_id: link.coupon_id,
+            quantity: link.quantity,
             sort_order: i,
           })),
         );

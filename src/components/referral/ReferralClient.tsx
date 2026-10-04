@@ -23,6 +23,8 @@ interface ReferralOverview {
     require_first_order?: boolean;
     min_order_amount?: number;
     manual_review?: boolean;
+    /** 后台自定义的「当前奖励」文案（迁移 044）；空 = 用下面 rewardText 自动拼 */
+    reward_text?: string | null;
   } | null;
   enabled: boolean;
   code: string | null;
@@ -58,10 +60,25 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: '未通过',
 };
 
+/** 数字去掉多余的 0：50 → “50”，12.5 → “12.5” */
+function trimNumber(value: number): string {
+  return String(Math.round(Number(value) * 100) / 100);
+}
+
+/**
+ * 「当前奖励」的兜底文案：后台没填自定义文案时用。
+ * 旧版只显示 `50%`，用户根本看不出是什么的 50%（而且后半句直接断了），
+ * 现在拼成一句完整的话：券名 + 优惠力度 + 门槛。
+ */
 function rewardText(reward: ReferralReward | null): string {
-  if (!reward) return '奖励配置中';
-  const value = reward.type === 'percent' ? `${Number(reward.value)}%` : `¥${Number(reward.value).toFixed(2)}`;
-  const threshold = Number(reward.min_amount) > 0 ? ` · 满 ¥${Number(reward.min_amount).toFixed(2)}` : '';
+  if (!reward) return '奖励正在配置中，稍后再来看看';
+  const name = reward.name?.trim() ? `「${reward.name.trim()}」` : '优惠券';
+  const value =
+    reward.type === 'percent'
+      ? `${name}立减 ${trimNumber(reward.value)}%`
+      : `${name}抵扣 ¥${trimNumber(reward.value)} 元`;
+  const threshold =
+    Number(reward.min_amount) > 0 ? `，满 ¥${trimNumber(reward.min_amount)} 可用` : '，无门槛';
   return `${value}${threshold}`;
 }
 
@@ -246,6 +263,10 @@ export default function ReferralClient() {
     }
   };
 
+  /** 优先用后台配的自定义文案，留空才回退到按奖励券自动拼的句子 */
+  const rewardCopy =
+    overview?.settings?.reward_text?.trim() || rewardText(overview?.reward ?? null);
+
   if (!configured) {
     return (
       <Surface radius="card-lg" className="p-6 text-center">
@@ -296,7 +317,21 @@ export default function ReferralClient() {
               <p className="mt-2 max-w-md text-[13px] leading-relaxed text-apple-text-2">
                 把你的专属链接分享给好友。好友注册并满足条件后，奖励会自动进入「我的券」。
               </p>
-              <p className="mt-2 text-[12.5px] text-apple-text-3">当前奖励：{rewardText(overview?.reward ?? null)}</p>
+              {/* 当前奖励：单独一块显眼卡片。以前是一行 12.5px 小灰字，
+                  文案又只显示「50%」，用户看不出奖励是什么 */}
+              <div className="mt-4 inline-flex max-w-full items-start gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-[0_10px_30px_-20px_rgba(0,0,0,0.45)]">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-apple-blue-soft">
+                  <Gift className="h-[18px] w-[18px] text-apple-blue" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[11.5px] font-medium tracking-wide text-apple-text-2">
+                    当前奖励
+                  </span>
+                  <span className="mt-0.5 block text-[15px] font-semibold leading-snug text-apple-text">
+                    {rewardCopy}
+                  </span>
+                </span>
+              </div>
             </div>
             <div className="grid w-full max-w-md grid-cols-2 gap-3 md:grid-cols-4">
               {[

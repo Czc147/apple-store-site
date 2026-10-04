@@ -28,7 +28,6 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
-  Sun,
   Ticket,
   Trash2,
   Truck,
@@ -54,10 +53,12 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/major-units', label: '大单元', icon: Boxes },
       { href: '/admin/sub-units', label: '小单元', icon: Package },
+      { href: '/admin/activities', label: '活动管理', icon: CalendarDays },
       { href: '/admin/bulk-import', label: '文件夹导入', icon: FolderUp },
       { href: '/admin/home-sections', label: '首页装修', icon: LayoutDashboard },
-      { href: '/admin/daily-picks', label: '每日推荐', icon: Sun },
       { href: '/admin/prelaunch', label: '预上线', icon: CalendarDays },
+      // 「每日推荐」(/admin/daily-picks) 故意不进菜单：2026-10-04 线上 daily_picks 0 行，
+      // 前台也没有入口。页面与接口先留着（等确认整体下线再删），别再把它加回菜单。
     ],
   },
   {

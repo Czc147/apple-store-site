@@ -565,38 +565,52 @@ export function genCouponCode(): string {
   return `CP-${s}`;
 }
 
+/** 单次发券张数上限，与迁移 044 的 `subscription_coupons_quantity_check` 对齐 */
+const MAX_GRANT_QUANTITY = 999;
+
 /**
- * 卡券订阅发券（迁移 033）：把这条订阅关联的券发给这个用户。
+ * 订阅发券（迁移 033 / 044）：把这条订阅关联的券发给这个用户，每张券按配置的数量发。
  * 由订单确认收款时调用，与 `grant_subscription` 并列。
  *
- * **幂等**：同一订阅给同一人、同一张券只发一次 —— 靠
- * `uq_coupon_claims_from_subscription` 那条部分唯一索引兜底（重复插入撞 23505 → 跳过）。
+ * **幂等**（迁移 044 起）：幂等键是「用户 + 券 + 发放订单 + 第几张」——
+ * 同一笔订单重复确认收款不会重发；用户再次购买同一条订阅会再发一轮。
+ * 没有 `source_order_id` 的历史行仍由旧索引 `uq_coupon_claims_from_subscription` 约束。
  *
  * 几个刻意的选择：
  * - **校验 `per_user_limit` / `total_qty` / 可使用范围**：发券与领券共用同一套限额。
- * - **停用 / 已过期**的券不发（发了也用不了）；但"还没到生效时间"的照发
+ *   数量配得比每人限领还多时，超出部分计入 skipped，不拖累其它券。
+ * - **停用 / 已过期**的券不发（发了也用不了）；但“还没到生效时间”的照发
  *   （用户先拿着，到点自然可用）。
- * - **不抛异常**：发券失败绝不能把"确认收款"这件事弄失败。
+ * - **不抛异常**：发券失败绝不能把“确认收款”这件事弄失败。
  */
 export async function grantSubscriptionCoupons(
   db: ReturnType<typeof supabaseAdmin>,
   subscriptionId: string,
   userId: string,
+  orderId?: string | null,
 ): Promise<{ granted: number; skipped: number }> {
   let granted = 0;
   let skipped = 0;
 
   const { data: links, error: linkErr } = await db
     .from('subscription_coupons')
-    .select('coupon_id')
+    .select('coupon_id, quantity')
     .eq('subscription_id', subscriptionId)
     .order('sort_order', { ascending: true });
   if (linkErr) {
     console.warn('[grant-coupons] 读券关联失败：', linkErr.message);
     return { granted, skipped };
   }
-  const couponIds = (links ?? []).map((l) => (l as { coupon_id: string }).coupon_id);
-  if (couponIds.length === 0) return { granted, skipped };
+  const requested = (links ?? []).map((link) => {
+    const row = link as { coupon_id: string; quantity?: number | string | null };
+    const qty = Math.floor(Number(row.quantity));
+    return {
+      couponId: row.coupon_id,
+      quantity: Number.isFinite(qty) && qty > 0 ? Math.min(qty, MAX_GRANT_QUANTITY) : 1,
+    };
+  });
+  if (requested.length === 0) return { granted, skipped };
+  const couponIds = requested.map((item) => item.couponId);
 
   const { data: coupons, error: couponErr } = await db
     .from('coupons')
@@ -621,14 +635,14 @@ export async function grantSubscriptionCoupons(
     ]),
   );
 
-  for (const couponId of couponIds) {
+  for (const { couponId, quantity } of requested) {
     const coupon = byId.get(couponId);
     if (!coupon) {
       console.warn('[grant-coupons] 券不存在，跳过：', couponId);
-      skipped++;
+      skipped += quantity;
       continue;
     }
-    // 还没发出去（claimedAt = null）：配了"发券后 N 天"的券此时不以模板固定窗判定
+    // 还没发出去（claimedAt = null）：配了“发券后 N 天”的券此时不以模板固定窗判定
     // —— 那 N 天是从发放时刻起算的，模板的 valid_to 对它不适用
     const state = couponStateOf(coupon, 0, Date.now(), claimWindowOf(coupon, null));
     if (state === 'disabled' || state === 'expired') {
@@ -636,44 +650,68 @@ export async function grantSubscriptionCoupons(
         `[grant-coupons] 券「${coupon.name}」当前不可用（${state}），未发放：`,
         couponId,
       );
-      skipped++;
+      skipped += quantity;
       continue;
     }
 
-    let done = false;
-    for (let attempt = 0; attempt < MAX_CODE_TRIES && !done; attempt++) {
-      const { error } = await db.rpc('grant_subscription_coupon', {
-        p_subscription_id: subscriptionId,
-        p_coupon_id: couponId,
-        p_user_id: userId,
-        p_code: genCouponCode(),
-      });
-      if (!error) {
+    // 逐张发：某一张发不出去（已发过 / 限领 / 售罄），剩下的同理，一次性计入 skipped
+    for (let seq = 1; seq <= quantity; seq++) {
+      const outcome = await grantOneCoupon(
+        db,
+        subscriptionId,
+        couponId,
+        userId,
+        orderId ?? null,
+        seq,
+      );
+      if (outcome === 'granted') {
         granted++;
-        done = true;
-        break;
+        continue;
       }
-      const errCode = (error as { code?: string }).code;
-      const msg = error.message ?? '';
-      if (errCode === '23505') {
-        if (msg.includes('code')) continue;
-        if (msg.includes('uq_coupon_claims_from_subscription')) {
-          skipped++;
-          done = true;
-          break;
-        }
-        skipped++;
-        done = true;
-        break;
+      if (outcome === 'duplicate') {
+        console.log(
+          `[grant-coupons] 券「${coupon.name}」第 ${seq} 张这笔订单已发过，剩余 ${quantity - seq + 1} 张跳过`,
+        );
       }
-      console.warn('[grant-coupons] 发券失败：', msg);
-      skipped++;
-      done = true;
+      skipped += quantity - seq + 1;
       break;
     }
   }
 
   return { granted, skipped };
+}
+
+/**
+ * 发一张券。券码撞车（`coupon_claims_code_key`）换码重试；
+ * 撞到发券幂等索引 = 这笔订单已经发过；其它错误按失败处理，只记日志不抛。
+ */
+async function grantOneCoupon(
+  db: ReturnType<typeof supabaseAdmin>,
+  subscriptionId: string,
+  couponId: string,
+  userId: string,
+  orderId: string | null,
+  seq: number,
+): Promise<'granted' | 'duplicate' | 'failed'> {
+  for (let attempt = 0; attempt < MAX_CODE_TRIES; attempt++) {
+    const { error } = await db.rpc('grant_subscription_coupon', {
+      p_subscription_id: subscriptionId,
+      p_coupon_id: couponId,
+      p_user_id: userId,
+      p_code: genCouponCode(),
+      p_order_id: orderId,
+      p_seq: seq,
+    });
+    if (!error) return 'granted';
+    const errCode = (error as { code?: string }).code;
+    const msg = error.message ?? '';
+    if (errCode === '23505' && msg.includes('code')) continue;
+    if (errCode === '23505') return 'duplicate';
+    console.warn('[grant-coupons] 发券失败：', msg);
+    return 'failed';
+  }
+  console.warn('[grant-coupons] 券码连续冲突，放弃这一张');
+  return 'failed';
 }
 
 /** 订单取消：释放占用的券（回到可用状态） */

@@ -15,10 +15,8 @@ export const metadata = {
 export default function WishlistPage() {
   return (
     <>
-      <PageHeader
-        title="愿望单"
-        subtitle="收藏的商品都在这里，确认清单后推送订单即可完成支付"
-      />
+      {/* 标题下的小字副标题按需求去掉（2026-10-04）：PageHeader 仍支持 subtitle，别的页面照用 */}
+      <PageHeader title="愿望单" />
       <WishlistPageClient />
     </>
   );

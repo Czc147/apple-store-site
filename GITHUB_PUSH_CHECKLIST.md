@@ -1,16 +1,16 @@
 # GitHub 推送与下月部署清单
 
-> 记录时间：2026-10-01
-> 当前状态：本轮代码已完成并通过 `npm run build`；043 迁移已于 2026-10-01 执行并验证；Netlify 积分已用完，暂不部署。
+> 记录时间：2026-10-04（第二轮 · Netlify 积分已恢复）
+> 当前状态：本轮代码已完成，`npx tsc --noEmit` 与 `npm run build` 全绿；037–044 迁移均已在生产库执行并验证；已提交并推送，Netlify 从 `main` 自动构建上线。
 
 ## 当前 Git 状态
 
 - 分支：`fix/coupon-vip`
 - 远端：`git@github.com:Czc147/apple-store-site.git`
 - 远端名：`origin`
-- 当前 HEAD：`7834348 feat(admin): P7 订阅编辑器预览区 —— 预览即实际渲染`
-- 本地有未提交修改：优惠券/订单/拼单修复、Supabase Auth 站内代理、账号中枢、数据中心、预上线与推广计划
-- `TODO.md` 按原说明保持未跟踪，不要混入功能提交
+- 当前 HEAD：`git log --oneline -1` 查看（第一轮为 `93554ff fix(coupon): add scopes, abuse guards, and atomic orders`，第二轮见下方 2026-10-04 第二轮记录）
+- `main` 与 `fix/coupon-vip` 保持同一提交并同步到 origin（Netlify 生产分支是 `main`，push 即上线）
+- 刻意保持未跟踪、不要混入功能提交：`TODO.md`、`avatar-nav-wireframe.html`
 
 ## 本次必须一起提交的内容
 
@@ -162,6 +162,44 @@
     `POST /api/admin/publications/run` 手动执行验证。
 - 提交并推送：`fix/coupon-vip` 推到 origin；`main` 快进到同一提交后推送（Netlify 生产分支是 `main`，push 即上线）。
 - 远端旧分支 `fix-china-auth-proxy`（同源 auth 代理实验）已被本轮站内代理 `/api/supabase/auth/[...path]` 取代，未合入。
+
+### 2026-10-04 第二轮：订阅挂券数量 + 后台菜单修复 + 副标题清理（迁移 044）
+
+- 本轮七项需求（用户逐条拍板）：
+  1. 三种订阅类型（普通/高级/卡券）都可挂券，购买成功后按张数发进「我的券」。
+  2. 发券幂等口径 = **按订单**：同订单重试不重复发，新订单算新一轮。
+  3. 后台「每日推荐」按 A 方案处理：只摘掉菜单入口，页面/API/数据全部保留。
+  4. 推广奖励文案改后台自定义；**留空回退自动拼句**。
+  5. 选购/愿望单/活动/订阅四页标题下的小字副标题去掉；`home_subtitle` 配置项保留但前台不再渲染。
+  6. 「不发卡」= 不给 VIP 折扣，折扣组字段隐藏并清空（方案 A）。
+     ⚠️ 线上「年度订阅」原有 1% 单件折扣，下次在后台保存它时会被清空。
+  7. Bug：高级订阅选「不发卡」时仍强制要求折扣值 → 由方案 A 一并解决。
+- 迁移 **044** 已在生产库执行成功（`scripts/apply-migration.mjs`）：
+  `subscription_coupons.quantity`（check 1–999）、`coupon_claims.source_order_id / grant_seq`、
+  新唯一索引 `uq_coupon_claims_from_subscription_order`、6 参数版 `grant_subscription_coupon`、
+  `referral_settings.reward_text`、`get_referral_overview` 返回该字段。
+- 044 功能验证（全部在事务内执行后 ROLLBACK，零残留）：
+  - quantity=3 → 实发 3 张券行；同订单同 seq 重试被新唯一索引拦下；换订单可再发一轮。
+  - 超 `per_user_limit` → 返回 `COUPON_LIMIT_REACHED`。
+  - 旧口径 `source_order_id IS NULL` 仍被 `uq_coupon_claims_from_subscription` 拦住（兼容不回归）。
+  - `subscription_coupons` 写入 quantity 正确；check 约束拒绝 0 与 1000。
+- 代码验证：`npx tsc --noEmit` 全绿；`npm run build` 通过（50 页 + 全部 API 路由零报错）。
+- 本地实测（dev server）：`/`、`/wishlist`、`/activities`、`/subscription` 四页确认旧副标题字符串已不再渲染；
+  `/referrals` 返回 200；后台各路由未登录 307 跳登录页（鉴权正常）。
+- 提交并推送：`fix/coupon-vip` → origin，`main` 快进到同一提交后推送（Netlify 生产分支 `main`，push 即上线）。
+- `TODO.md`、`avatar-nav-wireframe.html` 按原规则保持未跟踪。
+- ⚠️ 安全提醒：本轮为执行 044 从 PowerShell 历史里提取过 Supabase 连接串，过程中密码被回显过一次，建议轮换数据库密码。
+
+#### 本轮部署后验收
+
+23. 后台订阅管理：三种类型都能挂券，每张券有数量步进器，预览显示「共 M 张」。
+24. 新建一条测试订阅挂券（数量 > 1）→ 下单 → 确认收款 → 「我的券」收到对应张数。
+25. 同一订单重复点确认收款，券不会重复发放。
+26. 高级订阅切「不发卡」：折扣字段消失、不再要求折扣值、可正常保存。
+27. 内容管理菜单里「活动管理」回来了，「每日推荐」入口消失（`/admin/daily-picks` 直链仍可访问，属预期）。
+28. 后台推广管理填写奖励文案 → `/referrals` 奖励卡片显示该文案；清空后回退自动拼句（含券名、面额、门槛）。
+29. 选购/愿望单/活动/订阅四页标题下不再有小字副标题。
+
 
 - 时间：Netlify 积分恢复后的下一个月
 - 顺序：
