@@ -75,7 +75,13 @@ function kindOf(item: ContentItem): Kind {
  * 网格能省掉大量流量，第二次打开也基本是秒开。
  */
 function canOptimize(url: string): boolean {
-  return url.includes('/storage/v1/object/public/');
+  // 公开直链的两种形态都要认：同源代理链 /api/media/object/public/（改写后的常态，
+  // 见 lib/media-url.ts）与绝对 Supabase 链（历史数据兜底）。代理链是同源路径，
+  // next/image 走内部路由取图再优化，不需要 next.config 的 remotePatterns 放行。
+  return (
+    url.includes('/api/media/object/public/') ||
+    url.includes('/storage/v1/object/public/')
+  );
 }
 
 function ContentThumb({ url, alt }: { url: string; alt: string }) {
