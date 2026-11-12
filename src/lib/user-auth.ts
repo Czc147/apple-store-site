@@ -22,6 +22,18 @@ const AUTH_CACHE_TTL_MS = 60_000;
 const AUTH_CACHE_MAX_SIZE = 500;
 const authCache = new Map<string, { user: AuthUser | null; expiresAt: number }>();
 
+/** Identity cache must not cache a login ban away, including recovery sessions. */
+async function allowedUser(user: AuthUser | null): Promise<AuthUser | null> {
+  if (!user) return null;
+  const now = new Date().toISOString();
+  try {
+    const { data, error } = await supabaseAdmin().from('account_restrictions')
+      .select('id').eq('user_id', user.id).eq('scope', 'login').eq('active', true)
+      .lte('starts_at', now).or(`kind.eq.permanent,ends_at.gt.${now}`).limit(1);
+    return !error && Array.isArray(data) && data.length === 0 ? user : null;
+  } catch { return null; }
+}
+
 /**
  * 从 Authorization: Bearer <token> 解析并校验用户。
  * 任何失败（无头 / token 无效 / 过期）一律返回 null（按未登录处理），
@@ -36,14 +48,14 @@ export async function getRequestUser(
   if (!token) return null;
 
   const cached = authCache.get(token);
-  if (cached && cached.expiresAt > Date.now()) return cached.user;
+  if (cached && cached.expiresAt > Date.now()) return allowedUser(cached.user);
 
   try {
     const { data, error } = await supabaseAdmin().auth.getUser(token);
     const user = error || !data?.user ? null : { id: data.user.id, email: data.user.email ?? null };
     if (authCache.size >= AUTH_CACHE_MAX_SIZE) authCache.clear();
     authCache.set(token, { user, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
-    return user;
+    return allowedUser(user);
   } catch {
     return null;
   }

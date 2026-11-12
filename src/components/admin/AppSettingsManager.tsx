@@ -5,6 +5,7 @@ import type { AppSettings } from '@/lib/types';
 import { adminFetch, extractError } from '@/lib/admin-fetch';
 import { Field, PageHeader, Notice, inputCls, textareaCls, btnPrimary } from './ui';
 import ImageUploader from './ImageUploader';
+import AdminMaintenanceSettings from '@/siteMaintenance/AdminMaintenanceSettings';
 
 const EMPTY: AppSettings = {
   site_title: '',
@@ -151,6 +152,8 @@ export default function AppSettingsManager() {
         title="全局配置"
         description="站点标题、首页大标题/副标题、顶部公告条等文案统一在此配置；留空则回退默认"
       />
+
+      <div className="mb-4"><AdminMaintenanceSettings /></div>
 
       {loadError ? (
         <div className="rounded-card border border-apple-border bg-apple-card p-6 text-center shadow-card">

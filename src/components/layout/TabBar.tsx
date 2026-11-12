@@ -35,7 +35,7 @@ const TABS: Tab[] = [
  * 这里只负责本栏特有的东西：路由匹配、两个角标、导航时的彩虹反射。
  */
 export default function TabBar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const { count } = useWishlist();
 
   // 愿望单角标依赖 localStorage，仅在客户端挂载后显示，避免 SSR 水合不一致

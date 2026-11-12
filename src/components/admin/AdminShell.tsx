@@ -114,7 +114,7 @@ const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
  * - 移动端：菜单按钮 + 右侧液态玻璃抽屉，替代原先的横向平铺
  */
 export default function AdminShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
